@@ -64,7 +64,10 @@ export default function CampaignListPage() {
             {items.map((item) => (
               <tr key={item.id} className="border-b border-[var(--border)]">
                 <td className="px-3 py-2">
-                  <Link href={`/campaigns/${item.id}`} className="font-semibold text-[var(--accent)] hover:underline">
+                  <Link
+                    href={`/campaigns/detail?id=${encodeURIComponent(item.id)}`}
+                    className="font-semibold text-[var(--accent)] hover:underline"
+                  >
                     {item.name}
                   </Link>
                 </td>

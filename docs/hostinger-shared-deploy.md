@@ -44,6 +44,27 @@ Script ne yapar:
 5. `optimize:clear` + `optimize`
 6. `public_html` yedegi alip Laravel front controller baglar
 
+## Tum Fonksiyonlar (Frontend + Backend) Canli Deploy
+
+Panel UI dahil tum akisi tek domaine almak icin:
+
+```powershell
+./scripts/deploy-hostinger-full.ps1 `
+  -ServerHost 76.13.34.119 `
+  -Port 65002 `
+  -User u473759453 `
+  -SshKey "$HOME/.ssh/adscast_deploy" `
+  -Domain adscast.castintech.com `
+  -AppUrl https://adscast.castintech.com
+```
+
+Bu script:
+
+1. Backend deploy eder (migration + optimize)
+2. Frontend'i static export olarak build eder
+3. Export ciktisini `public_html` altina yayinlar
+4. `/api/*` ve `/up` yollarini Laravel backend'e bridge eder
+
 ## Dogrulama
 
 DNS hazir olmadan lokalden test:

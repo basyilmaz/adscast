@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Card, CardTitle, CardValue } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/api";
@@ -63,15 +63,21 @@ type CampaignDetailResponse = {
   };
 };
 
-export default function CampaignDetailPage() {
-  const params = useParams<{ id: string }>();
+export function CampaignDetailClient() {
+  const searchParams = useSearchParams();
+  const campaignId = searchParams.get("id");
+  const hasCampaignId = Boolean(campaignId);
   const [data, setData] = useState<CampaignDetailResponse["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!hasCampaignId) {
+      return;
+    }
+
     const load = async () => {
       try {
-        const response = await apiRequest<CampaignDetailResponse>(`/campaigns/${params.id}`, {
+        const response = await apiRequest<CampaignDetailResponse>(`/campaigns/${campaignId as string}`, {
           requireWorkspace: true,
         });
         setData(response.data);
@@ -80,10 +86,12 @@ export default function CampaignDetailPage() {
       }
     };
 
-    if (params.id) {
-      load();
-    }
-  }, [params.id]);
+    void load();
+  }, [campaignId, hasCampaignId]);
+
+  if (!hasCampaignId) {
+    return <p className="text-sm text-[var(--danger)]">Kampanya id eksik.</p>;
+  }
 
   if (error) {
     return <p className="text-sm text-[var(--danger)]">{error}</p>;

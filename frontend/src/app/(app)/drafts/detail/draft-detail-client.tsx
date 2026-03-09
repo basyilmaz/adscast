@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,34 +28,44 @@ type DraftDetailResponse = {
   };
 };
 
-export default function DraftDetailPage() {
-  const params = useParams<{ id: string }>();
+export function DraftDetailClient() {
+  const searchParams = useSearchParams();
+  const draftId = searchParams.get("id");
+  const hasDraftId = Boolean(draftId);
   const [draft, setDraft] = useState<DraftDetailResponse["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const loadDraft = useCallback(async () => {
+    if (!hasDraftId) {
+      return;
+    }
+
     try {
-      const response = await apiRequest<DraftDetailResponse>(`/drafts/${params.id}`, {
+      const response = await apiRequest<DraftDetailResponse>(`/drafts/${draftId as string}`, {
         requireWorkspace: true,
       });
       setDraft(response.data);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Draft detayi alinamadi.");
     }
-  }, [params.id]);
+  }, [draftId, hasDraftId]);
 
   useEffect(() => {
-    if (params.id) {
-      void loadDraft();
-    }
-  }, [loadDraft, params.id]);
+    void loadDraft();
+  }, [loadDraft]);
 
   const submitForReview = async () => {
+    if (!hasDraftId) {
+      setError("Draft id eksik.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
-      await apiRequest(`/drafts/${params.id}/submit-review`, {
+      await apiRequest(`/drafts/${draftId as string}/submit-review`, {
         method: "POST",
         requireWorkspace: true,
       });
@@ -67,6 +77,7 @@ export default function DraftDetailPage() {
     }
   };
 
+  if (!hasDraftId) return <p className="text-sm text-[var(--danger)]">Draft id eksik.</p>;
   if (error) return <p className="text-sm text-[var(--danger)]">{error}</p>;
   if (!draft) return <p className="text-sm muted-text">Yukleniyor...</p>;
 

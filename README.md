@@ -59,3 +59,11 @@ Script; backend syntax/test kontrolleri, API contract temel kontrolleri ve front
 - `docs/implementation-plan.md`
 - `docs/hostinger-cloudflare-deploy.md`
 - `docs/hostinger-shared-deploy.md`
+
+## Hostinger Shared Canli Deploy
+
+Tum fonksiyonlari (frontend + backend) tek domaine yayinlamak icin:
+
+```powershell
+./scripts/deploy-hostinger-full.ps1
+```

@@ -83,3 +83,4 @@ Eger sunucuda `docker`, `sudo` veya `crontab` yoksa:
 Tekrarlanabilir kurulum icin:
 
 - `scripts/deploy-hostinger-shared.ps1`
+- `scripts/deploy-hostinger-full.ps1` (frontend static export + backend API bridge)

@@ -204,7 +204,10 @@ export default function DraftBuilderPage() {
             {loading ? "Olusturuluyor..." : "Draft Olustur"}
           </Button>
           {createdId ? (
-            <Link href={`/drafts/${createdId}`} className="text-sm font-semibold text-[var(--accent)] hover:underline">
+            <Link
+              href={`/drafts/detail?id=${encodeURIComponent(createdId)}`}
+              className="text-sm font-semibold text-[var(--accent)] hover:underline"
+            >
               Drafti Gor
             </Link>
           ) : null}
