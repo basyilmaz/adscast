@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f4ef;
+  --foreground: #1f2421;
+  --surface: #ffffff;
+  --surface-2: #edf0e8;
+  --accent: #c1532b;
+  --accent-2: #2f6f5e;
+  --muted: #647067;
+  --border: #d8ddcf;
+  --danger: #a12d2f;
+  --warning: #a8771d;
+  --success: #2a7b4f;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-ibm-plex-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-manrope), sans-serif;
+}
+
+.app-background {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 10% 20%, #ebe6d7 0%, rgba(235, 230, 215, 0) 35%),
+    radial-gradient(circle at 90% 10%, #dfe8d7 0%, rgba(223, 232, 215, 0) 30%),
+    linear-gradient(165deg, #f5f3eb 0%, #f2f4eb 48%, #f8f8f3 100%);
+}
+
+.surface-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(31, 36, 33, 0.06);
+}
+
+.muted-text {
+  color: var(--muted);
+}
+
+.badge-danger {
+  color: var(--danger);
+  background-color: rgba(161, 45, 47, 0.08);
+}
+
+.badge-warning {
+  color: var(--warning);
+  background-color: rgba(168, 119, 29, 0.1);
+}
+
+.badge-success {
+  color: var(--success);
+  background-color: rgba(42, 123, 79, 0.1);
+}

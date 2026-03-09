@@ -1,0 +1,25 @@
+# OS / editor
+desktop.ini
+Thumbs.db
+.DS_Store
+
+# Root logs
+*.log
+
+# Node / frontend
+frontend/node_modules
+frontend/.next
+frontend/out
+frontend/.env.local
+
+# Laravel / backend
+backend/vendor
+backend/node_modules
+backend/storage/*.key
+backend/storage/logs/*
+backend/bootstrap/cache/*.php
+backend/.env
+
+# Build artifacts
+coverage
+dist
