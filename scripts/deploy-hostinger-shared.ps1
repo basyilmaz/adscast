@@ -4,8 +4,7 @@ param(
     [string]$User = "u473759453",
     [string]$SshKey = "$HOME/.ssh/adscast_deploy",
     [string]$Domain = "adscast.castintech.com",
-    [string]$AppUrl = "https://adscast.castintech.com",
-    [switch]$SeedDemo
+    [string]$AppUrl = "https://adscast.castintech.com"
 )
 
 Set-StrictMode -Version Latest
@@ -14,8 +13,6 @@ $ErrorActionPreference = "Stop"
 if (-not (Test-Path $SshKey)) {
     throw "SSH key bulunamadi: $SshKey"
 }
-
-$seedFlag = if ($SeedDemo.IsPresent) { "--seed" } else { "" }
 
 $remoteScript = @'
 set -euo pipefail
@@ -123,7 +120,7 @@ VITE_APP_NAME="AdsCast"
 EOF
 fi
 
-php artisan migrate --force __SEED_FLAG__
+php artisan migrate --force
 php artisan optimize:clear
 php artisan optimize
 
@@ -167,8 +164,7 @@ echo "Kontrol URL: $APP_URL/up"
 
 $remoteScript = $remoteScript.
     Replace("__DOMAIN__", $Domain).
-    Replace("__APP_URL__", $AppUrl).
-    Replace("__SEED_FLAG__", $seedFlag)
+    Replace("__APP_URL__", $AppUrl)
 
 $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($remoteScript))
 $sshCmd = "echo $encoded | base64 -d | bash -s"

@@ -48,7 +48,7 @@
 16. Workspace context middleware yaz.
 17. Auth + tenant API endpointlerini yaz.
 18. Meta adapter interface ve versiyonlu implementasyon iskeletini yaz.
-19. Seed/factory ile demo data olustur.
+19. Seed/factory ile production-safe test datasi olustur.
 20. Feature/unit testlerin ilk setini yaz ve quality gate calistir.
 
 ## 4. Ilk Olusturulacak Dosyalar

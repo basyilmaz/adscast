@@ -102,4 +102,4 @@ git pull origin main
 
 1. Horizon bu deploymentta ayri container olarak calisir (`adscast-horizon`).
 2. Scheduler ayri container olarak `php artisan schedule:work` calistirir.
-3. `RUN_DEMO_SEED=0` oldugu surece production ortaminda demo veri basılmaz.
+3. Production ortaminda yalnizca rol/izin taban seed calistirilir; demo veri seed'i yoktur.

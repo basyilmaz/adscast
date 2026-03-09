@@ -25,7 +25,7 @@ class WorkspaceIsolationTest extends TestCase
         ]);
 
         $loginResponse = $this->postJson('/api/v1/auth/login', [
-            'email' => 'manager@adscast.local',
+            'email' => 'account.manager@adscast.test',
             'password' => 'Password123!',
         ]);
 

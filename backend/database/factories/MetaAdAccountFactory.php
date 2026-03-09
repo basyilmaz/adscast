@@ -22,7 +22,7 @@ class MetaAdAccountFactory extends Factory
             'meta_connection_id' => MetaConnection::factory(),
             'meta_business_id' => null,
             'account_id' => 'act_'.fake()->unique()->numerify('#######'),
-            'name' => 'Demo Account '.fake()->word(),
+            'name' => 'Mock Account '.fake()->word(),
             'currency' => 'USD',
             'timezone_name' => 'Europe/Istanbul',
             'status' => 'active',

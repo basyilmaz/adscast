@@ -14,8 +14,8 @@ type LoginResponse = {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("manager@adscast.local");
-  const [password, setPassword] = useState("Password123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +49,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6">
+    <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] w-full max-w-5xl items-center justify-center px-6">
       <div className="surface-card grid w-full max-w-4xl overflow-hidden md:grid-cols-2">
         <section className="bg-[var(--accent-2)]/10 p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-2)]">

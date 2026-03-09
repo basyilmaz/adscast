@@ -65,9 +65,17 @@ Write-Host "`n[5/5] Frontend build smoke" -ForegroundColor Yellow
 Push-Location $frontend
 try {
   cmd /c rmdir /s /q .next 2>$null
+  cmd /c rmdir /s /q out 2>$null
   npm run build
   if ($LASTEXITCODE -ne 0) {
-    throw "Frontend build basarisiz."
+    Write-Host "Ilk build denemesi basarisiz. Temizleyip tekrar deneniyor..." -ForegroundColor DarkYellow
+    Start-Sleep -Seconds 1
+    cmd /c rmdir /s /q .next 2>$null
+    cmd /c rmdir /s /q out 2>$null
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+      throw "Frontend build basarisiz."
+    }
   }
 }
 finally {

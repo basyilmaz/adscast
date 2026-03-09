@@ -19,13 +19,13 @@ class PermissionEnforcementTest extends TestCase
         ]);
 
         $loginResponse = $this->postJson('/api/v1/auth/login', [
-            'email' => 'client@adscast.local',
+            'email' => 'client.viewer@adscast.test',
             'password' => 'Password123!',
         ]);
 
         $token = $loginResponse->json('token');
         $workspaceId = collect($loginResponse->json('workspaces'))
-            ->firstWhere('slug', 'demo-workspace')['id'] ?? null;
+            ->firstWhere('slug', 'operations-main')['id'] ?? null;
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspaceId)

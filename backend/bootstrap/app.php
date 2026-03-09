@@ -8,6 +8,7 @@ use App\Domain\Tenants\Middleware\EnsureWorkspaceMember;
 use App\Domain\Tenants\Middleware\ResolveWorkspaceContext;
 
 return Application::configure(basePath: dirname(__DIR__))
+    ->withCommands()
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',

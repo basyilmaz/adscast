@@ -19,11 +19,11 @@ class TenantSeeder extends Seeder
     public function run(): void
     {
         $users = [
-            'super_admin@adscast.local' => ['name' => 'Platform Super Admin', 'role' => 'super_admin'],
-            'agency_admin@adscast.local' => ['name' => 'Ajans Admin', 'role' => 'agency_admin'],
-            'manager@adscast.local' => ['name' => 'Hesap Yoneticisi', 'role' => 'account_manager'],
-            'analyst@adscast.local' => ['name' => 'Performans Analisti', 'role' => 'analyst'],
-            'client@adscast.local' => ['name' => 'Musteri Izleyici', 'role' => 'client_viewer'],
+            'platform.owner@adscast.test' => ['name' => 'Platform Owner', 'role' => 'super_admin'],
+            'agency.admin@adscast.test' => ['name' => 'Ajans Admin', 'role' => 'agency_admin'],
+            'account.manager@adscast.test' => ['name' => 'Hesap Yoneticisi', 'role' => 'account_manager'],
+            'performance.analyst@adscast.test' => ['name' => 'Performans Analisti', 'role' => 'analyst'],
+            'client.viewer@adscast.test' => ['name' => 'Musteri Izleyici', 'role' => 'client_viewer'],
         ];
 
         $createdUsers = [];
@@ -42,23 +42,23 @@ class TenantSeeder extends Seeder
             );
         }
 
-        $superAdmin = $createdUsers['super_admin@adscast.local'];
+        $superAdmin = $createdUsers['platform.owner@adscast.test'];
 
         $organization = Organization::query()->firstOrCreate(
-            ['slug' => 'demo-agency'],
+            ['slug' => 'agency-main'],
             [
                 'id' => (string) Str::uuid(),
-                'name' => 'Demo Agency',
+                'name' => 'Agency Main',
                 'status' => 'active',
                 'created_by' => $superAdmin->id,
             ]
         );
 
         $workspaceMain = Workspace::query()->firstOrCreate(
-            ['organization_id' => $organization->id, 'slug' => 'demo-workspace'],
+            ['organization_id' => $organization->id, 'slug' => 'operations-main'],
             [
                 'id' => (string) Str::uuid(),
-                'name' => 'Demo Workspace',
+                'name' => 'Operations Main',
                 'timezone' => 'Europe/Istanbul',
                 'currency' => 'USD',
                 'is_active' => true,
@@ -67,10 +67,10 @@ class TenantSeeder extends Seeder
         );
 
         $workspaceAlt = Workspace::query()->firstOrCreate(
-            ['organization_id' => $organization->id, 'slug' => 'client-workspace'],
+            ['organization_id' => $organization->id, 'slug' => 'client-alpha'],
             [
                 'id' => (string) Str::uuid(),
-                'name' => 'Client Workspace',
+                'name' => 'Client Alpha',
                 'timezone' => 'Europe/Istanbul',
                 'currency' => 'USD',
                 'is_active' => true,
@@ -99,7 +99,7 @@ class TenantSeeder extends Seeder
 
         UserWorkspaceRole::query()->firstOrCreate(
             [
-                'user_id' => $createdUsers['manager@adscast.local']->id,
+                'user_id' => $createdUsers['account.manager@adscast.test']->id,
                 'workspace_id' => $workspaceAlt->id,
                 'role_id' => $managerRoleId,
             ],

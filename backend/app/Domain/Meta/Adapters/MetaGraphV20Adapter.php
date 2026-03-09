@@ -14,7 +14,7 @@ class MetaGraphV20Adapter implements MetaApiAdapter
         return [
             [
                 'account_id' => 'act_1001',
-                'name' => 'Demo Hesap TR',
+                'name' => 'Mock Hesap TR',
                 'currency' => 'USD',
                 'timezone_name' => 'Europe/Istanbul',
                 'status' => 'active',
@@ -31,7 +31,7 @@ class MetaGraphV20Adapter implements MetaApiAdapter
         return [
             [
                 'page_id' => 'pg_1001',
-                'name' => 'Demo Marka Sayfasi',
+                'name' => 'Mock Marka Sayfasi',
                 'category' => 'Brand',
                 'metadata' => ['source' => 'stub'],
             ],
@@ -43,7 +43,7 @@ class MetaGraphV20Adapter implements MetaApiAdapter
         return [
             [
                 'pixel_id' => 'px_1001',
-                'name' => 'Demo Pixel',
+                'name' => 'Mock Pixel',
                 'is_active' => true,
                 'metadata' => ['source' => 'stub'],
             ],
@@ -123,7 +123,7 @@ class MetaGraphV20Adapter implements MetaApiAdapter
                 'asset_type' => 'video',
                 'body' => 'Deneme kreatif metni',
                 'headline' => 'Hemen Incele',
-                'description' => 'Demo aciklama',
+                'description' => 'Ornek aciklama',
                 'call_to_action' => 'LEARN_MORE',
                 'destination_url' => 'https://example.com/landing',
                 'metadata' => ['source' => 'stub'],

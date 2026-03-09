@@ -4,8 +4,7 @@ param(
     [string]$User = "u473759453",
     [string]$SshKey = "$HOME/.ssh/adscast_deploy",
     [string]$Domain = "adscast.castintech.com",
-    [string]$AppUrl = "https://adscast.castintech.com",
-    [switch]$SeedDemo
+    [string]$AppUrl = "https://adscast.castintech.com"
 )
 
 Set-StrictMode -Version Latest
@@ -31,8 +30,7 @@ Write-Host "1/4 Backend deploy basliyor..." -ForegroundColor Cyan
     -User $User `
     -SshKey $SshKey `
     -Domain $Domain `
-    -AppUrl $AppUrl `
-    -SeedDemo:$SeedDemo.IsPresent
+    -AppUrl $AppUrl
 
 Write-Host "2/4 Frontend static build basliyor..." -ForegroundColor Cyan
 

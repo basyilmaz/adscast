@@ -31,8 +31,7 @@ Lokal makineden calistirin:
   -User u473759453 `
   -SshKey "$HOME/.ssh/adscast_deploy" `
   -Domain adscast.castintech.com `
-  -AppUrl https://adscast.castintech.com `
-  -SeedDemo
+  -AppUrl https://adscast.castintech.com
 ```
 
 Script ne yapar:
@@ -40,7 +39,7 @@ Script ne yapar:
 1. Repo clone/pull (`origin/main`)
 2. `composer install --no-dev`
 3. `.env` yoksa production varsayilanlari ile olusturur (SQLite + queue sync)
-4. `php artisan migrate --force` (+ `-SeedDemo` varsa seed)
+4. `php artisan migrate --force`
 5. `optimize:clear` + `optimize`
 6. `public_html` yedegi alip Laravel front controller baglar
 
@@ -83,7 +82,7 @@ API login smoke testi:
 curl --resolve adscast.castintech.com:80:76.13.34.119 \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
-  -d '{"email":"super_admin@adscast.local","password":"Password123!"}' \
+  -d '{"email":"admin@castintech.com","password":"<admin-password>"}' \
   http://adscast.castintech.com/api/v1/auth/login
 ```
 

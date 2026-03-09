@@ -27,6 +27,8 @@ php artisan migrate --seed
 php artisan serve
 ```
 
+Not: `DatabaseSeeder` yalnizca rol/izin temel verisini yukler, demo kayit olusturmaz.
+
 ### 2. Frontend
 
 ```powershell
