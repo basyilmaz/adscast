@@ -5,6 +5,7 @@ Thumbs.db
 
 # Root logs
 *.log
+.env.production
 
 # Node / frontend
 frontend/node_modules
@@ -15,6 +16,7 @@ frontend/.env.local
 # Laravel / backend
 backend/vendor
 backend/node_modules
+backend/database/database.sqlite
 backend/storage/*.key
 backend/storage/logs/*
 backend/bootstrap/cache/*.php

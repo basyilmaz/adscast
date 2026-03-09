@@ -2,8 +2,8 @@
 
 ## Hedef Topoloji
 
-- Frontend: Vercel
-- Backend API: VPS/container (Nginx + PHP-FPM)
+- Frontend: Vercel veya Hostinger container
+- Backend API: VPS/container
 - DB: PostgreSQL
 - Queue/Cache: Redis
 - Queue dashboard: Horizon (Linux ortam)
@@ -33,6 +33,25 @@ Frontend:
 5. Queue worker/Horizon ayaga kaldir
 6. Scheduler icin cron:
    - `* * * * * php /path/to/artisan schedule:run >> /dev/null 2>&1`
+
+## Docker Compose (Hostinger Cloud Startup)
+
+Repoda production compose dosyasi bulunur:
+
+- `docker-compose.prod.yml`
+- `infra/docker/backend/Dockerfile`
+- `infra/docker/frontend/Dockerfile`
+- `infra/nginx/adscast.conf`
+
+Calistirma:
+
+1. `.env.production.example` -> `.env.production` kopyala
+2. Degiskenleri doldur
+3. `./scripts/deploy-prod.sh`
+
+Detayli rehber:
+
+- `docs/hostinger-cloudflare-deploy.md`
 
 ## Frontend Deploy Adimlari
 

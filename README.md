@@ -57,3 +57,4 @@ Script; backend syntax/test kontrolleri, API contract temel kontrolleri ve front
 - `docs/roadmap.md`
 - `docs/api-routes.md`
 - `docs/implementation-plan.md`
+- `docs/hostinger-cloudflare-deploy.md`
