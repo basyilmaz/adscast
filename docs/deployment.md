@@ -52,6 +52,7 @@ Calistirma:
 Detayli rehber:
 
 - `docs/hostinger-cloudflare-deploy.md`
+- `docs/hostinger-shared-deploy.md` (Docker/root olmayan shared-lite ortamlar)
 
 ## Frontend Deploy Adimlari
 
@@ -69,3 +70,16 @@ Lokal Windows ortaminda `pcntl/posix` extension eksikligi nedeniyle Horizon cali
 - Meta publish akisinda adapter seviyesinde scaffold/stub mevcut
 - Gelismis breakdown raporlari sonraki fazda
 - Billing sistemi MVP disi
+
+## Shared Hosting Notu
+
+Eger sunucuda `docker`, `sudo` veya `crontab` yoksa:
+
+1. Laravel backend `public_html` bridge modeli ile yayinlanir
+2. DB icin gecici olarak SQLite kullanilabilir
+3. Queue `sync` modda calistirilir
+4. Cron isleri panel uzerinden tanimlanir
+
+Tekrarlanabilir kurulum icin:
+
+- `scripts/deploy-hostinger-shared.ps1`
