@@ -78,8 +78,11 @@ return new class extends Migration
             $table->timestamp('synced_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['workspace_id', 'level', 'entity_external_id', 'date', 'source']);
-            $table->index(['workspace_id', 'date', 'level']);
+            $table->unique(
+                ['workspace_id', 'level', 'entity_external_id', 'date', 'source'],
+                'insight_daily_scope_unique',
+            );
+            $table->index(['workspace_id', 'date', 'level'], 'insight_daily_ws_date_level_idx');
             $table->foreign('workspace_id')->references('id')->on('workspaces')->cascadeOnDelete();
         });
     }
