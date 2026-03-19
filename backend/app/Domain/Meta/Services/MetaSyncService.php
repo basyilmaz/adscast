@@ -8,6 +8,7 @@ use App\Models\Campaign;
 use App\Models\Creative;
 use App\Models\InsightDaily;
 use App\Models\MetaAdAccount;
+use App\Models\MetaBusiness;
 use App\Models\MetaConnection;
 use App\Models\MetaPage;
 use App\Models\MetaPixel;
@@ -15,7 +16,7 @@ use App\Models\RawApiPayload;
 use App\Models\SyncRun;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -49,7 +50,8 @@ class MetaSyncService
             $this->storeRawPayload($syncRun, $connection, 'list_pages', $pages);
             $this->storeRawPayload($syncRun, $connection, 'list_pixels', $pixels);
 
-            $accountCount = $this->upsertAdAccounts($connection, $accounts);
+            $businessIdMap = $this->upsertBusinesses($connection, $accounts);
+            $accountCount = $this->upsertAdAccounts($connection, $accounts, $businessIdMap);
             $pageCount = $this->upsertPages($connection, $pages);
             $pixelCount = $this->upsertPixels($connection, $pixels);
 
@@ -89,6 +91,7 @@ class MetaSyncService
                 'status' => 'completed',
                 'finished_at' => now(),
                 'summary' => [
+                    'businesses' => count($businessIdMap),
                     'accounts' => $accountCount,
                     'pages' => $pageCount,
                     'pixels' => $pixelCount,
@@ -171,7 +174,7 @@ class MetaSyncService
                     'purchases' => $item['purchases'] ?? null,
                     'roas' => $item['roas'] ?? null,
                     'conversions' => $item['conversions'] ?? null,
-                    'actions' => $item['actions'] ?? null,
+                    'actions' => $this->encodeJson($item['actions'] ?? null),
                     'source' => $item['source'] ?? 'meta',
                     'synced_at' => now(),
                     'created_at' => now(),
@@ -235,20 +238,72 @@ class MetaSyncService
 
     /**
      * @param array<int, array<string, mixed>> $accounts
+     * @return array<string, string>
      */
-    private function upsertAdAccounts(MetaConnection $connection, array $accounts): int
+    private function upsertBusinesses(MetaConnection $connection, array $accounts): array
+    {
+        $rows = [];
+
+        foreach ($accounts as $item) {
+            $businessId = data_get($item, 'business.business_id');
+
+            if (! is_string($businessId) || $businessId === '') {
+                continue;
+            }
+
+            $rows[$businessId] = [
+                'id' => (string) Str::uuid(),
+                'workspace_id' => $connection->workspace_id,
+                'meta_connection_id' => $connection->id,
+                'business_id' => $businessId,
+                'name' => data_get($item, 'business.name', 'Unknown business'),
+                'verification_status' => data_get($item, 'business.verification_status'),
+                'metadata' => $this->encodeJson([
+                    'source' => data_get($item, 'metadata.source'),
+                ]),
+                'last_synced_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        if ($rows !== []) {
+            MetaBusiness::query()->upsert(
+                array_values($rows),
+                ['workspace_id', 'business_id'],
+                ['name', 'verification_status', 'metadata', 'last_synced_at', 'updated_at']
+            );
+        }
+
+        if ($rows === []) {
+            return [];
+        }
+
+        return MetaBusiness::query()
+            ->where('workspace_id', $connection->workspace_id)
+            ->whereIn('business_id', array_keys($rows))
+            ->pluck('id', 'business_id')
+            ->toArray();
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $accounts
+     * @param array<string, string> $businessIdMap
+     */
+    private function upsertAdAccounts(MetaConnection $connection, array $accounts, array $businessIdMap): int
     {
         $rows = array_map(fn (array $item): array => [
             'id' => (string) Str::uuid(),
             'workspace_id' => $connection->workspace_id,
             'meta_connection_id' => $connection->id,
+            'meta_business_id' => $businessIdMap[data_get($item, 'business.business_id', '')] ?? null,
             'account_id' => $item['account_id'],
             'name' => $item['name'],
             'currency' => $item['currency'] ?? null,
             'timezone_name' => $item['timezone_name'] ?? null,
             'status' => $item['status'] ?? 'active',
             'is_active' => $item['is_active'] ?? true,
-            'metadata' => $item['metadata'] ?? null,
+            'metadata' => $this->encodeJson($item['metadata'] ?? null),
             'last_synced_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),
@@ -258,7 +313,7 @@ class MetaSyncService
             MetaAdAccount::query()->upsert(
                 $rows,
                 ['workspace_id', 'account_id'],
-                ['name', 'currency', 'timezone_name', 'status', 'is_active', 'metadata', 'last_synced_at', 'updated_at']
+                ['meta_business_id', 'name', 'currency', 'timezone_name', 'status', 'is_active', 'metadata', 'last_synced_at', 'updated_at']
             );
         }
 
@@ -277,7 +332,10 @@ class MetaSyncService
             'page_id' => $item['page_id'],
             'name' => $item['name'],
             'category' => $item['category'] ?? null,
-            'metadata' => $item['metadata'] ?? null,
+            'access_token_encrypted' => filled($item['page_access_token'] ?? null)
+                ? Crypt::encryptString((string) $item['page_access_token'])
+                : null,
+            'metadata' => $this->encodeJson($item['metadata'] ?? null),
             'last_synced_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),
@@ -287,7 +345,7 @@ class MetaSyncService
             MetaPage::query()->upsert(
                 $rows,
                 ['workspace_id', 'page_id'],
-                ['name', 'category', 'metadata', 'last_synced_at', 'updated_at']
+                ['name', 'category', 'access_token_encrypted', 'metadata', 'last_synced_at', 'updated_at']
             );
         }
 
@@ -306,7 +364,7 @@ class MetaSyncService
             'pixel_id' => $item['pixel_id'],
             'name' => $item['name'],
             'is_active' => $item['is_active'] ?? true,
-            'metadata' => $item['metadata'] ?? null,
+            'metadata' => $this->encodeJson($item['metadata'] ?? null),
             'last_synced_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),
@@ -343,7 +401,7 @@ class MetaSyncService
             'start_time' => isset($item['start_time']) ? Carbon::parse($item['start_time']) : null,
             'stop_time' => isset($item['stop_time']) ? Carbon::parse($item['stop_time']) : null,
             'is_active' => $item['is_active'] ?? true,
-            'metadata' => $item['metadata'] ?? null,
+            'metadata' => $this->encodeJson($item['metadata'] ?? null),
             'last_synced_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),
@@ -417,8 +475,10 @@ class MetaSyncService
                 'bid_strategy' => $item['bid_strategy'] ?? null,
                 'daily_budget' => $item['daily_budget'] ?? null,
                 'lifetime_budget' => $item['lifetime_budget'] ?? null,
-                'targeting' => $item['targeting'] ?? null,
-                'metadata' => $item['metadata'] ?? null,
+                'start_time' => isset($item['start_time']) ? Carbon::parse($item['start_time']) : null,
+                'stop_time' => isset($item['stop_time']) ? Carbon::parse($item['stop_time']) : null,
+                'targeting' => $this->encodeJson($item['targeting'] ?? null),
+                'metadata' => $this->encodeJson($item['metadata'] ?? null),
                 'last_synced_at' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -439,6 +499,8 @@ class MetaSyncService
                     'bid_strategy',
                     'daily_budget',
                     'lifetime_budget',
+                    'start_time',
+                    'stop_time',
                     'targeting',
                     'metadata',
                     'last_synced_at',
@@ -467,7 +529,7 @@ class MetaSyncService
             'description' => $item['description'] ?? null,
             'call_to_action' => $item['call_to_action'] ?? null,
             'destination_url' => $item['destination_url'] ?? null,
-            'metadata' => $item['metadata'] ?? null,
+            'metadata' => $this->encodeJson($item['metadata'] ?? null),
             'last_synced_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),
@@ -544,7 +606,7 @@ class MetaSyncService
                 'status' => $item['status'] ?? 'active',
                 'effective_status' => $item['effective_status'] ?? null,
                 'preview_url' => $item['preview_url'] ?? null,
-                'metadata' => $item['metadata'] ?? null,
+                'metadata' => $this->encodeJson($item['metadata'] ?? null),
                 'last_synced_at' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -583,6 +645,7 @@ class MetaSyncService
         array $payload,
     ): void {
         $serializedPayload = json_encode($payload, JSON_THROW_ON_ERROR);
+        $sanitizedPayload = $this->sanitizePayload($payload);
 
         RawApiPayload::query()->create([
             'workspace_id' => $connection->workspace_id,
@@ -590,10 +653,48 @@ class MetaSyncService
             'sync_run_id' => $syncRun->id,
             'resource_type' => $resourceType,
             'resource_key' => $syncRun->request_fingerprint,
-            'payload' => $payload,
+            'payload' => $sanitizedPayload,
             'payload_hash' => hash('sha256', $serializedPayload),
             'captured_at' => now(),
-            'expires_at' => now()->addDays(90),
+            'expires_at' => now()->addDays((int) config('services.meta.raw_payload_retention_days', 90)),
         ]);
+    }
+
+    /**
+     * @param array<int|string, mixed> $payload
+     * @return array<int|string, mixed>
+     */
+    private function sanitizePayload(array $payload): array
+    {
+        $sensitiveKeys = [
+            'access_token',
+            'refresh_token',
+            'page_access_token',
+            'token',
+        ];
+
+        $sanitized = [];
+
+        foreach ($payload as $key => $value) {
+            if (is_string($key) && in_array($key, $sensitiveKeys, true)) {
+                $sanitized[$key] = '[masked]';
+                continue;
+            }
+
+            $sanitized[$key] = is_array($value)
+                ? $this->sanitizePayload($value)
+                : $value;
+        }
+
+        return $sanitized;
+    }
+
+    private function encodeJson(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return json_encode($value, JSON_THROW_ON_ERROR);
     }
 }

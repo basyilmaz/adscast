@@ -19,6 +19,8 @@ Backend:
 - `QUEUE_CONNECTION=redis`
 - `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
 - `META_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI`
+- `META_MODE=live|stub`
+- `META_GRAPH_BASE_URL`, `META_RAW_PAYLOAD_RETENTION_DAYS`
 - `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`
 
 Frontend:
@@ -33,9 +35,13 @@ Frontend:
 3. `php artisan migrate --force`
 4. Ilk tenant/workspace bootstrap:
    - `php artisan adscast:bootstrap-workspace --admin-email=admin@castintech.com --admin-password=<strong-password> --force`
-5. `php artisan config:cache && php artisan route:cache`
-6. Queue worker/Horizon ayaga kaldir
-7. Scheduler icin cron:
+5. Meta connector modu:
+   - production: `META_MODE=live`
+   - local/test: `META_MODE=stub`
+   - manuel access token akisi icin `META_APP_ID` zorunlu degil, OAuth callback fazi icin gereklidir
+6. `php artisan config:cache && php artisan route:cache`
+7. Queue worker/Horizon ayaga kaldir
+8. Scheduler icin cron:
    - `* * * * * php /path/to/artisan schedule:run >> /dev/null 2>&1`
 
 ## Docker Compose (Hostinger Cloud Startup)

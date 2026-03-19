@@ -36,6 +36,9 @@ return [
         'app_secret' => env('META_APP_SECRET'),
         'redirect_uri' => env('META_REDIRECT_URI'),
         'default_api_version' => env('META_API_VERSION', 'v20.0'),
+        'mode' => env('META_MODE', env('APP_ENV') === 'production' ? 'live' : 'stub'),
+        'graph_base_url' => env('META_GRAPH_BASE_URL', 'https://graph.facebook.com'),
+        'raw_payload_retention_days' => (int) env('META_RAW_PAYLOAD_RETENTION_DAYS', 90),
     ],
 
     'ai' => [

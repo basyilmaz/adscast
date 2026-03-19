@@ -47,6 +47,13 @@ Script ne yapar:
 
 Shared ortamda production icin `DB_PREFIX` ile ortak veritabani kullanmak yerine hPanel uzerinden ayrik bir MySQL veritabani acilmasi onerilir.
 
+Meta connector icin pratik ayar:
+
+- `META_MODE=live`
+- `META_GRAPH_BASE_URL=https://graph.facebook.com`
+- `META_RAW_PAYLOAD_RETENTION_DAYS=90`
+- Manuel access token ile baglaniyorsaniz `META_APP_ID` / `META_APP_SECRET` beklenmeden sync akisi calisabilir
+
 Ilk kurulumdan sonra bootstrap komutu ile tenant olusturulabilir:
 
 ```bash

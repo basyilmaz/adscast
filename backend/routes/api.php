@@ -47,6 +47,8 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('workspace.permission:reporting.view');
 
             Route::prefix('meta')->group(function (): void {
+                Route::get('/connector-status', [MetaConnectionController::class, 'connectorStatus'])
+                    ->middleware('workspace.permission:meta.manage');
                 Route::get('/connections', [MetaConnectionController::class, 'index'])
                     ->middleware('workspace.permission:meta.manage');
                 Route::get('/ad-accounts', [MetaConnectionController::class, 'adAccounts'])

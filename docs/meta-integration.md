@@ -64,6 +64,8 @@ Bu dokuman, AdsCast icin Meta entegrasyonunun teknik sinirlarini ve MVP kapsamin
 MVP kapsaminda:
 
 - Connection kaydi acma/yenileme/iptal altyapisi
+- Workspace bazli connector preflight/status endpointi
+- Manuel access token ile baglanti kaydi ve canli token dogrulama
 - Ad account/page/pixel listeleme
 - Campaign/ad set/ad/creative sync
 - Daily insights sync
@@ -84,3 +86,12 @@ Sonraki faz:
 2. Workspace isolation middleware zorunlu.
 3. Audit ve AI generation kayitlari immutable operasyonel iz birakir.
 4. Publish adiminda approval bypass edilmez.
+
+## 11. Uygulama Notlari (Mevcut Implementasyon)
+
+1. Backend `META_MODE=live|stub` ile calisir.
+2. Production icin varsayilan mod `live`, test/local icin varsayilan mod `stub`.
+3. `GET /api/v1/meta/connector-status` endpoint'i workspace baglaminda app-level Meta hazirligini raporlar.
+4. `POST /api/v1/meta/connections` canli modda `me` ve `me/permissions` cagrilari ile tokeni kayit oncesi dogrular.
+5. Asset sync canli modda normalize edilmis `meta_businesses`, `meta_ad_accounts`, `meta_pages`, `meta_pixels`, `campaigns`, `ad_sets`, `ads`, `creatives` kayitlarini uretir.
+6. `raw_api_payloads` yaziminda token benzeri alanlar maskeleme kuralindan gecer.

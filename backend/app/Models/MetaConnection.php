@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Crypt;
+use Throwable;
 
 class MetaConnection extends BaseModel
 {
@@ -62,5 +64,23 @@ class MetaConnection extends BaseModel
     public function pixels(): HasMany
     {
         return $this->hasMany(MetaPixel::class);
+    }
+
+    public function hasAccessToken(): bool
+    {
+        return filled($this->access_token_encrypted);
+    }
+
+    public function decryptAccessToken(): ?string
+    {
+        if (! $this->hasAccessToken()) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($this->access_token_encrypted);
+        } catch (Throwable) {
+            return null;
+        }
     }
 }

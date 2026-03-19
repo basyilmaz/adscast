@@ -5,6 +5,7 @@ namespace App\Domain\Meta\Http\Controllers;
 use App\Domain\Audit\Services\AuditLogService;
 use App\Domain\Meta\Http\Requests\StoreMetaConnectionRequest;
 use App\Domain\Meta\Http\Resources\MetaConnectionResource;
+use App\Domain\Meta\Services\MetaConnectorStatusService;
 use App\Domain\Meta\Services\MetaConnectionService;
 use App\Domain\Tenants\Support\WorkspaceContext;
 use App\Models\MetaAdAccount;
@@ -16,8 +17,16 @@ class MetaConnectionController
 {
     public function __construct(
         private readonly MetaConnectionService $connectionService,
+        private readonly MetaConnectorStatusService $connectorStatusService,
         private readonly AuditLogService $auditLogService,
     ) {
+    }
+
+    public function connectorStatus(): JsonResponse
+    {
+        return new JsonResponse([
+            'data' => $this->connectorStatusService->describe(),
+        ]);
     }
 
     public function index(Request $request): JsonResponse
@@ -26,6 +35,7 @@ class MetaConnectionController
 
         $connections = MetaConnection::query()
             ->where('workspace_id', $workspaceId)
+            ->withCount(['adAccounts', 'pages', 'pixels', 'businesses'])
             ->latest()
             ->get();
 
@@ -55,12 +65,13 @@ class MetaConnectionController
             metadata: [
                 'provider' => $connection->provider,
                 'api_version' => $connection->api_version,
+                'connection_mode' => data_get($connection->metadata, 'connection_mode'),
             ],
         );
 
         return new JsonResponse([
             'message' => 'Meta baglantisi kaydedildi.',
-            'data' => MetaConnectionResource::make($connection),
+            'data' => MetaConnectionResource::make($connection->loadCount(['adAccounts', 'pages', 'pixels', 'businesses'])),
         ], 201);
     }
 

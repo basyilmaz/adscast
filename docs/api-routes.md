@@ -23,6 +23,7 @@ Base path: `/api/v1`
 
 ## Meta Connector
 
+- `GET /meta/connector-status`
 - `GET /meta/connections`
 - `POST /meta/connections`
 - `POST /meta/connections/{connectionId}/revoke`
