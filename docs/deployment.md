@@ -4,7 +4,7 @@
 
 - Frontend: Vercel veya Hostinger container
 - Backend API: VPS/container
-- DB: PostgreSQL
+- DB: MySQL veya PostgreSQL
 - Queue/Cache: Redis
 - Queue dashboard: Horizon (Linux ortam)
 
@@ -13,7 +13,9 @@
 Backend:
 
 - `APP_ENV`, `APP_KEY`, `APP_URL`
-- `DB_CONNECTION=pgsql` + PG host/port/db/user/pass
+- `DB_CONNECTION=mysql|pgsql`
+- MySQL icin `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
+- PostgreSQL icin PG host/port/db/user/pass
 - `QUEUE_CONNECTION=redis`
 - `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
 - `META_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI`
@@ -29,9 +31,11 @@ Frontend:
 1. `composer install --no-dev --optimize-autoloader`
 2. `php artisan key:generate` (ilk kurulum)
 3. `php artisan migrate --force`
-4. `php artisan config:cache && php artisan route:cache`
-5. Queue worker/Horizon ayaga kaldir
-6. Scheduler icin cron:
+4. Ilk tenant/workspace bootstrap:
+   - `php artisan adscast:bootstrap-workspace --admin-email=admin@castintech.com --admin-password=<strong-password> --force`
+5. `php artisan config:cache && php artisan route:cache`
+6. Queue worker/Horizon ayaga kaldir
+7. Scheduler icin cron:
    - `* * * * * php /path/to/artisan schedule:run >> /dev/null 2>&1`
 
 ## Docker Compose (Hostinger Cloud Startup)
@@ -76,7 +80,7 @@ Lokal Windows ortaminda `pcntl/posix` extension eksikligi nedeniyle Horizon cali
 Eger sunucuda `docker`, `sudo` veya `crontab` yoksa:
 
 1. Laravel backend `public_html` bridge modeli ile yayinlanir
-2. DB icin gecici olarak SQLite kullanilabilir
+2. Hostinger hPanel uzerinden ayrik bir MySQL veritabani acilir
 3. Queue `sync` modda calistirilir
 4. Cron isleri panel uzerinden tanimlanir
 

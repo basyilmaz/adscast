@@ -38,10 +38,28 @@ Script ne yapar:
 
 1. Repo clone/pull (`origin/main`)
 2. `composer install --no-dev`
-3. `.env` yoksa production varsayilanlari ile olusturur (SQLite + queue sync)
+3. `.env` yoksa production varsayilanlari ile olusturur
 4. `php artisan migrate --force`
 5. `optimize:clear` + `optimize`
 6. `public_html` yedegi alip Laravel front controller baglar
+
+## Ayrik MySQL Tavsiyesi
+
+Shared ortamda production icin `DB_PREFIX` ile ortak veritabani kullanmak yerine hPanel uzerinden ayrik bir MySQL veritabani acilmasi onerilir.
+
+Ilk kurulumdan sonra bootstrap komutu ile tenant olusturulabilir:
+
+```bash
+php artisan adscast:bootstrap-workspace \
+  --admin-email=admin@castintech.com \
+  --admin-password='<strong-password>' \
+  --organization-name='Castintech' \
+  --organization-slug=castintech \
+  --workspace-name='Castintech Main' \
+  --workspace-slug=castintech-main \
+  --currency=TRY \
+  --force
+```
 
 ## Tum Fonksiyonlar (Frontend + Backend) Canli Deploy
 
