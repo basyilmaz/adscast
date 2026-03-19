@@ -51,8 +51,12 @@ Meta connector icin pratik ayar:
 
 - `META_MODE=live`
 - `META_GRAPH_BASE_URL=https://graph.facebook.com`
+- `META_DIALOG_BASE_URL=https://www.facebook.com`
 - `META_RAW_PAYLOAD_RETENTION_DAYS=90`
+- `META_OAUTH_STATE_TTL_MINUTES=10`
+- `META_SCOPES=ads_read,business_management,pages_show_list`
 - Manuel access token ile baglaniyorsaniz `META_APP_ID` / `META_APP_SECRET` beklenmeden sync akisi calisabilir
+- OAuth kullanacaksaniz `META_REDIRECT_URI=https://adscast.castintech.com/settings/meta/callback` ile Meta app panelindeki callback URI birebir ayni olmalidir
 
 Ilk kurulumdan sonra bootstrap komutu ile tenant olusturulabilir:
 

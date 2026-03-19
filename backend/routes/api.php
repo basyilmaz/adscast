@@ -7,6 +7,7 @@ use App\Domain\Audit\Http\Controllers\AuditLogController;
 use App\Domain\Auth\Http\Controllers\AuthController;
 use App\Domain\Drafts\Http\Controllers\CampaignDraftController;
 use App\Domain\Meta\Http\Controllers\MetaConnectionController;
+use App\Domain\Meta\Http\Controllers\MetaOAuthController;
 use App\Domain\Meta\Http\Controllers\MetaSyncController;
 use App\Domain\Meta\Http\Controllers\MetaWebhookController;
 use App\Domain\Reporting\Http\Controllers\CampaignController;
@@ -48,6 +49,10 @@ Route::prefix('v1')->group(function (): void {
 
             Route::prefix('meta')->group(function (): void {
                 Route::get('/connector-status', [MetaConnectionController::class, 'connectorStatus'])
+                    ->middleware('workspace.permission:meta.manage');
+                Route::get('/oauth/start', [MetaOAuthController::class, 'start'])
+                    ->middleware('workspace.permission:meta.manage');
+                Route::post('/oauth/exchange', [MetaOAuthController::class, 'exchange'])
                     ->middleware('workspace.permission:meta.manage');
                 Route::get('/connections', [MetaConnectionController::class, 'index'])
                     ->middleware('workspace.permission:meta.manage');

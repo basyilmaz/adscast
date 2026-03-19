@@ -15,6 +15,7 @@ const requiredPages = [
   "src/app/(app)/approvals/page.tsx",
   "src/app/(app)/audit-logs/page.tsx",
   "src/app/(app)/settings/meta/page.tsx",
+  "src/app/(app)/settings/meta/callback/page.tsx",
 ];
 
 const missing = requiredPages.filter((relativePath) => {

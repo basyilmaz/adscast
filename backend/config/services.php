@@ -38,7 +38,13 @@ return [
         'default_api_version' => env('META_API_VERSION', 'v20.0'),
         'mode' => env('META_MODE', env('APP_ENV') === 'production' ? 'live' : 'stub'),
         'graph_base_url' => env('META_GRAPH_BASE_URL', 'https://graph.facebook.com'),
+        'dialog_base_url' => env('META_DIALOG_BASE_URL', 'https://www.facebook.com'),
         'raw_payload_retention_days' => (int) env('META_RAW_PAYLOAD_RETENTION_DAYS', 90),
+        'oauth_state_ttl_minutes' => (int) env('META_OAUTH_STATE_TTL_MINUTES', 10),
+        'scopes' => array_values(array_filter(array_map(
+            static fn (string $scope): string => trim($scope),
+            explode(',', (string) env('META_SCOPES', 'ads_read,business_management,pages_show_list'))
+        ))),
     ],
 
     'ai' => [

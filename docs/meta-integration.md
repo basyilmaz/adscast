@@ -8,6 +8,7 @@ Bu dokuman, AdsCast icin Meta entegrasyonunun teknik sinirlarini ve MVP kapsamin
 2. Short-lived token, backend tarafinda secure exchange ile long-lived tokena cevrilir.
 3. Workspace ile iliskili tekil `meta_connections` kaydi tutulur.
 4. Cagri yetkisi bu baglanti kaydi uzerinden saglanir; UI token bilmez.
+5. Mevcut implementasyonda redirect frontend callback sayfasina gelir; frontend `code/state` bilgisini backend exchange endpoint'ine teslim eder.
 
 ## 2. Token Saklama Stratejisi
 
@@ -95,3 +96,5 @@ Sonraki faz:
 4. `POST /api/v1/meta/connections` canli modda `me` ve `me/permissions` cagrilari ile tokeni kayit oncesi dogrular.
 5. Asset sync canli modda normalize edilmis `meta_businesses`, `meta_ad_accounts`, `meta_pages`, `meta_pixels`, `campaigns`, `ad_sets`, `ads`, `creatives` kayitlarini uretir.
 6. `raw_api_payloads` yaziminda token benzeri alanlar maskeleme kuralindan gecer.
+7. `GET /api/v1/meta/oauth/start` state uretir ve auth URL doner.
+8. `POST /api/v1/meta/oauth/exchange` code -> short-lived token -> long-lived token zincirini calistirir ve `meta_connections` kaydini gunceller.

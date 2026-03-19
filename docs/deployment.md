@@ -20,7 +20,8 @@ Backend:
 - `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
 - `META_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI`
 - `META_MODE=live|stub`
-- `META_GRAPH_BASE_URL`, `META_RAW_PAYLOAD_RETENTION_DAYS`
+- `META_GRAPH_BASE_URL`, `META_DIALOG_BASE_URL`
+- `META_RAW_PAYLOAD_RETENTION_DAYS`, `META_OAUTH_STATE_TTL_MINUTES`, `META_SCOPES`
 - `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`
 
 Frontend:
@@ -39,6 +40,7 @@ Frontend:
    - production: `META_MODE=live`
    - local/test: `META_MODE=stub`
    - manuel access token akisi icin `META_APP_ID` zorunlu degil, OAuth callback fazi icin gereklidir
+   - OAuth callback redirect URI frontend route ile eslesmelidir: `/settings/meta/callback`
 6. `php artisan config:cache && php artisan route:cache`
 7. Queue worker/Horizon ayaga kaldir
 8. Scheduler icin cron:

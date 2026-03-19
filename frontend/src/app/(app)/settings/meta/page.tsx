@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/api";
+import { setMetaOAuthState } from "@/lib/session";
 
 type Connection = {
   id: string;
@@ -47,6 +48,7 @@ export default function MetaSettingsPage() {
   const [accessToken, setAccessToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
 
   const loadConnections = async () => {
     try {
@@ -110,6 +112,23 @@ export default function MetaSettingsPage() {
     }
   };
 
+  const startOAuth = async () => {
+    setOauthLoading(true);
+    setError(null);
+
+    try {
+      const response = await apiRequest<{ data: { auth_url: string; state: string } }>("/meta/oauth/start", {
+        requireWorkspace: true,
+      });
+
+      setMetaOAuthState(response.data.state);
+      window.location.assign(response.data.auth_url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Meta OAuth baslatilamadi.");
+      setOauthLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -162,8 +181,22 @@ export default function MetaSettingsPage() {
       <Card>
         <h4 className="text-sm font-bold uppercase tracking-wide">Meta Baglantisi Ekle/Guncelle</h4>
         <p className="mt-2 text-sm muted-text">
-          Bu fazda manuel user access token ile baglanti kaydedilir. Canli modda token kayit oncesi dogrulanir.
+          OAuth hazirsa Meta login akisini, degilse manuel user access token akisini kullanin. Canli modda tum tokenlar kayit oncesi dogrulanir.
         </p>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <Button
+            type="button"
+            onClick={startOAuth}
+            disabled={oauthLoading || !connectorStatus?.oauth_ready}
+          >
+            {oauthLoading ? "Yonlendiriliyor..." : "Meta ile Baglan"}
+          </Button>
+          {!connectorStatus?.oauth_ready ? (
+            <p className="text-sm muted-text">
+              OAuth butonu icin App ID, App Secret ve Redirect URI eksiksiz olmali.
+            </p>
+          ) : null}
+        </div>
         <form onSubmit={onSaveConnection} className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
           <div className="flex-1">
             <label className="mb-1 block text-sm font-semibold">Access Token</label>
