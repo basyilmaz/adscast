@@ -2,6 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 const requiredPages = [
+  "src/app/privacy/page.tsx",
+  "src/app/terms/page.tsx",
+  "src/app/data-deletion/page.tsx",
   "src/app/(auth)/login/page.tsx",
   "src/app/(app)/workspaces/page.tsx",
   "src/app/(app)/dashboard/page.tsx",
