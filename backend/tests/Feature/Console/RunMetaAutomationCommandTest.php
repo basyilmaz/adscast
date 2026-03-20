@@ -4,6 +4,7 @@ namespace Tests\Feature\Console;
 
 use App\Models\AIGeneration;
 use App\Models\Alert;
+use App\Models\AuditLog;
 use App\Models\MetaConnection;
 use App\Models\Recommendation;
 use App\Models\SyncRun;
@@ -41,6 +42,10 @@ class RunMetaAutomationCommandTest extends TestCase
         $this->assertGreaterThan(0, Alert::query()->where('workspace_id', $workspace->id)->count());
         $this->assertGreaterThan(0, Recommendation::query()->where('workspace_id', $workspace->id)->count());
         $this->assertGreaterThan(0, AIGeneration::query()->where('workspace_id', $workspace->id)->count());
+        $this->assertDatabaseHas('audit_logs', [
+            'workspace_id' => $workspace->id,
+            'action' => 'recommendation_generated',
+        ]);
     }
 
     public function test_it_skips_recent_steps_without_force(): void
@@ -95,5 +100,6 @@ class RunMetaAutomationCommandTest extends TestCase
         $this->assertSame(1, SyncRun::query()->where('meta_connection_id', $connection->id)->where('type', 'asset_sync')->count());
         $this->assertSame(1, SyncRun::query()->where('meta_connection_id', $connection->id)->where('type', 'insights_daily_sync')->count());
         $this->assertSame(1, AIGeneration::query()->where('workspace_id', $workspace->id)->count());
+        $this->assertSame(0, AuditLog::query()->where('workspace_id', $workspace->id)->where('action', 'recommendation_generated')->count());
     }
 }

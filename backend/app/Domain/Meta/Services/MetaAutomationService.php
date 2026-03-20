@@ -184,6 +184,19 @@ class MetaAutomationService
                 $result['recommendation_generations'] = 1;
                 $result['recommendation_id'] = $recommendation['recommendation']->id;
                 $result['ai_generation_id'] = $recommendation['generation']->id;
+
+                $this->auditLogService->log(
+                    actor: null,
+                    action: 'recommendation_generated',
+                    targetType: 'ai_generation',
+                    targetId: $recommendation['generation']->id,
+                    organizationId: $workspace->organization_id,
+                    workspaceId: $workspace->id,
+                    metadata: [
+                        'source' => 'scheduler',
+                        'recommendation_id' => $recommendation['recommendation']->id,
+                    ],
+                );
             } else {
                 $result['skipped_steps'][] = 'recommendations';
             }
