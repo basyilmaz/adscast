@@ -11,6 +11,8 @@ const requiredPages = [
   "src/app/(app)/ad-accounts/page.tsx",
   "src/app/(app)/campaigns/page.tsx",
   "src/app/(app)/campaigns/detail/page.tsx",
+  "src/app/(app)/ad-sets/detail/page.tsx",
+  "src/app/(app)/ads/detail/page.tsx",
   "src/app/(app)/alerts/page.tsx",
   "src/app/(app)/recommendations/page.tsx",
   "src/app/(app)/draft-builder/page.tsx",

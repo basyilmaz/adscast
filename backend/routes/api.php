@@ -10,6 +10,8 @@ use App\Domain\Meta\Http\Controllers\MetaConnectionController;
 use App\Domain\Meta\Http\Controllers\MetaOAuthController;
 use App\Domain\Meta\Http\Controllers\MetaSyncController;
 use App\Domain\Meta\Http\Controllers\MetaWebhookController;
+use App\Domain\Reporting\Http\Controllers\AdController;
+use App\Domain\Reporting\Http\Controllers\AdSetController;
 use App\Domain\Reporting\Http\Controllers\CampaignController;
 use App\Domain\Reporting\Http\Controllers\DashboardController;
 use App\Domain\Reporting\Http\Controllers\ExportController;
@@ -43,6 +45,10 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/campaigns', [CampaignController::class, 'index'])
                 ->middleware('workspace.permission:reporting.view');
             Route::get('/campaigns/{campaignId}', [CampaignController::class, 'show'])
+                ->middleware('workspace.permission:reporting.view');
+            Route::get('/ad-sets/{adSetId}', [AdSetController::class, 'show'])
+                ->middleware('workspace.permission:reporting.view');
+            Route::get('/ads/{adId}', [AdController::class, 'show'])
                 ->middleware('workspace.permission:reporting.view');
             Route::get('/exports/campaigns.csv', [ExportController::class, 'campaignsCsv'])
                 ->middleware('workspace.permission:reporting.view');

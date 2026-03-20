@@ -132,6 +132,372 @@ export type AdAccountDetailResponse = {
   };
 };
 
+export type CampaignDetailResponse = {
+  data: {
+    range: {
+      start_date: string;
+      end_date: string;
+    };
+    campaign: {
+      id: string;
+      name: string;
+      meta_campaign_id: string;
+      objective: string | null;
+      status: string;
+      effective_status: string | null;
+      buying_type: string | null;
+      daily_budget: number | null;
+      lifetime_budget: number | null;
+      start_time: string | null;
+      stop_time: string | null;
+      last_synced_at: string | null;
+      ad_account: {
+        id: string | null;
+        name: string | null;
+        account_id: string | null;
+      };
+    };
+    health: {
+      status: "healthy" | "warning" | "critical" | "idle" | string;
+      summary: string;
+    };
+    summary: {
+      spend: number;
+      results: number;
+      cpa_cpl: number | null;
+      ctr: number;
+      cpm: number;
+      frequency: number;
+      active_ad_sets: number;
+      active_ads: number;
+      open_alerts: number;
+      open_recommendations: number;
+    };
+    trend: Array<{
+      date: string;
+      spend: number;
+      results: number;
+      ctr: number;
+      cpm: number;
+      frequency: number;
+    }>;
+    ad_sets: Array<{
+      id: string;
+      meta_ad_set_id: string | null;
+      name: string;
+      status: string;
+      effective_status: string | null;
+      optimization_goal: string | null;
+      billing_event: string | null;
+      bid_strategy: string | null;
+      daily_budget: number | null;
+      lifetime_budget: number | null;
+      start_time: string | null;
+      stop_time: string | null;
+      ads_count: number;
+      active_ads: number;
+      spend: number | null;
+      results: number | null;
+      cpa_cpl: number | null;
+      ctr: number | null;
+      cpm: number | null;
+      frequency: number | null;
+      has_performance_data: boolean;
+      performance_scope: "adset" | "campaign_only" | string;
+      targeting_summary: {
+        countries: string[];
+        cities: string[];
+        age_range: {
+          min: number | null;
+          max: number | null;
+        };
+        platforms: string[];
+        interests: string[];
+        custom_audiences: string[];
+      };
+      health_status: "healthy" | "warning" | "critical" | "idle" | string;
+      health_summary: string;
+      last_synced_at: string | null;
+    }>;
+    ads: Array<{
+      id: string;
+      meta_ad_id: string | null;
+      name: string;
+      status: string;
+      effective_status: string | null;
+      preview_url: string | null;
+      spend: number | null;
+      results: number | null;
+      cpa_cpl: number | null;
+      ctr: number | null;
+      cpm: number | null;
+      frequency: number | null;
+      has_performance_data: boolean;
+      performance_scope: "ad" | "campaign_only" | string;
+      ad_set: {
+        id: string | null;
+        name: string | null;
+      };
+      creative: {
+        id: string | null;
+        name: string | null;
+        asset_type: string | null;
+        headline: string | null;
+        body: string | null;
+        description: string | null;
+        call_to_action: string | null;
+        destination_url: string | null;
+      };
+      health_status: "healthy" | "warning" | "critical" | "idle" | string;
+      health_summary: string;
+      last_synced_at: string | null;
+    }>;
+    alerts: Array<{
+      id: string;
+      code: string;
+      severity: string;
+      summary: string;
+      recommended_action: string | null;
+      date_detected: string | null;
+    }>;
+    recommendations: Array<{
+      id: string;
+      summary: string;
+      details: string | null;
+      priority: string;
+      status: string;
+      generated_at: string | null;
+    }>;
+    analysis: {
+      biggest_risk: string | null;
+      biggest_opportunity: string | null;
+      operator_note: string | null;
+      client_note: string | null;
+    };
+    report_preview: {
+      headline: string;
+      client_summary: string;
+      operator_summary: string;
+      next_test: string;
+      next_step: string;
+    };
+  };
+};
+
+export type AdSetDetailResponse = {
+  data: {
+    range: {
+      start_date: string;
+      end_date: string;
+    };
+    ad_set: {
+      id: string;
+      meta_ad_set_id: string;
+      name: string;
+      status: string;
+      effective_status: string | null;
+      optimization_goal: string | null;
+      billing_event: string | null;
+      bid_strategy: string | null;
+      daily_budget: number | null;
+      lifetime_budget: number | null;
+      start_time: string | null;
+      stop_time: string | null;
+      last_synced_at: string | null;
+      campaign: {
+        id: string | null;
+        name: string | null;
+        objective: string | null;
+      };
+      ad_account: {
+        id: string | null;
+        name: string | null;
+        account_id: string | null;
+      };
+    };
+    summary: {
+      spend: number | null;
+      results: number | null;
+      cpa_cpl: number | null;
+      ctr: number | null;
+      cpm: number | null;
+      frequency: number | null;
+      active_ads: number;
+      total_ads: number;
+      has_performance_data: boolean;
+      performance_scope: "adset" | "campaign_only" | string;
+    };
+    trend: Array<{
+      date: string;
+      spend: number;
+      results: number;
+      ctr: number;
+      cpm: number;
+      frequency: number;
+    }>;
+    targeting_summary: {
+      countries: string[];
+      cities: string[];
+      age_range: {
+        min: number | null;
+        max: number | null;
+      };
+      platforms: string[];
+      interests: string[];
+      custom_audiences: string[];
+    };
+    sibling_ad_sets: Array<{
+      id: string;
+      name: string;
+      status: string;
+      optimization_goal: string | null;
+      daily_budget: number | null;
+      spend: number | null;
+      results: number | null;
+      has_performance_data: boolean;
+      targeting_summary: {
+        countries: string[];
+        cities: string[];
+        age_range: {
+          min: number | null;
+          max: number | null;
+        };
+        platforms: string[];
+        interests: string[];
+        custom_audiences: string[];
+      };
+    }>;
+    ads: Array<{
+      id: string;
+      name: string;
+      status: string;
+      effective_status: string | null;
+      preview_url: string | null;
+      spend: number | null;
+      results: number | null;
+      has_performance_data: boolean;
+      creative: {
+        asset_type: string | null;
+        headline: string | null;
+        call_to_action: string | null;
+      };
+    }>;
+    inherited_alerts: Array<{
+      id: string;
+      severity: string;
+      summary: string;
+      recommended_action: string | null;
+      date_detected: string | null;
+    }>;
+    inherited_recommendations: Array<{
+      id: string;
+      priority: string;
+      summary: string;
+      details: string | null;
+      generated_at: string | null;
+    }>;
+    guidance: {
+      operator_summary: string;
+      next_test: string;
+      data_scope_note: string;
+      targeting_note: string;
+    };
+  };
+};
+
+export type AdDetailResponse = {
+  data: {
+    range: {
+      start_date: string;
+      end_date: string;
+    };
+    ad: {
+      id: string;
+      meta_ad_id: string;
+      name: string;
+      status: string;
+      effective_status: string | null;
+      preview_url: string | null;
+      last_synced_at: string | null;
+      campaign: {
+        id: string | null;
+        name: string | null;
+        objective: string | null;
+      };
+      ad_set: {
+        id: string | null;
+        name: string | null;
+      };
+      ad_account: {
+        id: string | null;
+        name: string | null;
+        account_id: string | null;
+      };
+    };
+    summary: {
+      spend: number | null;
+      results: number | null;
+      cpa_cpl: number | null;
+      ctr: number | null;
+      cpm: number | null;
+      frequency: number | null;
+      has_preview: boolean;
+      performance_scope: "ad" | "campaign_only" | string;
+    };
+    trend: Array<{
+      date: string;
+      spend: number;
+      results: number;
+      ctr: number;
+      cpm: number;
+      frequency: number;
+    }>;
+    creative: {
+      id: string | null;
+      name: string | null;
+      asset_type: string | null;
+      headline: string | null;
+      body: string | null;
+      description: string | null;
+      call_to_action: string | null;
+      destination_url: string | null;
+    };
+    sibling_ads: Array<{
+      id: string;
+      name: string;
+      status: string;
+      preview_url: string | null;
+      spend: number | null;
+      results: number | null;
+      has_performance_data: boolean;
+      creative: {
+        headline: string | null;
+        asset_type: string | null;
+      };
+    }>;
+    inherited_alerts: Array<{
+      id: string;
+      severity: string;
+      summary: string;
+      recommended_action: string | null;
+      date_detected: string | null;
+    }>;
+    inherited_recommendations: Array<{
+      id: string;
+      priority: string;
+      summary: string;
+      details: string | null;
+      generated_at: string | null;
+    }>;
+    guidance: {
+      creative_note: string;
+      operator_summary: string;
+      data_scope_note: string;
+      risk_note: string;
+    };
+  };
+};
+
 export type DashboardOverviewResponse = {
   data: {
     range: {
