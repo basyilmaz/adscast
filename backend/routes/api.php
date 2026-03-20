@@ -58,6 +58,8 @@ Route::prefix('v1')->group(function (): void {
                     ->middleware('workspace.permission:meta.manage');
                 Route::get('/ad-accounts', [MetaConnectionController::class, 'adAccounts'])
                     ->middleware('workspace.permission:reporting.view');
+                Route::get('/ad-accounts/{adAccountId}', [MetaConnectionController::class, 'showAdAccount'])
+                    ->middleware('workspace.permission:reporting.view');
                 Route::post('/connections', [MetaConnectionController::class, 'store'])
                     ->middleware('workspace.permission:meta.manage');
                 Route::post('/connections/{connectionId}/revoke', [MetaConnectionController::class, 'revoke'])

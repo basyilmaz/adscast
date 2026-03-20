@@ -2,6 +2,12 @@
 
 Bu plan, AdsCast'i teknik olarak calisan bir MVP'den kullanici tarafinda anlasilir, account bazli izole, operator ve musteri raporlamasina hazir bir urune tasimak icin hazirlandi.
 
+## Faz Durumu
+
+- Tamamlandi: Faz 1 - Dashboard V2 ve Ilk Bakista Anlasilabilirlik
+- Tamamlandi: Faz 2 - Reklam Hesabi Merkezli Yonetim
+- Siradaki Faz: Faz 3 - Campaign Drill-Down
+
 ## Planlama Ilkeleri
 
 1. Ilk giriste ne oldugu 30 saniyede anlasilmali.
@@ -57,7 +63,7 @@ Amac: `Reklam Hesaplari` sayfasi yalnizca liste degil, account bazli operasyon m
    - acik uyarilar
    - sync durumu
 3. `Ad Account Detail` route'u ekle:
-   - `/ad-accounts/[id]`
+   - `/ad-accounts/detail?id=...`
 4. Ad account detail ekranina sekmeler ekle:
    - Genel Bakis
    - Kampanyalar
@@ -188,10 +194,9 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 5. Client report builder
 6. Export ve schedule
 
-## Bu Turda Baslanacak Is
+## Bu Turda Tamamlanan Is
 
-Bu turn'de aktif olarak baslanan is:
-
-1. Faz 1 backlog'unu kalici hale getirmek
-2. Dashboard endpoint'ine account health, urgent actions ve active campaign bloklarini additive olarak eklemek
-3. Dashboard ekranini yeni bilgi mimarisine gecirmek
+1. Faz 1 dashboard backlog'unu additive API ve yeni bilgi mimarisi ile tamamlamak
+2. Reklam hesaplari ekranini operasyon merkezi haline getirmek
+3. Ad account detail ekranini sekmeli drill-down ile eklemek
+4. Hesap bazli rapor hazirlik blogunu olusturmak

@@ -201,7 +201,12 @@ export default function DashboardPage() {
               <div key={account.id} className="rounded-lg border border-[var(--border)] p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold">{account.name}</p>
+                    <Link
+                      href={`/ad-accounts/detail?id=${encodeURIComponent(account.id)}`}
+                      className="font-semibold text-[var(--accent)] hover:underline"
+                    >
+                      {account.name}
+                    </Link>
                     <p className="text-xs muted-text">{account.account_id}</p>
                   </div>
                   <Badge label={account.health_status} variant={priorityVariant(account.health_status)} />

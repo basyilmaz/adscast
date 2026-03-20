@@ -8,6 +8,7 @@ use App\Models\InsightDaily;
 use App\Models\MetaAdAccount;
 use App\Models\MetaConnection;
 use App\Models\Recommendation;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -275,7 +276,7 @@ class DashboardQueryService
             ->orderBy('date')
             ->selectRaw('date, COALESCE(SUM(spend), 0) as spend, COALESCE(SUM(results), 0) as results')
             ->get()
-            ->keyBy(fn ($row): string => (string) $row->date);
+            ->keyBy(fn ($row): string => Carbon::parse((string) $row->date)->toDateString());
 
         $trend = [];
         $cursor = $startDate->copy()->startOfDay();

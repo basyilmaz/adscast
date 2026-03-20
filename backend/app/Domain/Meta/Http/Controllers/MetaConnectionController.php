@@ -7,9 +7,11 @@ use App\Domain\Meta\Http\Requests\StoreMetaConnectionRequest;
 use App\Domain\Meta\Http\Resources\MetaConnectionResource;
 use App\Domain\Meta\Services\MetaConnectorStatusService;
 use App\Domain\Meta\Services\MetaConnectionService;
+use App\Domain\Reporting\Services\AdAccountQueryService;
 use App\Domain\Tenants\Support\WorkspaceContext;
 use App\Models\MetaAdAccount;
 use App\Models\MetaConnection;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,6 +20,7 @@ class MetaConnectionController
     public function __construct(
         private readonly MetaConnectionService $connectionService,
         private readonly MetaConnectorStatusService $connectorStatusService,
+        private readonly AdAccountQueryService $adAccountQueryService,
         private readonly AuditLogService $auditLogService,
     ) {
     }
@@ -77,15 +80,51 @@ class MetaConnectionController
 
     public function adAccounts(Request $request): JsonResponse
     {
-        $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
+        $validated = $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
 
-        $accounts = MetaAdAccount::query()
-            ->where('workspace_id', $workspaceId)
-            ->latest('updated_at')
-            ->paginate(25);
+        $startDate = isset($validated['start_date'])
+            ? Carbon::parse($validated['start_date'])
+            : now()->subDays(29);
+        $endDate = isset($validated['end_date'])
+            ? Carbon::parse($validated['end_date'])
+            : now();
+        $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
+        $payload = $this->adAccountQueryService->list($workspaceId, $startDate, $endDate);
 
         return new JsonResponse([
-            'data' => $accounts,
+            'data' => [
+                'data' => $payload['items'],
+                'summary' => $payload['summary'],
+                'range' => $payload['range'],
+            ],
+        ]);
+    }
+
+    public function showAdAccount(Request $request, string $adAccountId): JsonResponse
+    {
+        $validated = $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $startDate = isset($validated['start_date'])
+            ? Carbon::parse($validated['start_date'])
+            : now()->subDays(29);
+        $endDate = isset($validated['end_date'])
+            ? Carbon::parse($validated['end_date'])
+            : now();
+
+        $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
+
+        $account = MetaAdAccount::query()
+            ->where('workspace_id', $workspaceId)
+            ->findOrFail($adAccountId);
+
+        return new JsonResponse([
+            'data' => $this->adAccountQueryService->detail($account, $startDate, $endDate),
         ]);
     }
 

@@ -6,6 +6,132 @@ export type Workspace = {
   currency: string;
 };
 
+export type AdAccountListResponse = {
+  data: {
+    data: Array<{
+      id: string;
+      account_id: string;
+      name: string;
+      currency: string | null;
+      timezone_name: string | null;
+      status: string;
+      is_active: boolean;
+      last_synced_at: string | null;
+      sync_status: "fresh" | "stale" | "lagging" | "unknown" | string;
+      active_campaigns: number;
+      total_campaigns: number;
+      open_alerts: number;
+      open_recommendations: number;
+      spend: number;
+      results: number;
+      ctr: number;
+      cpm: number;
+      frequency: number;
+      health_status: "healthy" | "warning" | "critical" | "idle" | string;
+      health_summary: string;
+    }>;
+    summary: {
+      total_accounts: number;
+      active_accounts: number;
+      restricted_accounts: number;
+      accounts_requiring_attention: number;
+      total_spend: number;
+      total_results: number;
+      open_alerts: number;
+    };
+    range: {
+      start_date: string;
+      end_date: string;
+    };
+  };
+};
+
+export type AdAccountDetailResponse = {
+  data: {
+    range: {
+      start_date: string;
+      end_date: string;
+    };
+    ad_account: {
+      id: string;
+      account_id: string;
+      name: string;
+      currency: string | null;
+      timezone_name: string | null;
+      status: string;
+      is_active: boolean;
+      last_synced_at: string | null;
+    };
+    summary: {
+      spend: number;
+      results: number;
+      cpa_cpl: number | null;
+      ctr: number;
+      cpm: number;
+      frequency: number;
+      active_campaigns: number;
+      total_campaigns: number;
+      active_ad_sets: number;
+      active_ads: number;
+      open_alerts: number;
+      open_recommendations: number;
+    };
+    health: {
+      status: "healthy" | "warning" | "critical" | "idle" | string;
+      summary: string;
+      sync_status: "fresh" | "stale" | "lagging" | "unknown" | string;
+    };
+    trend: Array<{
+      date: string;
+      spend: number;
+      results: number;
+    }>;
+    campaigns: Array<{
+      id: string;
+      meta_campaign_id: string | null;
+      name: string;
+      objective: string | null;
+      status: string;
+      effective_status: string | null;
+      spend: number;
+      results: number;
+      cpa_cpl: number | null;
+      ctr: number;
+      cpm: number;
+      frequency: number;
+      open_alerts: number;
+      open_recommendations: number;
+      health_status: "healthy" | "warning" | "critical" | "idle" | string;
+      health_summary: string;
+      updated_at: string | null;
+    }>;
+    alerts: Array<{
+      id: string;
+      code: string;
+      severity: string;
+      summary: string;
+      recommended_action: string | null;
+      campaign_name: string | null;
+      date_detected: string | null;
+    }>;
+    recommendations: Array<{
+      id: string;
+      priority: string;
+      summary: string;
+      details: string | null;
+      status: string;
+      campaign_name: string | null;
+      generated_at: string | null;
+    }>;
+    report_preview: {
+      headline: string;
+      client_summary: string;
+      operator_summary: string;
+      next_step: string;
+    };
+  };
+};
+
 export type DashboardOverviewResponse = {
   data: {
     range: {
