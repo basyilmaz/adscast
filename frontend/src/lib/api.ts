@@ -5,7 +5,7 @@ import { getToken, getWorkspaceId } from "./session";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 
-type RequestOptions = {
+export type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   requireWorkspace?: boolean;

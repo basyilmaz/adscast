@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
+import { invalidateApiCache } from "@/lib/api-cache";
+import { QUERY_TTLS } from "@/lib/api-query-config";
+import { useApiQuery } from "@/hooks/use-api-query";
 
 type Recommendation = {
   id: string;
@@ -23,40 +26,35 @@ type RecommendationResponse = {
 };
 
 export default function RecommendationsPage() {
-  const [items, setItems] = useState<Recommendation[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const load = async () => {
-    try {
-      const response = await apiRequest<RecommendationResponse>("/recommendations", {
-        requireWorkspace: true,
-      });
-      setItems(response.data.data ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Oneriler alinamadi.");
-    }
-  };
+  const [actionError, setActionError] = useState<string | null>(null);
+  const recommendationQuery = useApiQuery<RecommendationResponse, Recommendation[]>("/recommendations", {
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.recommendations,
+    select: (response) => response.data.data ?? [],
+  });
+  const items = recommendationQuery.data ?? [];
+  const { error: queryError, isLoading, reload } = recommendationQuery;
 
   const generate = async () => {
     setLoading(true);
-    setError(null);
+    setActionError(null);
     try {
       await apiRequest("/recommendations/generate", {
         method: "POST",
         requireWorkspace: true,
       });
-      await load();
+      invalidateApiCache("/recommendations", { requireWorkspace: true });
+      invalidateApiCache("/dashboard/overview", { requireWorkspace: true });
+      await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "AI onerisi olusturulamadi.");
+      setActionError(err instanceof Error ? err.message : "AI onerisi olusturulamadi.");
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    load();
-  }, []);
 
   return (
     <Card>
@@ -67,7 +65,8 @@ export default function RecommendationsPage() {
         </Button>
       </div>
 
-      {error ? <p className="mb-4 text-sm text-[var(--danger)]">{error}</p> : null}
+      {queryError || actionError ? <p className="mb-4 text-sm text-[var(--danger)]">{actionError ?? queryError}</p> : null}
+      {isLoading && items.length === 0 ? <p className="mb-4 text-sm muted-text">Oneriler yukleniyor.</p> : null}
 
       <div className="space-y-3">
         {items.map((item) => (
@@ -91,6 +90,7 @@ export default function RecommendationsPage() {
           </div>
         ))}
       </div>
+      {!isLoading && items.length === 0 ? <p className="mt-3 text-sm muted-text">Henuz oneriler bulunmuyor.</p> : null}
     </Card>
   );
 }

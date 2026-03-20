@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
+import { invalidateApiCache } from "@/lib/api-cache";
+import { QUERY_TTLS } from "@/lib/api-query-config";
+import { useApiQuery } from "@/hooks/use-api-query";
 
 type DraftResponse = {
   data: {
@@ -24,7 +27,6 @@ type AdAccountResponse = {
 };
 
 export default function DraftBuilderPage() {
-  const [accounts, setAccounts] = useState<Array<{ id: string; label: string }>>([]);
   const [form, setForm] = useState({
     meta_ad_account_id: "",
     objective: "LEADS",
@@ -42,30 +44,28 @@ export default function DraftBuilderPage() {
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const adAccountQuery = useApiQuery<AdAccountResponse, Array<{ id: string; label: string }>>("/meta/ad-accounts", {
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.adAccounts,
+    select: (response) =>
+      (response.data.data ?? []).map((item) => ({
+        id: item.id,
+        label: `${item.name} (${item.account_id})`,
+      })),
+  });
+  const accounts = useMemo(() => adAccountQuery.data ?? [], [adAccountQuery.data]);
 
   useEffect(() => {
-    const loadAccounts = async () => {
-      try {
-        const response = await apiRequest<AdAccountResponse>("/meta/ad-accounts", {
-          requireWorkspace: true,
-        });
-        const mapped = (response.data.data ?? []).map((item) => ({
-          id: item.id,
-          label: `${item.name} (${item.account_id})`,
-        }));
-        setAccounts(mapped);
-        if (mapped[0]?.id) {
-          setForm((prev) =>
-            prev.meta_ad_account_id ? prev : { ...prev, meta_ad_account_id: mapped[0].id },
-          );
-        }
-      } catch {
-        // Hesap listesi yoksa manuel giris fallback'i korunur.
-      }
-    };
+    if (!accounts[0]?.id) {
+      return;
+    }
 
-    loadAccounts();
-  }, []);
+    setForm((prev) =>
+      prev.meta_ad_account_id ? prev : { ...prev, meta_ad_account_id: accounts[0].id },
+    );
+  }, [accounts]);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -86,6 +86,7 @@ export default function DraftBuilderPage() {
         requireWorkspace: true,
       });
 
+      invalidateApiCache("/drafts", { requireWorkspace: true });
       setCreatedId(response.data.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Draft olusturulamadi.");

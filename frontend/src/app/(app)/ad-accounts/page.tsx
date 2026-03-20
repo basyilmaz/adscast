@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { apiRequest } from "@/lib/api";
+import { useApiQuery } from "@/hooks/use-api-query";
+import { QUERY_TTLS } from "@/lib/api-query-config";
 
 type AdAccount = {
   id: string;
@@ -22,23 +22,15 @@ type Response = {
 };
 
 export default function AdAccountsPage() {
-  const [items, setItems] = useState<AdAccount[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const response = await apiRequest<Response>("/meta/ad-accounts", {
-          requireWorkspace: true,
-        });
-        setItems(response.data.data ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Hesaplar alinamadi.");
-      }
-    };
-
-    load();
-  }, []);
+  const adAccountQuery = useApiQuery<Response, AdAccount[]>("/meta/ad-accounts", {
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.adAccounts,
+    select: (response) => response.data.data ?? [],
+  });
+  const items = adAccountQuery.data ?? [];
+  const { error, isLoading } = adAccountQuery;
 
   return (
     <Card>
@@ -69,7 +61,10 @@ export default function AdAccountsPage() {
           </tbody>
         </table>
       </div>
-      {items.length === 0 ? (
+      {isLoading && items.length === 0 ? (
+        <p className="mt-4 text-sm muted-text">Reklam hesaplari yukleniyor.</p>
+      ) : null}
+      {!isLoading && items.length === 0 ? (
         <p className="mt-4 text-sm muted-text">Bu workspace icin henuz reklam hesabi bulunmuyor.</p>
       ) : null}
     </Card>

@@ -1,8 +1,12 @@
 "use client";
 
-const TOKEN_KEY = "adscast_token";
-const WORKSPACE_KEY = "adscast_workspace_id";
-const META_OAUTH_STATE_KEY = "adscast_meta_oauth_state";
+import { clearAllApiCache } from "./api-cache";
+import {
+  META_OAUTH_STATE_KEY,
+  TOKEN_KEY,
+  WORKSPACE_CHANGED_EVENT,
+  WORKSPACE_KEY,
+} from "./session-constants";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -18,6 +22,7 @@ export function clearSession() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(WORKSPACE_KEY);
+  clearAllApiCache();
 }
 
 export function getWorkspaceId(): string | null {
@@ -28,6 +33,13 @@ export function getWorkspaceId(): string | null {
 export function setWorkspaceId(workspaceId: string) {
   if (typeof window === "undefined") return;
   localStorage.setItem(WORKSPACE_KEY, workspaceId);
+  window.dispatchEvent(
+    new CustomEvent(WORKSPACE_CHANGED_EVENT, {
+      detail: {
+        workspaceId,
+      },
+    }),
+  );
 }
 
 export function getMetaOAuthState(): string | null {

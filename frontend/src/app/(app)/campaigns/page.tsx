@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { apiRequest } from "@/lib/api";
+import { useApiQuery } from "@/hooks/use-api-query";
+import { QUERY_TTLS } from "@/lib/api-query-config";
+import { prefetchApiResponse } from "@/lib/api-cache";
 
 type CampaignItem = {
   id: string;
@@ -25,23 +26,27 @@ type CampaignResponse = {
 };
 
 export default function CampaignListPage() {
-  const [items, setItems] = useState<CampaignItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const campaignQuery = useApiQuery<CampaignResponse, CampaignItem[]>("/campaigns", {
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.campaigns,
+    select: (response) => response.data.items ?? [],
+  });
+  const items = campaignQuery.data ?? [];
+  const { error, isLoading } = campaignQuery;
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const response = await apiRequest<CampaignResponse>("/campaigns", {
-          requireWorkspace: true,
-        });
-        setItems(response.data.items ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Kampanyalar alinamadi.");
-      }
-    };
-
-    load();
-  }, []);
+  const prefetchCampaignDetail = (campaignId: string) => {
+    void prefetchApiResponse(
+      `/campaigns/${campaignId}`,
+      {
+        requireWorkspace: true,
+      },
+      {
+        ttlMs: QUERY_TTLS.campaignDetail,
+      },
+    );
+  };
 
   return (
     <Card>
@@ -67,6 +72,8 @@ export default function CampaignListPage() {
                   <Link
                     href={`/campaigns/detail?id=${encodeURIComponent(item.id)}`}
                     className="font-semibold text-[var(--accent)] hover:underline"
+                    onMouseEnter={() => prefetchCampaignDetail(item.id)}
+                    onFocus={() => prefetchCampaignDetail(item.id)}
                   >
                     {item.name}
                   </Link>
@@ -85,8 +92,11 @@ export default function CampaignListPage() {
           </tbody>
         </table>
       </div>
+      {isLoading && items.length === 0 ? (
+        <p className="mt-4 text-sm muted-text">Kampanyalar yukleniyor.</p>
+      ) : null}
 
-      {items.length === 0 ? (
+      {!isLoading && items.length === 0 ? (
         <p className="mt-4 text-sm muted-text">Kampanya verisi bulunamadi.</p>
       ) : null}
     </Card>

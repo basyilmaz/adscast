@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Card, CardTitle, CardValue } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { apiRequest } from "@/lib/api";
+import { useApiQuery } from "@/hooks/use-api-query";
+import { QUERY_TTLS } from "@/lib/api-query-config";
 
 const SpendResultChart = dynamic(
   () => import("@/components/charts/spend-result-chart").then((mod) => mod.SpendResultChart),
@@ -67,27 +67,21 @@ export function CampaignDetailClient() {
   const searchParams = useSearchParams();
   const campaignId = searchParams.get("id");
   const hasCampaignId = Boolean(campaignId);
-  const [data, setData] = useState<CampaignDetailResponse["data"] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!hasCampaignId) {
-      return;
-    }
-
-    const load = async () => {
-      try {
-        const response = await apiRequest<CampaignDetailResponse>(`/campaigns/${campaignId as string}`, {
-          requireWorkspace: true,
-        });
-        setData(response.data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Kampanya detayi alinamadi.");
-      }
-    };
-
-    void load();
-  }, [campaignId, hasCampaignId]);
+  const {
+    data,
+    error,
+    isLoading,
+  } = useApiQuery<CampaignDetailResponse, CampaignDetailResponse["data"]>(
+    `/campaigns/${campaignId ?? ""}`,
+    {
+      enabled: hasCampaignId,
+      requestOptions: {
+        requireWorkspace: true,
+      },
+      ttlMs: QUERY_TTLS.campaignDetail,
+      select: (response) => response.data,
+    },
+  );
 
   if (!hasCampaignId) {
     return <p className="text-sm text-[var(--danger)]">Kampanya id eksik.</p>;
@@ -97,8 +91,12 @@ export function CampaignDetailClient() {
     return <p className="text-sm text-[var(--danger)]">{error}</p>;
   }
 
-  if (!data) {
+  if (isLoading && !data) {
     return <p className="text-sm muted-text">Yukleniyor...</p>;
+  }
+
+  if (!data) {
+    return <p className="text-sm text-[var(--danger)]">Kampanya bulunamadi.</p>;
   }
 
   return (

@@ -41,14 +41,22 @@ try {
     }
 
     $env:NEXT_PUBLIC_API_BASE_URL = "/api/v1"
-    cmd /c rmdir /s /q .next 2>$null
-    cmd /c rmdir /s /q out 2>$null
+    if (Test-Path ".next") {
+        Remove-Item ".next" -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path "out") {
+        Remove-Item "out" -Recurse -Force -ErrorAction SilentlyContinue
+    }
     npm run build
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Ilk build denemesi basarisiz. Temizleyip tekrar deneniyor..." -ForegroundColor DarkYellow
         Start-Sleep -Seconds 1
-        cmd /c rmdir /s /q .next 2>$null
-        cmd /c rmdir /s /q out 2>$null
+        if (Test-Path ".next") {
+            Remove-Item ".next" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path "out") {
+            Remove-Item "out" -Recurse -Force -ErrorAction SilentlyContinue
+        }
         npm run build
         if ($LASTEXITCODE -ne 0) {
             throw "Frontend build basarisiz."

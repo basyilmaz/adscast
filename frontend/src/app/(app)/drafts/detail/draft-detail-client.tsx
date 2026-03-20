@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
+import { invalidateApiCache } from "@/lib/api-cache";
+import { QUERY_TTLS } from "@/lib/api-query-config";
+import { useApiQuery } from "@/hooks/use-api-query";
 
 type DraftDetailResponse = {
   data: {
@@ -32,46 +35,41 @@ export function DraftDetailClient() {
   const searchParams = useSearchParams();
   const draftId = searchParams.get("id");
   const hasDraftId = Boolean(draftId);
-  const [draft, setDraft] = useState<DraftDetailResponse["data"] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const loadDraft = useCallback(async () => {
-    if (!hasDraftId) {
-      return;
-    }
-
-    try {
-      const response = await apiRequest<DraftDetailResponse>(`/drafts/${draftId as string}`, {
-        requireWorkspace: true,
-      });
-      setDraft(response.data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Draft detayi alinamadi.");
-    }
-  }, [draftId, hasDraftId]);
-
-  useEffect(() => {
-    void loadDraft();
-  }, [loadDraft]);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const {
+    data: draft,
+    error,
+    isLoading,
+    reload,
+  } = useApiQuery<DraftDetailResponse, DraftDetailResponse["data"]>(`/drafts/${draftId ?? ""}`, {
+    enabled: hasDraftId,
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.draftDetail,
+    select: (response) => response.data,
+  });
 
   const submitForReview = async () => {
     if (!hasDraftId) {
-      setError("Draft id eksik.");
+      setActionError("Draft id eksik.");
       return;
     }
 
     setSubmitting(true);
-    setError(null);
+    setActionError(null);
     try {
       await apiRequest(`/drafts/${draftId as string}/submit-review`, {
         method: "POST",
         requireWorkspace: true,
       });
-      await loadDraft();
+      invalidateApiCache(`/drafts/${draftId as string}`, { requireWorkspace: true });
+      invalidateApiCache("/drafts", { requireWorkspace: true });
+      invalidateApiCache("/approvals", { requireWorkspace: true });
+      await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Review adimi basarisiz.");
+      setActionError(err instanceof Error ? err.message : "Review adimi basarisiz.");
     } finally {
       setSubmitting(false);
     }
@@ -79,7 +77,8 @@ export function DraftDetailClient() {
 
   if (!hasDraftId) return <p className="text-sm text-[var(--danger)]">Draft id eksik.</p>;
   if (error) return <p className="text-sm text-[var(--danger)]">{error}</p>;
-  if (!draft) return <p className="text-sm muted-text">Yukleniyor...</p>;
+  if (isLoading && !draft) return <p className="text-sm muted-text">Yukleniyor...</p>;
+  if (!draft) return <p className="text-sm text-[var(--danger)]">Draft bulunamadi.</p>;
 
   return (
     <div className="space-y-4">
@@ -105,6 +104,7 @@ export function DraftDetailClient() {
             </Button>
           </div>
         ) : null}
+        {actionError ? <p className="mt-3 text-sm text-[var(--danger)]">{actionError}</p> : null}
       </Card>
 
       <Card>

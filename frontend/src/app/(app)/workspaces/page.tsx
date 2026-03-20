@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { apiRequest } from "@/lib/api";
+import { useApiQuery } from "@/hooks/use-api-query";
+import { QUERY_TTLS } from "@/lib/api-query-config";
 import { getWorkspaceId, setWorkspaceId } from "@/lib/session";
+import { WORKSPACE_CHANGED_EVENT } from "@/lib/session-constants";
 import { Workspace } from "@/lib/types";
 
 type Response = {
@@ -12,20 +14,24 @@ type Response = {
 };
 
 export default function WorkspacesPage() {
-  const [items, setItems] = useState<Workspace[]>([]);
   const [current, setCurrent] = useState<string | null>(() => getWorkspaceId());
-  const [error, setError] = useState<string | null>(null);
+  const workspaceQuery = useApiQuery<Response, Workspace[]>("/workspaces", {
+    ttlMs: QUERY_TTLS.workspaces,
+    select: (response) => response.data ?? [],
+  });
+  const items = workspaceQuery.data ?? [];
+  const { error, isLoading } = workspaceQuery;
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const response = await apiRequest<Response>("/workspaces");
-        setItems(response.data ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Workspace listesi alinamadi.");
-      }
+    const syncCurrent = () => {
+      setCurrent(getWorkspaceId());
     };
-    load();
+
+    window.addEventListener(WORKSPACE_CHANGED_EVENT, syncCurrent as EventListener);
+
+    return () => {
+      window.removeEventListener(WORKSPACE_CHANGED_EVENT, syncCurrent as EventListener);
+    };
   }, []);
 
   return (
@@ -52,6 +58,7 @@ export default function WorkspacesPage() {
           </div>
         ))}
       </div>
+      {isLoading && items.length === 0 ? <p className="mt-3 text-sm muted-text">Workspace listesi yukleniyor.</p> : null}
     </Card>
   );
 }

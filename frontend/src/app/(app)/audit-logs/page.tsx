@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { apiRequest } from "@/lib/api";
+import { useApiQuery } from "@/hooks/use-api-query";
+import { QUERY_TTLS } from "@/lib/api-query-config";
 
 type AuditItem = {
   id: string;
@@ -20,23 +20,15 @@ type Response = {
 };
 
 export default function AuditLogsPage() {
-  const [items, setItems] = useState<AuditItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const response = await apiRequest<Response>("/audit-logs", {
-          requireWorkspace: true,
-        });
-        setItems(response.data.data ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Audit loglari alinamadi.");
-      }
-    };
-
-    load();
-  }, []);
+  const auditQuery = useApiQuery<Response, AuditItem[]>("/audit-logs", {
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.auditLogs,
+    select: (response) => response.data.data ?? [],
+  });
+  const items = auditQuery.data ?? [];
+  const { error, isLoading } = auditQuery;
 
   return (
     <Card>
@@ -65,7 +57,8 @@ export default function AuditLogsPage() {
           </tbody>
         </table>
       </div>
-      {items.length === 0 ? <p className="mt-3 text-sm muted-text">Audit kaydi yok.</p> : null}
+      {isLoading && items.length === 0 ? <p className="mt-3 text-sm muted-text">Audit loglari yukleniyor.</p> : null}
+      {!isLoading && items.length === 0 ? <p className="mt-3 text-sm muted-text">Audit kaydi yok.</p> : null}
     </Card>
   );
 }

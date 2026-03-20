@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
+import { invalidateApiCache } from "@/lib/api-cache";
+import { QUERY_TTLS } from "@/lib/api-query-config";
+import { useApiQuery } from "@/hooks/use-api-query";
 
 type Approval = {
   id: string;
@@ -23,30 +26,20 @@ type ApprovalResponse = {
 };
 
 export default function ApprovalsPage() {
-  const [items, setItems] = useState<Approval[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = async () => {
-    try {
-      const response = await apiRequest<ApprovalResponse>("/approvals", {
-        requireWorkspace: true,
-      });
-      setItems(response.data.data ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Approval listesi alinamadi.");
-    }
-  };
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void load();
-    }, 0);
-
-    return () => clearTimeout(timer);
-  }, []);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const approvalQuery = useApiQuery<ApprovalResponse, Approval[]>("/approvals", {
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.approvals,
+    select: (response) => response.data.data ?? [],
+  });
+  const items = approvalQuery.data ?? [];
+  const { error: queryError, isLoading, reload } = approvalQuery;
 
   const callAction = async (approvalId: string, action: "approve" | "reject" | "publish") => {
     try {
+      setActionError(null);
       if (action === "reject") {
         const reason = window.prompt("Reddetme nedeni");
         if (!reason) return;
@@ -62,15 +55,18 @@ export default function ApprovalsPage() {
         });
       }
 
-      await load();
+      invalidateApiCache("/approvals", { requireWorkspace: true });
+      invalidateApiCache("/drafts", { requireWorkspace: true });
+      await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Approval aksiyonu basarisiz.");
+      setActionError(err instanceof Error ? err.message : "Approval aksiyonu basarisiz.");
     }
   };
 
   return (
     <Card>
-      {error ? <p className="mb-3 text-sm text-[var(--danger)]">{error}</p> : null}
+      {queryError || actionError ? <p className="mb-3 text-sm text-[var(--danger)]">{actionError ?? queryError}</p> : null}
+      {isLoading && items.length === 0 ? <p className="mb-3 text-sm muted-text">Onay kayitlari yukleniyor.</p> : null}
       <div className="space-y-2">
         {items.map((item) => (
           <div key={item.id} className="rounded-md border border-[var(--border)] p-3">
@@ -105,7 +101,7 @@ export default function ApprovalsPage() {
         ))}
       </div>
 
-      {items.length === 0 ? <p className="text-sm muted-text">Onay kaydi bulunmuyor.</p> : null}
+      {!isLoading && items.length === 0 ? <p className="text-sm muted-text">Onay kaydi bulunmuyor.</p> : null}
     </Card>
   );
 }

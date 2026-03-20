@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
+import { QUERY_TTLS } from "@/lib/api-query-config";
+import { prefetchApiResponse } from "@/lib/api-cache";
 import { setToken, setWorkspaceId } from "@/lib/session";
 
 type LoginResponse = {
@@ -39,7 +41,18 @@ export default function LoginPage() {
         setWorkspaceId(response.workspaces[0].id);
       }
 
-      router.push("/dashboard");
+      void prefetchApiResponse("/workspaces", {}, { ttlMs: QUERY_TTLS.workspaces });
+      void prefetchApiResponse(
+        "/dashboard/overview",
+        {
+          requireWorkspace: true,
+        },
+        {
+          ttlMs: QUERY_TTLS.dashboard,
+        },
+      );
+
+      router.replace("/dashboard");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Giris basarisiz.";
       setError(message);

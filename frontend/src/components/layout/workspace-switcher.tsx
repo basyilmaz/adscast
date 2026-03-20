@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiRequest } from "@/lib/api";
+import { useApiQuery } from "@/hooks/use-api-query";
+import { QUERY_TTLS } from "@/lib/api-query-config";
 import { getWorkspaceId, setWorkspaceId } from "@/lib/session";
+import { WORKSPACE_CHANGED_EVENT } from "@/lib/session-constants";
 import { Workspace } from "@/lib/types";
 
 type WorkspaceResponse = {
@@ -10,30 +12,39 @@ type WorkspaceResponse = {
 };
 
 export function WorkspaceSwitcher() {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [selected, setSelected] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string>(() => getWorkspaceId() ?? "");
+  const workspaceQuery = useApiQuery<WorkspaceResponse, Workspace[]>("/workspaces", {
+    ttlMs: QUERY_TTLS.workspaces,
+    select: (response) => response.data ?? [],
+  });
+  const workspaces = useMemo(() => workspaceQuery.data ?? [], [workspaceQuery.data]);
+  const { error, isLoading } = workspaceQuery;
 
   useEffect(() => {
-    const loadWorkspaces = async () => {
-      try {
-        const response = await apiRequest<WorkspaceResponse>("/workspaces");
-        const items = response.data ?? [];
-        setWorkspaces(items);
+    if (workspaces.length === 0) {
+      return;
+    }
 
-        if (items.length === 0) return;
+    const current = getWorkspaceId();
+    const fallback = current && workspaces.some((workspace) => workspace.id === current)
+      ? current
+      : workspaces[0].id;
 
-        const current = getWorkspaceId();
-        const fallback = current && items.some((w) => w.id === current) ? current : items[0].id;
-        setSelected(fallback);
-        setWorkspaceId(fallback);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Workspace listesi alinamadi.";
-        setError(message);
-      }
+    if (current !== fallback) {
+      setWorkspaceId(fallback);
+    }
+  }, [workspaces]);
+
+  useEffect(() => {
+    const syncSelected = () => {
+      setSelected(getWorkspaceId() ?? "");
     };
 
-    loadWorkspaces();
+    window.addEventListener(WORKSPACE_CHANGED_EVENT, syncSelected as EventListener);
+
+    return () => {
+      window.removeEventListener(WORKSPACE_CHANGED_EVENT, syncSelected as EventListener);
+    };
   }, []);
 
   const selectedLabel = useMemo(() => {
@@ -53,7 +64,7 @@ export function WorkspaceSwitcher() {
         }}
       >
         {workspaces.length === 0 && (
-          <option value="">{error ? "Yuklenemedi" : "Yukleniyor..."}</option>
+          <option value="">{error ? "Yuklenemedi" : isLoading ? "Yukleniyor..." : "Workspace yok"}</option>
         )}
         {workspaces.map((workspace) => (
           <option key={workspace.id} value={workspace.id}>

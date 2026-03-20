@@ -3,6 +3,7 @@
 import { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { SidebarNav } from "./sidebar-nav";
+import { AppRoutePrefetcher } from "./app-route-prefetcher";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { Button } from "@/components/ui/button";
 import { clearSession } from "@/lib/session";
@@ -20,6 +21,7 @@ export function AppShell({
 
   return (
     <div className="mx-auto flex w-full max-w-[1500px] gap-4 p-4">
+      <AppRoutePrefetcher />
       <SidebarNav />
       <div className="min-h-[calc(100vh-2rem)] flex-1">
         <header className="surface-card mb-4 flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">

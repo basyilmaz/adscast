@@ -1,11 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/api";
+import { invalidateApiCache } from "@/lib/api-cache";
+import { QUERY_TTLS } from "@/lib/api-query-config";
+import { useApiQuery } from "@/hooks/use-api-query";
 import { setMetaOAuthState } from "@/lib/session";
 
 type Connection = {
@@ -43,44 +46,42 @@ type ConnectorStatusResponse = {
 };
 
 export default function MetaSettingsPage() {
-  const [connections, setConnections] = useState<Connection[]>([]);
-  const [connectorStatus, setConnectorStatus] = useState<ConnectorStatus | null>(null);
   const [accessToken, setAccessToken] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
-
-  const loadConnections = async () => {
-    try {
-      const response = await apiRequest<ConnectionResponse>("/meta/connections", {
-        requireWorkspace: true,
-      });
-      setConnections(response.data ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Meta baglantilari alinamadi.");
-    }
-  };
-
-  const loadConnectorStatus = async () => {
-    try {
-      const response = await apiRequest<ConnectorStatusResponse>("/meta/connector-status", {
-        requireWorkspace: true,
-      });
-      setConnectorStatus(response.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Meta connector durumu alinamadi.");
-    }
-  };
-
-  useEffect(() => {
-    loadConnections();
-    loadConnectorStatus();
-  }, []);
+  const connectionQuery = useApiQuery<ConnectionResponse, Connection[]>("/meta/connections", {
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.metaConnections,
+    select: (response) => response.data ?? [],
+  });
+  const connections = connectionQuery.data ?? [];
+  const {
+    error: connectionsError,
+    isLoading: connectionsLoading,
+    reload: reloadConnections,
+  } = connectionQuery;
+  const connectorStatusQuery = useApiQuery<ConnectorStatusResponse, ConnectorStatus>("/meta/connector-status", {
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.metaConnectorStatus,
+    select: (response) => response.data,
+  });
+  const connectorStatus = connectorStatusQuery.data;
+  const {
+    error: connectorStatusError,
+    isLoading: connectorStatusLoading,
+    reload: reloadConnectorStatus,
+  } = connectorStatusQuery;
+  const error = actionError ?? connectionsError ?? connectorStatusError;
 
   const onSaveConnection = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
-    setError(null);
+    setActionError(null);
     try {
       await apiRequest("/meta/connections", {
         method: "POST",
@@ -91,10 +92,12 @@ export default function MetaSettingsPage() {
         },
       });
       setAccessToken("");
-      await loadConnections();
-      await loadConnectorStatus();
+      invalidateApiCache("/meta/connections", { requireWorkspace: true });
+      invalidateApiCache("/meta/connector-status", { requireWorkspace: true });
+      invalidateApiCache("/meta/ad-accounts", { requireWorkspace: true });
+      await Promise.all([reloadConnections(), reloadConnectorStatus()]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Baglanti kaydedilemedi.");
+      setActionError(err instanceof Error ? err.message : "Baglanti kaydedilemedi.");
     } finally {
       setSaving(false);
     }
@@ -106,15 +109,19 @@ export default function MetaSettingsPage() {
         method: "POST",
         requireWorkspace: true,
       });
-      await loadConnections();
+      invalidateApiCache("/meta/connections", { requireWorkspace: true });
+      invalidateApiCache("/meta/ad-accounts", { requireWorkspace: true });
+      invalidateApiCache("/campaigns", { requireWorkspace: true });
+      invalidateApiCache("/dashboard/overview", { requireWorkspace: true });
+      await reloadConnections();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Asset sync basarisiz.");
+      setActionError(err instanceof Error ? err.message : "Asset sync basarisiz.");
     }
   };
 
   const startOAuth = async () => {
     setOauthLoading(true);
-    setError(null);
+    setActionError(null);
 
     try {
       const response = await apiRequest<{ data: { auth_url: string; state: string } }>("/meta/oauth/start", {
@@ -124,7 +131,7 @@ export default function MetaSettingsPage() {
       setMetaOAuthState(response.data.state);
       window.location.assign(response.data.auth_url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Meta OAuth baslatilamadi.");
+      setActionError(err instanceof Error ? err.message : "Meta OAuth baslatilamadi.");
       setOauthLoading(false);
     }
   };
@@ -173,8 +180,10 @@ export default function MetaSettingsPage() {
               />
             </div>
           </>
-        ) : (
+        ) : connectorStatusLoading ? (
           <p className="mt-2 text-sm muted-text">Connector durumu yukleniyor.</p>
+        ) : (
+          <p className="mt-2 text-sm muted-text">Connector durumu bulunmuyor.</p>
         )}
       </Card>
 
@@ -251,7 +260,10 @@ export default function MetaSettingsPage() {
               </div>
             </div>
           ))}
-          {connections.length === 0 ? (
+          {connectionsLoading && connections.length === 0 ? (
+            <p className="text-sm muted-text">Meta baglantilari yukleniyor.</p>
+          ) : null}
+          {!connectionsLoading && connections.length === 0 ? (
             <p className="text-sm muted-text">Bu workspace icin Meta baglantisi bulunmuyor.</p>
           ) : null}
         </div>

@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
+import { invalidateApiCache } from "@/lib/api-cache";
+import { QUERY_TTLS } from "@/lib/api-query-config";
+import { useApiQuery } from "@/hooks/use-api-query";
 
 type AlertItem = {
   id: string;
@@ -23,40 +26,36 @@ type AlertResponse = {
 };
 
 export default function AlertsPage() {
-  const [items, setItems] = useState<AlertItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const loadAlerts = async () => {
-    try {
-      const response = await apiRequest<AlertResponse>("/alerts", {
-        requireWorkspace: true,
-      });
-      setItems(response.data.data ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Alert listesi alinamadi.");
-    }
-  };
+  const [actionError, setActionError] = useState<string | null>(null);
+  const alertQuery = useApiQuery<AlertResponse, AlertItem[]>("/alerts", {
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.alerts,
+    select: (response) => response.data.data ?? [],
+  });
+  const items = alertQuery.data ?? [];
+  const { error: queryError, isLoading, reload } = alertQuery;
 
   const evaluateRules = async () => {
     setLoading(true);
-    setError(null);
+    setActionError(null);
     try {
       await apiRequest("/alerts/evaluate", {
         method: "POST",
         requireWorkspace: true,
       });
-      await loadAlerts();
+      invalidateApiCache("/alerts", { requireWorkspace: true });
+      invalidateApiCache("/dashboard/overview", { requireWorkspace: true });
+      invalidateApiCache("/recommendations", { requireWorkspace: true });
+      await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Rules engine calistirilamadi.");
+      setActionError(err instanceof Error ? err.message : "Rules engine calistirilamadi.");
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    loadAlerts();
-  }, []);
 
   return (
     <Card>
@@ -67,7 +66,8 @@ export default function AlertsPage() {
         </Button>
       </div>
 
-      {error ? <p className="mb-4 text-sm text-[var(--danger)]">{error}</p> : null}
+      {queryError || actionError ? <p className="mb-4 text-sm text-[var(--danger)]">{actionError ?? queryError}</p> : null}
+      {isLoading && items.length === 0 ? <p className="mb-4 text-sm muted-text">Uyarilar yukleniyor.</p> : null}
 
       <div className="space-y-2">
         {items.map((item) => (
@@ -92,7 +92,7 @@ export default function AlertsPage() {
         ))}
       </div>
 
-      {items.length === 0 ? <p className="text-sm muted-text">Henuz alert yok.</p> : null}
+      {!isLoading && items.length === 0 ? <p className="text-sm muted-text">Henuz alert yok.</p> : null}
     </Card>
   );
 }

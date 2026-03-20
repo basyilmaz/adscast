@@ -1,0 +1,17 @@
+export const QUERY_TTLS = {
+  workspaces: 10 * 60 * 1000,
+  currentWorkspace: 5 * 60 * 1000,
+  dashboard: 60 * 1000,
+  campaigns: 60 * 1000,
+  campaignDetail: 60 * 1000,
+  adAccounts: 5 * 60 * 1000,
+  alerts: 30 * 1000,
+  recommendations: 30 * 1000,
+  approvals: 15 * 1000,
+  auditLogs: 30 * 1000,
+  drafts: 30 * 1000,
+  draftDetail: 30 * 1000,
+  metaConnections: 60 * 1000,
+  metaConnectorStatus: 5 * 60 * 1000,
+  settings: 5 * 60 * 1000,
+} as const;

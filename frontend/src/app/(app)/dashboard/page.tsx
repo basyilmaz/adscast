@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import dynamic from "next/dynamic";
 import { Card, CardTitle, CardValue } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { apiRequest } from "@/lib/api";
+import { useApiQuery } from "@/hooks/use-api-query";
+import { QUERY_TTLS } from "@/lib/api-query-config";
 import { DashboardOverviewResponse } from "@/lib/types";
 
 const SpendResultChart = dynamic(
@@ -23,29 +24,19 @@ const fallbackTrend = Array.from({ length: 7 }).map((_, index) => ({
 }));
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardOverviewResponse["data"] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const loadData = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiRequest<DashboardOverviewResponse>("/dashboard/overview", {
-        requireWorkspace: true,
-      });
-      setData(response.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Dashboard verisi alinamadi.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
+  const {
+    data,
+    error,
+    isLoading,
+    isRefreshing,
+    reload,
+  } = useApiQuery<DashboardOverviewResponse, DashboardOverviewResponse["data"]>("/dashboard/overview", {
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.dashboard,
+    select: (response) => response.data,
+  });
 
   const metricCards = useMemo(() => {
     if (!data) return [];
@@ -63,9 +54,9 @@ export default function DashboardPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="text-sm muted-text">
-          {loading ? "Veriler yukleniyor..." : "Son senkron verisi gosteriliyor."}
+          {isLoading ? "Veriler yukleniyor..." : isRefreshing ? "Veriler arka planda yenileniyor..." : "Son senkron verisi gosteriliyor."}
         </div>
-        <Button variant="secondary" onClick={loadData}>
+        <Button variant="secondary" onClick={() => void reload()}>
           Yenile
         </Button>
       </div>
@@ -73,6 +64,14 @@ export default function DashboardPage() {
       {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {isLoading && metricCards.length === 0
+          ? Array.from({ length: 6 }).map((_, index) => (
+              <Card key={`dashboard-skeleton-${index}`} className="min-h-[116px] animate-pulse">
+                <CardTitle>Yukleniyor</CardTitle>
+                <CardValue>...</CardValue>
+              </Card>
+            ))
+          : null}
         {metricCards.map((metric) => (
           <Card key={metric.label}>
             <CardTitle>{metric.label}</CardTitle>
