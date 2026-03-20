@@ -22,6 +22,9 @@ Backend:
 - `META_MODE=live|stub`
 - `META_GRAPH_BASE_URL`, `META_DIALOG_BASE_URL`
 - `META_RAW_PAYLOAD_RETENTION_DAYS`, `META_OAUTH_STATE_TTL_MINUTES`, `META_SCOPES`
+- `META_SCHEDULE_ENABLED`, `META_ASSET_SYNC_INTERVAL_HOURS`
+- `META_INSIGHTS_SYNC_INTERVAL_HOURS`, `META_INSIGHTS_LOOKBACK_DAYS`
+- `META_RULES_WINDOW_DAYS`, `META_RECOMMENDATION_INTERVAL_HOURS`, `META_AUTOMATION_LOCK_SECONDS`
 - `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`
 
 Frontend:
@@ -45,6 +48,14 @@ Frontend:
 7. Queue worker/Horizon ayaga kaldir
 8. Scheduler icin cron:
    - `* * * * * php /path/to/artisan schedule:run >> /dev/null 2>&1`
+
+Varsayilan Meta automation cadence:
+
+- asset sync: 6 saatte bir
+- insight duzeltme penceresi: son 7 gun
+- insight sync: 24 saatte bir
+- rules window: son 30 gun
+- recommendation generation: 24 saatte bir
 
 ## Docker Compose (Hostinger Cloud Startup)
 

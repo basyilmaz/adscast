@@ -9,4 +9,11 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote')->hourly();
 
-Schedule::job(new CheckStaleMetaConnectionsJob())->hourly();
+if (config('services.meta.schedule.enabled', true)) {
+    Schedule::command('adscast:run-meta-automation')
+        ->hourlyAt(5)
+        ->withoutOverlapping(max(60, (int) ceil(config('services.meta.schedule.lock_seconds', 3300) / 60)))
+        ->name('adscast-meta-automation');
+}
+
+Schedule::job(new CheckStaleMetaConnectionsJob())->hourlyAt(35);

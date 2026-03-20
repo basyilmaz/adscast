@@ -43,6 +43,7 @@ Bu dokuman, AdsCast icin Meta entegrasyonunun teknik sinirlarini ve MVP kapsamin
 2. Insight daily sync: gunde en az 1 kez + son 7 gunluk duzeltme penceresi.
 3. Backfill: tarih araligi bazli ayri job serisi.
 4. Stale connection check: periyodik cron ile baglanti saglik kontrolu.
+5. Zamanlanmis calisma komutu `php artisan adscast:run-meta-automation` ile asset sync, insight sync, rules evaluation ve recommendation generation tek zincirde yonetilir.
 
 ## 7. Raw Payload Saklama Stratejisi
 
@@ -98,3 +99,4 @@ Sonraki faz:
 6. `raw_api_payloads` yaziminda token benzeri alanlar maskeleme kuralindan gecer.
 7. `GET /api/v1/meta/oauth/start` state uretir ve auth URL doner.
 8. `POST /api/v1/meta/oauth/exchange` code -> short-lived token -> long-lived token zincirini calistirir ve `meta_connections` kaydini gunceller.
+9. Scheduler acik oldugunda `routes/console.php` saatlik `adscast:run-meta-automation` ve ayri stale-check gorevini planlar.

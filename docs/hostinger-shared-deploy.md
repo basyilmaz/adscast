@@ -138,6 +138,13 @@ Not: DNS kaydi yoksa `adscast.castintech.com` NXDOMAIN doner.
 - Bu modda Horizon/Redis queue worker calistirilmadi.
 - Queue isleri `QUEUE_CONNECTION=sync` ile request icinde calisir.
 - Cron gerekiyorsa Hostinger panel cron ekranindan girilmelidir.
+- Meta automation cron komutu:
+
+```bash
+* * * * * cd /home/u473759453/domains/adscast.castintech.com/adscast/backend && php artisan schedule:run >> /home/u473759453/adscast-schedule.log 2>&1
+```
+
+- Uygulama scheduler icinde saatlik `adscast:run-meta-automation` ve ayri stale connection check calisir.
 
 ## Sonraki Adim
 

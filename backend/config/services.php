@@ -45,6 +45,15 @@ return [
             static fn (string $scope): string => trim($scope),
             explode(',', (string) env('META_SCOPES', 'ads_read,business_management,pages_show_list'))
         ))),
+        'schedule' => [
+            'enabled' => filter_var(env('META_SCHEDULE_ENABLED', true), FILTER_VALIDATE_BOOL),
+            'asset_sync_interval_hours' => (int) env('META_ASSET_SYNC_INTERVAL_HOURS', 6),
+            'insights_sync_interval_hours' => (int) env('META_INSIGHTS_SYNC_INTERVAL_HOURS', 24),
+            'insights_lookback_days' => (int) env('META_INSIGHTS_LOOKBACK_DAYS', 7),
+            'rules_window_days' => (int) env('META_RULES_WINDOW_DAYS', 30),
+            'recommendation_interval_hours' => (int) env('META_RECOMMENDATION_INTERVAL_HOURS', 24),
+            'lock_seconds' => (int) env('META_AUTOMATION_LOCK_SECONDS', 3300),
+        ],
     ],
 
     'ai' => [
