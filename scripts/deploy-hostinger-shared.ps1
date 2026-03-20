@@ -129,15 +129,18 @@ BACKUP_DIR="$DOMAIN_ROOT/public_html_backup_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 
 shopt -s dotglob
-if [ -n "$(ls -A "$PUB_DIR" 2>/dev/null)" ]; then
-  mv "$PUB_DIR"/* "$BACKUP_DIR"/
-fi
+if [ -d "$PUB_DIR/_next" ] && [ -f "$PUB_DIR/index.html" ]; then
+  echo "Mevcut static frontend deploy tespit edildi; public_html korunuyor."
+else
+  if [ -n "$(ls -A "$PUB_DIR" 2>/dev/null)" ]; then
+    mv "$PUB_DIR"/* "$BACKUP_DIR"/
+  fi
 
-cp "$BACKEND_DIR/public/.htaccess" "$PUB_DIR/.htaccess"
-cp "$BACKEND_DIR/public/favicon.ico" "$PUB_DIR/favicon.ico"
-cp "$BACKEND_DIR/public/robots.txt" "$PUB_DIR/robots.txt"
+  cp "$BACKEND_DIR/public/.htaccess" "$PUB_DIR/.htaccess"
+  cp "$BACKEND_DIR/public/favicon.ico" "$PUB_DIR/favicon.ico"
+  cp "$BACKEND_DIR/public/robots.txt" "$PUB_DIR/robots.txt"
 
-cat > "$PUB_DIR/index.php" <<'PHP'
+  cat > "$PUB_DIR/index.php" <<'PHP'
 <?php
 
 use Illuminate\Http\Request;
@@ -154,6 +157,7 @@ $app = require_once __DIR__.'/../adscast/backend/bootstrap/app.php';
 
 $app->handleRequest(Request::capture());
 PHP
+fi
 
 ln -sfn ../adscast/backend/storage/app/public "$PUB_DIR/storage"
 chmod -R 775 "$BACKEND_DIR/storage" "$BACKEND_DIR/bootstrap/cache"

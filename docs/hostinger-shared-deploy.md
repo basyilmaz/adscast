@@ -41,7 +41,8 @@ Script ne yapar:
 3. `.env` yoksa production varsayilanlari ile olusturur
 4. `php artisan migrate --force`
 5. `optimize:clear` + `optimize`
-6. `public_html` yedegi alip Laravel front controller baglar
+6. Eger static frontend yoksa `public_html` yedegi alip Laravel front controller baglar
+7. Eger `_next` + `index.html` ile mevcut static frontend tespit edilirse `public_html` korunur; sadece backend guncellenir
 
 ## Ayrik MySQL Tavsiyesi
 
