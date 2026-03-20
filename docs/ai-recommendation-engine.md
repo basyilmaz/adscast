@@ -44,6 +44,15 @@ AI katmani ham veriden dogrudan karar vermez. Deterministic rules engine ciktila
 - `AIProvider` interface
 - `OpenAIProvider` / `MockAIProvider` implementasyonlari
 - `AIProviderFactory` ile config bazli secim
+- `PromptTemplateRegistry` ile merkezi prompt ve JSON schema yonetimi
+
+## OpenAI Uygulamasi
+
+- Gercek provider icin OpenAI `Responses API` kullanilir
+- Structured output `text.format.type=json_schema` ile zorlanir
+- OpenAI tarafinda state tutmamak icin `store=false` gonderilir
+- `token_usage` alanlari `ai_generations` kaydina yazilir
+- `AI_API_KEY` bos ise provider deterministic `mock` ciktiya fallback eder
 
 MVP'de varsayilan davranis:
 

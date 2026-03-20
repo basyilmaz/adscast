@@ -61,6 +61,9 @@ return [
         'api_key' => env('AI_API_KEY'),
         'model' => env('AI_MODEL', 'gpt-4.1-mini'),
         'temperature' => (float) env('AI_TEMPERATURE', 0.2),
+        'base_url' => env('AI_BASE_URL', 'https://api.openai.com/v1'),
+        'timeout_seconds' => (int) env('AI_TIMEOUT_SECONDS', 45),
+        'user_agent' => env('AI_USER_AGENT', 'AdsCast/0.2.0'),
     ],
 
 ];

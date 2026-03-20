@@ -12,6 +12,7 @@ class RecommendationGenerationService
 {
     public function __construct(
         private readonly AIProviderFactory $providerFactory,
+        private readonly PromptTemplateRegistry $promptTemplateRegistry,
     ) {
     }
 
@@ -45,6 +46,7 @@ class RecommendationGenerationService
         ];
 
         $template = 'workspace_weekly_summary_v1';
+        $prompt = $this->promptTemplateRegistry->build($template, $context);
         $provider = $this->providerFactory->resolve();
         $output = $provider->generate($template, $context);
 
@@ -57,10 +59,10 @@ class RecommendationGenerationService
             'model' => (string) ($output['model'] ?? config('services.ai.model', 'unknown')),
             'prompt_template' => $template,
             'prompt_context' => $context,
-            'prompt_text' => 'Generated via template: '.$template,
+            'prompt_text' => (string) $prompt['prompt_text'],
             'output' => $output,
             'status' => 'succeeded',
-            'token_usage' => null,
+            'token_usage' => $output['token_usage'] ?? null,
             'generated_by' => $generatedBy,
             'generated_at' => now(),
         ]);
