@@ -103,9 +103,12 @@ class DashboardQueryService
                 'target_id',
                 'summary',
                 'details',
+                'action_type',
                 'priority',
                 'status',
+                'source',
                 'generated_at',
+                'metadata',
             ]);
 
         $lastSyncAt = MetaConnection::query()

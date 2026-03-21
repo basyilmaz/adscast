@@ -166,11 +166,15 @@ class AdAccountQueryService
             ->latest('date_detected')
             ->get([
                 'id',
+                'entity_type',
                 'entity_id',
                 'code',
                 'severity',
                 'summary',
+                'explanation',
                 'recommended_action',
+                'confidence',
+                'status',
                 'date_detected',
             ]);
 
@@ -183,12 +187,16 @@ class AdAccountQueryService
             ->latest('generated_at')
             ->get([
                 'id',
+                'target_type',
                 'target_id',
                 'summary',
                 'details',
+                'action_type',
                 'priority',
                 'status',
+                'source',
                 'generated_at',
+                'metadata',
             ]);
 
         $recommendationsByCampaign = $recommendations->groupBy('target_id');

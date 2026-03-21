@@ -92,10 +92,15 @@ class CampaignQueryService
             ->latest('date_detected')
             ->get([
                 'id',
+                'entity_type',
+                'entity_id',
                 'code',
                 'severity',
                 'summary',
+                'explanation',
                 'recommended_action',
+                'confidence',
+                'status',
                 'date_detected',
             ]);
 
@@ -107,11 +112,16 @@ class CampaignQueryService
             ->latest('generated_at')
             ->get([
                 'id',
+                'target_type',
+                'target_id',
                 'summary',
                 'details',
+                'action_type',
                 'priority',
                 'status',
+                'source',
                 'generated_at',
+                'metadata',
             ]);
 
         $adSets = AdSet::query()
