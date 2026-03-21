@@ -1,11 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { apiRequest } from "@/lib/api";
 import { ReportDeliveryProfileSuggestion } from "@/lib/types";
 
 type Props = {
   suggestion: ReportDeliveryProfileSuggestion | null;
   entityLabel: string;
+  entityType: "account" | "campaign";
+  entityId: string;
+  onApplied?: () => Promise<void> | void;
 };
 
 const CHANGE_LABELS: Record<string, string> = {
@@ -19,7 +25,17 @@ const CHANGE_LABELS: Record<string, string> = {
   share_delivery: "Paylasim ayari",
 };
 
-export function ReportDeliveryProfileSuggestionCard({ suggestion, entityLabel }: Props) {
+export function ReportDeliveryProfileSuggestionCard({
+  suggestion,
+  entityLabel,
+  entityType,
+  entityId,
+  onApplied,
+}: Props) {
+  const [isApplying, setIsApplying] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   if (!suggestion) {
     return (
       <div className="rounded-lg border border-[var(--border)] p-4">
@@ -30,6 +46,34 @@ export function ReportDeliveryProfileSuggestionCard({ suggestion, entityLabel }:
       </div>
     );
   }
+
+  const handleApply = async () => {
+    if (!suggestion.can_apply) {
+      return;
+    }
+
+    setIsApplying(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      await apiRequest(`/reports/delivery-profiles/${entityType}/${entityId}`, {
+        method: "PUT",
+        requireWorkspace: true,
+        body: {
+          ...suggestion.apply_payload,
+          is_active: true,
+        },
+      });
+
+      setMessage("Onerilen teslim profili uygulandi.");
+      await onApplied?.();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Onerilen profil uygulanamadi.");
+    } finally {
+      setIsApplying(false);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-[var(--border)] p-4">
@@ -42,6 +86,8 @@ export function ReportDeliveryProfileSuggestionCard({ suggestion, entityLabel }:
 
       <p className="mt-3 text-sm font-semibold">{suggestion.recipient_preset_name}</p>
       <p className="mt-1 text-sm muted-text">{suggestion.reason}</p>
+      {error ? <p className="mt-2 text-sm text-[var(--danger)]">{error}</p> : null}
+      {message ? <p className="mt-2 text-sm text-[var(--accent)]">{message}</p> : null}
 
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <div className="rounded-md bg-[var(--surface-2)] p-3">
@@ -74,6 +120,18 @@ export function ReportDeliveryProfileSuggestionCard({ suggestion, entityLabel }:
             </p>
           ) : null}
         </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          onClick={() => void handleApply()}
+          disabled={!suggestion.can_apply || isApplying}
+        >
+          {isApplying ? "Uygulaniyor..." : suggestion.can_apply ? "Oneriyi Uygula" : "Zaten Uygulaniyor"}
+        </Button>
       </div>
     </div>
   );

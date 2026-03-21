@@ -276,3 +276,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 37. Account ve campaign detail ekranlarina entity-scope recipient group analytics ve alignment ozetini tasiyip rapor sekmesini operasyonel icgoru paneli haline getirmek
 38. Onerilen alici grubu uyumu ile gercek teslim basarisi arasindaki farki recipient group correlation analytics olarak reports merkezine eklemek
 39. Rule-managed template verisinden entity-specific varsayilan teslim profili onerisi uretip account/campaign detail ekranlarina tasimak
+40. Account ve campaign detail ekranlarindaki teslim profili onerilerini tek tikla uygulanabilir hale getirip suggestion durumunu mevcut profil ile senkronlamak

@@ -403,6 +403,9 @@ export function AdAccountDetailClient() {
           <ReportDeliveryProfileSuggestionCard
             suggestion={data.suggested_delivery_profile}
             entityLabel={data.ad_account.name}
+            entityType="account"
+            entityId={data.ad_account.id}
+            onApplied={reload}
           />
 
           <ReportRecipientGroupEntityInsightsPanel

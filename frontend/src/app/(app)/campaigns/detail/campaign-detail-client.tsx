@@ -492,6 +492,9 @@ export function CampaignDetailClient() {
           <ReportDeliveryProfileSuggestionCard
             suggestion={data.suggested_delivery_profile}
             entityLabel={data.campaign.name}
+            entityType="campaign"
+            entityId={data.campaign.id}
+            onApplied={reload}
           />
 
           <ReportRecipientGroupEntityInsightsPanel
