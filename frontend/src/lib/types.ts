@@ -188,6 +188,7 @@ export type AdAccountDetailResponse = {
     alerts: AlertFeedItem[];
     recommendations: RecommendationFeedItem[];
     delivery_profile: ReportDeliveryProfileListItem | null;
+    suggested_delivery_profile: ReportDeliveryProfileSuggestion | null;
     recipient_group_analytics_summary: ReportRecipientGroupAnalyticsSummary;
     recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
     recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
@@ -326,6 +327,7 @@ export type CampaignDetailResponse = {
     alerts: AlertFeedItem[];
     recommendations: RecommendationFeedItem[];
     delivery_profile: ReportDeliveryProfileListItem | null;
+    suggested_delivery_profile: ReportDeliveryProfileSuggestion | null;
     recipient_group_analytics_summary: ReportRecipientGroupAnalyticsSummary;
     recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
     recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
@@ -1235,6 +1237,91 @@ export type ReportRecipientGroupCorrelationItem = {
   }>;
   correlation_status: string;
   correlation_summary: string;
+};
+
+export type ReportDeliveryProfileSuggestion = {
+  status: string;
+  status_label: string;
+  can_apply: boolean;
+  score: number;
+  recommendation_label: string | null;
+  reason: string;
+  changes: string[];
+  recipient_preset_id: string;
+  recipient_preset_name: string;
+  template_profile: {
+    kind: string;
+    kind_label: string;
+    target_entity_types: string[];
+    target_entity_scope_label: string;
+    matching_companies: string[];
+    company_scope_label: string;
+    priority: number;
+    priority_label: string;
+    is_recommended_default: boolean;
+    selection_strategy: string;
+    selection_strategy_label: string;
+  };
+  template_rule_summary: {
+    catalog_section: string;
+    kind_label: string;
+    entity_scope_label: string;
+    company_scope_label: string;
+    priority: number;
+    priority_label: string;
+    selection_strategy_label: string;
+    is_recommended_default: boolean;
+    badges: string[];
+  };
+  delivery_channel: string;
+  delivery_channel_label: string;
+  cadence: string;
+  cadence_label: string;
+  weekday: number | null;
+  month_day: number | null;
+  send_time: string;
+  timezone: string;
+  default_range_days: number;
+  layout_preset: string;
+  resolved_recipients: string[];
+  resolved_recipients_count: number;
+  recipient_group_summary: {
+    mode: string;
+    label: string;
+    preset_name: string | null;
+    contact_tags: string[];
+    static_recipients_count: number;
+    manual_recipients_count: number;
+    preset_recipients_count: number;
+    dynamic_contacts_count: number;
+    resolved_recipients_count: number;
+    sample_contact_names: string[];
+  } | null;
+  share_delivery: {
+    enabled: boolean;
+    label_template: string | null;
+    expires_in_days: number | null;
+    allow_csv_download: boolean;
+  };
+  apply_payload: {
+    entity_type: string;
+    entity_id: string;
+    recipient_preset_id: string;
+    delivery_channel: string;
+    cadence: string;
+    weekday: number | null;
+    month_day: number | null;
+    send_time: string;
+    timezone: string;
+    default_range_days: number;
+    layout_preset: string;
+    recipients: string[];
+    contact_tags: string[];
+    auto_share_enabled: boolean;
+    share_label_template: string | null;
+    share_expires_in_days: number | null;
+    share_allow_csv_download: boolean;
+  };
 };
 
 export type ClientReportPayload = {

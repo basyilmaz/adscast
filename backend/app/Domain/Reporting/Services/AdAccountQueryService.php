@@ -20,6 +20,7 @@ class AdAccountQueryService
     public function __construct(
         private readonly ActionFeedService $actionFeedService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
+        private readonly ReportDeliveryProfileSuggestionService $reportDeliveryProfileSuggestionService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
         private readonly ReportRecipientGroupAnalyticsService $reportRecipientGroupAnalyticsService,
         private readonly ReportRecipientGroupAlignmentAnalyticsService $reportRecipientGroupAlignmentAnalyticsService,
@@ -276,6 +277,12 @@ class AdAccountQueryService
             'account',
             $account->id,
         );
+        $suggestedDeliveryProfile = $this->reportDeliveryProfileSuggestionService->suggestForEntity(
+            $account->workspace_id,
+            'account',
+            $account->id,
+            $deliveryProfile,
+        );
         $recipientGroupAnalytics = $this->reportRecipientGroupAnalyticsService->forEntity(
             $account->workspace_id,
             'account',
@@ -320,6 +327,7 @@ class AdAccountQueryService
             'alerts' => $alertPayload['items'],
             'recommendations' => $recommendationPayload['items'],
             'delivery_profile' => $deliveryProfile,
+            'suggested_delivery_profile' => $suggestedDeliveryProfile,
             'recipient_group_analytics_summary' => $recipientGroupAnalytics['summary'],
             'recipient_group_analytics' => $recipientGroupAnalytics['items'],
             'recipient_group_alignment_summary' => $recipientGroupAlignment['summary'],

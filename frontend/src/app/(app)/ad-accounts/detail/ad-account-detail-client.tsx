@@ -11,6 +11,7 @@ import { Card, CardTitle, CardValue } from "@/components/ui/card";
 import { PageErrorState, PageLoadingState } from "@/components/ui/page-state";
 import { NextBestActionsPanel } from "@/components/operations/next-best-actions-panel";
 import { ReportDeliveryProfileManager } from "@/components/reports/report-delivery-profile-manager";
+import { ReportDeliveryProfileSuggestionCard } from "@/components/reports/report-delivery-profile-suggestion-card";
 import { ReportRecipientGroupEntityInsightsPanel } from "@/components/reports/report-recipient-group-entity-insights-panel";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
@@ -399,6 +400,11 @@ export function AdAccountDetailClient() {
 
       {activeTab === "reports" ? (
         <section className="space-y-4">
+          <ReportDeliveryProfileSuggestionCard
+            suggestion={data.suggested_delivery_profile}
+            entityLabel={data.ad_account.name}
+          />
+
           <ReportRecipientGroupEntityInsightsPanel
             analyticsSummary={data.recipient_group_analytics_summary}
             analyticsItems={data.recipient_group_analytics}

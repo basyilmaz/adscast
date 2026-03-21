@@ -21,6 +21,7 @@ Base path: `/api/v1`
   - desteklenen query parametreleri: `start_date`, `end_date`, `ad_account_id`, `objective`, `status`
 - `GET /campaigns/{campaignId}`
   - `suggested_recipient_groups[]` ile kampanya baglamina uygun onerilen alici gruplarini doner; sirket/marka eslesmesi olan akilli gruplar dahil edilir
+  - `suggested_delivery_profile` ile rule-managed template kaynakli varsayilan teslim profili onerisi doner
 - `GET /ad-sets/{adSetId}`
 - `GET /ads/{adId}`
 - `GET /reports`
@@ -83,6 +84,7 @@ Base path: `/api/v1`
 - `GET /meta/ad-accounts`
 - `GET /meta/ad-accounts/{adAccountId}`
   - `suggested_recipient_groups[]` ile hesap baglamina uygun onerilen alici gruplarini doner; sirket/marka eslesmesi olan akilli gruplar dahil edilir
+  - `suggested_delivery_profile` ile rule-managed template kaynakli varsayilan teslim profili onerisi doner
 - `POST /meta/connections/{connectionId}/sync-assets`
 - `POST /meta/connections/{connectionId}/sync-insights`
 

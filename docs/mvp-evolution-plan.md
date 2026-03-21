@@ -275,3 +275,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 36. Kayitli alici presetlerini kural yonetilen recipient group template kataloguna tasiyip entity tipi, sirket eslesmesi ve oncelik metadata'si ile suggestion akisini guclendirmek
 37. Account ve campaign detail ekranlarina entity-scope recipient group analytics ve alignment ozetini tasiyip rapor sekmesini operasyonel icgoru paneli haline getirmek
 38. Onerilen alici grubu uyumu ile gercek teslim basarisi arasindaki farki recipient group correlation analytics olarak reports merkezine eklemek
+39. Rule-managed template verisinden entity-specific varsayilan teslim profili onerisi uretip account/campaign detail ekranlarina tasimak

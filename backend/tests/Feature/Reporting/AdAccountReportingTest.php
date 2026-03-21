@@ -300,6 +300,11 @@ class AdAccountReportingTest extends TestCase
                 'name' => 'Castintech Main Stakeholders',
                 'recipients' => ['ops@castintech.com'],
                 'contact_tags' => ['castintech-main'],
+                'template_kind' => 'stakeholder_update',
+                'target_entity_types' => ['account'],
+                'matching_companies' => ['Castintech'],
+                'priority' => 95,
+                'is_recommended_default' => true,
                 'notes' => 'Ana hesap icin musteri dagitimi.',
                 'is_active' => true,
                 'created_at' => now()->subHour()->toDateTimeString(),
@@ -448,6 +453,15 @@ class AdAccountReportingTest extends TestCase
             ->assertJsonPath('data.delivery_profile.recipient_group_summary.mode', 'manual')
             ->assertJsonPath('data.delivery_profile.recipient_group_summary.static_recipients_count', 2)
             ->assertJsonPath('data.delivery_profile.share_delivery.enabled', true)
+            ->assertJsonPath('data.suggested_delivery_profile.status', 'upgrade_available')
+            ->assertJsonPath('data.suggested_delivery_profile.recipient_preset_id', $presetId)
+            ->assertJsonPath('data.suggested_delivery_profile.recipient_preset_name', 'Castintech Main Stakeholders')
+            ->assertJsonPath('data.suggested_delivery_profile.template_profile.kind', 'stakeholder_update')
+            ->assertJsonPath('data.suggested_delivery_profile.can_apply', true)
+            ->assertJsonPath('data.suggested_delivery_profile.cadence', 'weekly')
+            ->assertJsonPath('data.suggested_delivery_profile.weekday', 3)
+            ->assertJsonPath('data.suggested_delivery_profile.send_time', '09:00')
+            ->assertJsonPath('data.suggested_delivery_profile.default_range_days', 7)
             ->assertJsonPath('data.recipient_group_analytics_summary.total_groups', 1)
             ->assertJsonPath('data.recipient_group_analytics_summary.groups_with_failures', 1)
             ->assertJsonPath('data.recipient_group_analytics_summary.most_used_group_label', 'Castintech Main Stakeholders')

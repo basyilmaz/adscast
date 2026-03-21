@@ -79,6 +79,11 @@ class CampaignDrillDownTest extends TestCase
                 'name' => 'Lead Engine Musteri Grubu',
                 'recipients' => ['ops@castintech.com'],
                 'contact_tags' => ['lead-engine'],
+                'template_kind' => 'executive_digest',
+                'target_entity_types' => ['campaign'],
+                'matching_companies' => ['Castintech'],
+                'priority' => 92,
+                'is_recommended_default' => true,
                 'notes' => 'Lead Engine kampanyasi icin onerilen dagitim.',
                 'is_active' => true,
                 'created_at' => now()->subHour()->toDateTimeString(),
@@ -193,6 +198,12 @@ class CampaignDrillDownTest extends TestCase
             ->assertJsonPath('data.delivery_profile.recipient_group_summary.mode', 'manual')
             ->assertJsonPath('data.delivery_profile.recipient_group_summary.static_recipients_count', 1)
             ->assertJsonPath('data.delivery_profile.share_delivery.allow_csv_download', true)
+            ->assertJsonPath('data.suggested_delivery_profile.status', 'upgrade_available')
+            ->assertJsonPath('data.suggested_delivery_profile.recipient_preset_id', $presetId)
+            ->assertJsonPath('data.suggested_delivery_profile.template_profile.kind', 'executive_digest')
+            ->assertJsonPath('data.suggested_delivery_profile.month_day', 3)
+            ->assertJsonPath('data.suggested_delivery_profile.send_time', '08:45')
+            ->assertJsonPath('data.suggested_delivery_profile.default_range_days', 30)
             ->assertJsonPath('data.recipient_group_analytics_summary.total_groups', 1)
             ->assertJsonPath('data.recipient_group_analytics_summary.groups_with_failures', 0)
             ->assertJsonPath('data.recipient_group_analytics.0.label', 'Lead Engine Musteri Grubu')
