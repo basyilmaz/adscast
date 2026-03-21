@@ -13,9 +13,14 @@ class UpsertReportDeliveryProfileRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $recipients = $this->input('recipients');
+        $contactTags = $this->input('contact_tags');
+
         $this->merge([
             'entity_type' => $this->route('entityType'),
             'entity_id' => $this->route('entityId'),
+            'recipients' => is_array($recipients) && count($recipients) === 0 ? null : $recipients,
+            'contact_tags' => is_array($contactTags) && count($contactTags) === 0 ? null : $contactTags,
         ]);
     }
 

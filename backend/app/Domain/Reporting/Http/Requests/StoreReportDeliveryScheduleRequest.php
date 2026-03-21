@@ -11,6 +11,17 @@ class StoreReportDeliveryScheduleRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $recipients = $this->input('recipients');
+        $contactTags = $this->input('contact_tags');
+
+        $this->merge([
+            'recipients' => is_array($recipients) && count($recipients) === 0 ? null : $recipients,
+            'contact_tags' => is_array($contactTags) && count($contactTags) === 0 ? null : $contactTags,
+        ]);
+    }
+
     public function rules(): array
     {
         $maxShareExpiryDays = max((int) config('services.reports.share.max_expiry_days', 30), 1);

@@ -762,6 +762,50 @@ class ReportDeliveryFoundationTest extends TestCase
         ]);
     }
 
+    public function test_suggested_delivery_profile_apply_payload_can_be_applied_directly(): void
+    {
+        [$workspace, $token, $account, $campaign] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/recipient-presets', [
+                'name' => 'Managed Suggestion Apply Preset',
+                'recipients' => ['client@castintech.com'],
+                'template_kind' => 'stakeholder_update',
+                'target_entity_types' => ['account'],
+                'priority' => 95,
+                'is_recommended_default' => true,
+            ])
+            ->assertCreated();
+
+        $detailResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson("/api/v1/meta/ad-accounts/{$account->id}?start_date=2026-03-10&end_date=2026-03-16");
+
+        $payload = $detailResponse->json('data.suggested_delivery_profile.apply_payload');
+
+        $this->assertIsArray($payload);
+        $this->assertSame([], $payload['recipients']);
+        $this->assertSame([], $payload['contact_tags']);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->putJson("/api/v1/reports/delivery-profiles/account/{$account->id}", array_merge($payload, [
+                'is_active' => true,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('data.entity_type', 'account')
+            ->assertJsonPath('data.recipient_preset_name', 'Managed Suggestion Apply Preset');
+
+        $afterResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson("/api/v1/meta/ad-accounts/{$account->id}?start_date=2026-03-10&end_date=2026-03-16");
+
+        $afterResponse->assertOk()
+            ->assertJsonPath('data.suggested_delivery_profile.status', 'already_applied')
+            ->assertJsonPath('data.delivery_profile.recipient_preset_name', 'Managed Suggestion Apply Preset');
+    }
+
     public function test_reports_index_includes_delivery_history_summary_and_retryable_failed_runs(): void
     {
         [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');

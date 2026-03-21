@@ -20,6 +20,7 @@ export async function apiRequest<T>(
   const workspaceId = getWorkspaceId();
 
   const headers: HeadersInit = {
+    Accept: "application/json",
     "Content-Type": "application/json",
   };
 

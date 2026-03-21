@@ -52,6 +52,13 @@ export function ReportDeliveryProfileSuggestionCard({
       return;
     }
 
+    const applyPayload = {
+      ...suggestion.apply_payload,
+      recipients: suggestion.apply_payload.recipients.length > 0 ? suggestion.apply_payload.recipients : null,
+      contact_tags: suggestion.apply_payload.contact_tags.length > 0 ? suggestion.apply_payload.contact_tags : null,
+      is_active: true,
+    };
+
     setIsApplying(true);
     setError(null);
     setMessage(null);
@@ -60,10 +67,7 @@ export function ReportDeliveryProfileSuggestionCard({
       await apiRequest(`/reports/delivery-profiles/${entityType}/${entityId}`, {
         method: "PUT",
         requireWorkspace: true,
-        body: {
-          ...suggestion.apply_payload,
-          is_active: true,
-        },
+        body: applyPayload,
       });
 
       setMessage("Onerilen teslim profili uygulandi.");
