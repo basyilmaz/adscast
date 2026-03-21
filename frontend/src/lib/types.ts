@@ -197,6 +197,8 @@ export type AdAccountDetailResponse = {
     recipient_group_failure_alignment: ReportRecipientGroupFailureAlignmentItem[];
     recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
+    failure_resolution_summary: ReportFailureResolutionSummary;
+    failure_resolution_actions: ReportFailureResolutionActionItem[];
     suggested_recipient_groups: RecipientGroupCatalogItem[];
     next_best_actions: NextBestActionItem[];
     report_preview: {
@@ -340,6 +342,8 @@ export type CampaignDetailResponse = {
     recipient_group_failure_alignment: ReportRecipientGroupFailureAlignmentItem[];
     recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
+    failure_resolution_summary: ReportFailureResolutionSummary;
+    failure_resolution_actions: ReportFailureResolutionActionItem[];
     suggested_recipient_groups: RecipientGroupCatalogItem[];
     next_best_actions: NextBestActionItem[];
     analysis: {
@@ -1341,6 +1345,31 @@ export type ReportRecipientGroupFailureReasonItem = {
     context_label: string | null;
     failed_runs: number;
   }>;
+};
+
+export type ReportFailureResolutionSummary = {
+  total_actions: number;
+  retryable_runs: number;
+  reason_types: number;
+  top_reason_label: string | null;
+};
+
+export type ReportFailureResolutionActionItem = {
+  id: string;
+  code: string;
+  label: string;
+  detail: string;
+  severity: string;
+  action_kind: "api" | "focus_tab" | "route" | string;
+  button_label: string;
+  is_available: boolean;
+  route: string | null;
+  target_tab: string | null;
+  metadata: {
+    retryable_runs?: number;
+    affected_reason_codes?: string[];
+    latest_failed_at?: string | null;
+  } | null;
 };
 
 export type ReportDeliveryProfileSuggestion = {

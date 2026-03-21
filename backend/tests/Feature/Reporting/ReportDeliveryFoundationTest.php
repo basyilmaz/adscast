@@ -268,6 +268,71 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.delivery_schedules.0.recent_runs.0.delivery.channel', 'email');
     }
 
+    public function test_entity_failure_resolution_action_retries_retryable_failed_runs(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Retry Action Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 14,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $schedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $template->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 2,
+            'send_time' => '09:30',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['client@castintech.com'],
+            'configuration' => [],
+            'is_active' => true,
+        ]);
+
+        $run = ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(30),
+            'trigger_mode' => 'manual',
+            'error_message' => 'SMTP timeout',
+            'metadata' => [],
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/failure-resolution-actions/account/{$account->id}/retry_failed_runs");
+
+        $response->assertOk()
+            ->assertJsonPath('data.action_code', 'retry_failed_runs')
+            ->assertJsonPath('data.requested_runs', 1)
+            ->assertJsonPath('data.retried_runs', 1)
+            ->assertJsonPath('data.failed_retries', 0)
+            ->assertJsonPath('data.results.0.source_run_id', $run->id)
+            ->assertJsonPath('data.results.0.retry_of_run_id', $run->id);
+
+        $run->refresh();
+
+        $this->assertNotNull(data_get($run->metadata, 'retry.next_run_id'));
+        $this->assertDatabaseHas('report_delivery_runs', [
+            'report_delivery_schedule_id' => $schedule->id,
+            'trigger_mode' => 'retry',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'workspace_id' => $workspace->id,
+            'action' => 'report_failure_resolution_action_executed',
+        ]);
+    }
+
     public function test_quick_delivery_setup_creates_campaign_scoped_schedule_with_recipients(): void
     {
         [$workspace, $token, , $campaign] = $this->seedReportFixture('agency.admin@adscast.test');

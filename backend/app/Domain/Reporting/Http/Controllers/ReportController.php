@@ -14,6 +14,7 @@ use App\Domain\Reporting\Http\Requests\ToggleReportDeliveryProfileRequest;
 use App\Domain\Reporting\Http\Requests\UpsertReportDeliveryProfileRequest;
 use App\Domain\Reporting\Services\ReportBuilderService;
 use App\Domain\Reporting\Services\ReportContactService;
+use App\Domain\Reporting\Services\ReportFailureResolutionActionService;
 use App\Domain\Reporting\Services\ReportRecipientGroupAdvisorService;
 use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
@@ -43,6 +44,7 @@ class ReportController
         private readonly ReportSnapshotService $reportSnapshotService,
         private readonly ReportTemplateService $reportTemplateService,
         private readonly ReportContactService $reportContactService,
+        private readonly ReportFailureResolutionActionService $reportFailureResolutionActionService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
@@ -517,6 +519,34 @@ class ReportController
 
         return new JsonResponse([
             'message' => 'Basarisiz teslim yeniden denendi.',
+            'data' => $result,
+        ]);
+    }
+
+    public function executeFailureResolutionAction(
+        Request $request,
+        string $entityType,
+        string $entityId,
+        string $actionCode,
+    ): JsonResponse {
+        if (! in_array($entityType, ['account', 'campaign'], true)) {
+            abort(404);
+        }
+
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $result = $this->reportFailureResolutionActionService->execute(
+            workspace: $workspace,
+            entityType: $entityType,
+            entityId: $entityId,
+            actionCode: $actionCode,
+            reportDeliveryScheduleService: $this->reportDeliveryScheduleService,
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Failure resolution aksiyonu calistirildi.',
             'data' => $result,
         ]);
     }

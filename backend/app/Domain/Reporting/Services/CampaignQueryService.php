@@ -19,6 +19,7 @@ class CampaignQueryService
 {
     public function __construct(
         private readonly ActionFeedService $actionFeedService,
+        private readonly ReportFailureResolutionActionService $reportFailureResolutionActionService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
         private readonly ReportDeliveryProfileSuggestionService $reportDeliveryProfileSuggestionService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
@@ -324,6 +325,11 @@ class CampaignQueryService
             'campaign',
             $campaign->id,
         );
+        $failureResolutionActions = $this->reportFailureResolutionActionService->forEntity(
+            $campaign->workspace_id,
+            'campaign',
+            $campaign->id,
+        );
 
         return [
             'range' => [
@@ -369,6 +375,8 @@ class CampaignQueryService
             'recipient_group_failure_alignment' => $recipientGroupFailureAlignment['items'],
             'recipient_group_failure_reason_summary' => $recipientGroupFailureReasons['summary'],
             'recipient_group_failure_reasons' => $recipientGroupFailureReasons['items'],
+            'failure_resolution_summary' => $failureResolutionActions['summary'],
+            'failure_resolution_actions' => $failureResolutionActions['items'],
             'suggested_recipient_groups' => $this->reportRecipientGroupAdvisorService->suggestForEntity(
                 $campaign->workspace_id,
                 'campaign',
