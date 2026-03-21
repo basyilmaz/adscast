@@ -26,14 +26,18 @@ Base path: `/api/v1`
 - `GET /reports/account/{adAccountId}`
 - `GET /reports/campaign/{campaignId}`
 - `POST /reports/snapshots`
+- `POST /reports/snapshots/{snapshotId}/share-links` (`settings.manage`)
 - `POST /reports/templates` (`settings.manage`)
 - `POST /reports/delivery-schedules` (`settings.manage`)
 - `POST /reports/delivery-schedules/{scheduleId}/toggle` (`settings.manage`)
 - `POST /reports/delivery-schedules/{scheduleId}/run-now` (`settings.manage`)
+- `POST /reports/share-links/{shareLinkId}/revoke` (`settings.manage`)
 - `GET /reports/snapshots/{snapshotId}`
 - `GET /reports/account/{adAccountId}/export.csv`
 - `GET /reports/campaign/{campaignId}/export.csv`
 - `GET /reports/snapshots/{snapshotId}/export.csv`
+- `GET /public/report-shares/{token}`
+- `GET /public/report-shares/{token}/export.csv`
 - `GET /exports/campaigns.csv`
 
 ## Meta Connector

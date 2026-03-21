@@ -33,6 +33,7 @@ type Props = {
   snapshotLoading?: boolean;
   snapshotMessage?: string | null;
   snapshotActionLabel?: string;
+  mode?: "operator" | "client";
 };
 
 export function ClientReportCanvas({
@@ -42,6 +43,7 @@ export function ClientReportCanvas({
   snapshotLoading = false,
   snapshotMessage,
   snapshotActionLabel = "Snapshot Kaydet",
+  mode = "operator",
 }: Props) {
   return (
     <div className="space-y-4">
@@ -57,6 +59,7 @@ export function ClientReportCanvas({
           <div className="flex flex-wrap gap-2">
             <Badge label={data.entity.type === "account" ? "Account Report" : "Campaign Report"} variant="neutral" />
             <Badge label={`${data.range.start_date} / ${data.range.end_date}`} variant="neutral" />
+            {data.share_link ? <Badge label="Musteri Paylasimi" variant="success" /> : null}
             {onDownloadCsv ? (
               <Button type="button" variant="secondary" onClick={onDownloadCsv}>
                 CSV Indir
@@ -113,14 +116,24 @@ export function ClientReportCanvas({
               <p className="font-semibold">Musteri Ozeti</p>
               <p className="muted-text">{data.report.client_summary}</p>
             </div>
-            <div>
-              <p className="font-semibold">Operator Ozeti</p>
-              <p className="muted-text">{data.report.operator_summary}</p>
-            </div>
+            {mode === "operator" ? (
+              <div>
+                <p className="font-semibold">Operator Ozeti</p>
+                <p className="muted-text">{data.report.operator_summary}</p>
+              </div>
+            ) : null}
             <div>
               <p className="font-semibold">PDF Foundation</p>
               <p className="muted-text">{data.export_options.pdf_foundation.note}</p>
             </div>
+            {data.share_link ? (
+              <div>
+                <p className="font-semibold">Paylasim Durumu</p>
+                <p className="muted-text">
+                  Bu link {data.share_link.expires_at ?? "belirsiz tarihe kadar"} gecerlidir.
+                </p>
+              </div>
+            ) : null}
           </div>
         </Card>
       </section>
@@ -138,11 +151,20 @@ export function ClientReportCanvas({
           </div>
         </Card>
 
-        <NextBestActionsPanel
-          title="Raporun Onerdigi Sonraki Adimlar"
-          items={data.next_best_actions}
-          emptyText="Bu rapor icin kayitli sonraki adim bulunmuyor."
-        />
+        {mode === "operator" ? (
+          <NextBestActionsPanel
+            title="Raporun Onerdigi Sonraki Adimlar"
+            items={data.next_best_actions}
+            emptyText="Bu rapor icin kayitli sonraki adim bulunmuyor."
+          />
+        ) : (
+          <Card>
+            <CardTitle>Paylasim Notu</CardTitle>
+            <p className="mt-3 text-sm muted-text">
+              Bu gorunum, kaydedilmis snapshot&apos;in musteri paylasimi icin hazirlanmis sabit kopyasidir.
+            </p>
+          </Card>
+        )}
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
@@ -158,7 +180,7 @@ export function ClientReportCanvas({
                 <p className="mt-2 font-semibold">{item.title}</p>
                 <p className="mt-1 text-sm muted-text">{item.subtitle}</p>
                 <p className="mt-2 text-sm">{item.note}</p>
-                {item.route ? (
+                {mode === "operator" && item.route ? (
                   <Link href={item.route} className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline">
                     Ilgili kaydi ac
                   </Link>
@@ -169,27 +191,36 @@ export function ClientReportCanvas({
           </div>
         </Card>
 
-        <Card>
-          <CardTitle>Snapshot Gecmisi</CardTitle>
-          <div className="mt-3 space-y-3">
-            {(data.snapshot_history ?? []).map((item) => (
-              <div key={item.id} className="rounded-lg border border-[var(--border)] p-3">
-                <p className="font-semibold">{item.title}</p>
-                <p className="mt-1 text-xs muted-text">
-                  {item.start_date} / {item.end_date} • {item.created_at ?? "-"}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-3 text-sm">
-                  <Link href={item.snapshot_url} className="font-semibold text-[var(--accent)] hover:underline">
-                    Snapshot Ac
-                  </Link>
+        {mode === "operator" ? (
+          <Card>
+            <CardTitle>Snapshot Gecmisi</CardTitle>
+            <div className="mt-3 space-y-3">
+              {(data.snapshot_history ?? []).map((item) => (
+                <div key={item.id} className="rounded-lg border border-[var(--border)] p-3">
+                  <p className="font-semibold">{item.title}</p>
+                  <p className="mt-1 text-xs muted-text">
+                    {item.start_date} / {item.end_date} • {item.created_at ?? "-"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-3 text-sm">
+                    <Link href={item.snapshot_url} className="font-semibold text-[var(--accent)] hover:underline">
+                      Snapshot Ac
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            ))}
-            {(data.snapshot_history ?? []).length === 0 ? (
-              <p className="text-sm muted-text">Bu entity icin kayitli snapshot bulunmuyor.</p>
-            ) : null}
-          </div>
-        </Card>
+              ))}
+              {(data.snapshot_history ?? []).length === 0 ? (
+                <p className="text-sm muted-text">Bu entity icin kayitli snapshot bulunmuyor.</p>
+              ) : null}
+            </div>
+          </Card>
+        ) : (
+          <Card>
+            <CardTitle>Rapor Bilgisi</CardTitle>
+            <p className="mt-3 text-sm muted-text">
+              Hazirlanma zamani: {data.snapshot?.created_at ?? data.report.generated_at}
+            </p>
+          </Card>
+        )}
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
@@ -211,17 +242,17 @@ export function ClientReportCanvas({
         </Card>
 
         <Card>
-          <CardTitle>Oneriler</CardTitle>
+          <CardTitle>{mode === "operator" ? "Oneriler" : "Test ve Gelisim Notlari"}</CardTitle>
           <div className="mt-3 space-y-3">
             {data.recommendations.map((item) => (
               <div key={item.id} className="rounded-lg border border-[var(--border)] p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge label={item.priority} variant={item.priority === "high" ? "danger" : "warning"} />
-                  <Badge label={item.action_status.label} variant="neutral" />
+                  {mode === "operator" ? <Badge label={item.action_status.label} variant="neutral" /> : null}
                 </div>
                 <p className="mt-2 font-semibold">{item.summary}</p>
                 <p className="mt-1 text-sm muted-text">{item.client_view.summary}</p>
-                <p className="mt-2 text-sm">Sonraki test: {item.operator_view.next_test ?? "-"}</p>
+                {mode === "operator" ? <p className="mt-2 text-sm">Sonraki test: {item.operator_view.next_test ?? "-"}</p> : null}
               </div>
             ))}
             {data.recommendations.length === 0 ? <p className="text-sm muted-text">Bu aralikta kayitli oneri bulunmuyor.</p> : null}

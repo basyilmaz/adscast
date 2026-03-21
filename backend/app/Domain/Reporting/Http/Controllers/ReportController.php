@@ -4,9 +4,11 @@ namespace App\Domain\Reporting\Http\Controllers;
 
 use App\Domain\Reporting\Http\Requests\StoreReportSnapshotRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliveryScheduleRequest;
+use App\Domain\Reporting\Http\Requests\StoreReportShareLinkRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportTemplateRequest;
 use App\Domain\Reporting\Services\ReportBuilderService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
+use App\Domain\Reporting\Services\ReportShareLinkService;
 use App\Domain\Reporting\Services\ReportSnapshotService;
 use App\Domain\Reporting\Services\ReportTemplateService;
 use App\Domain\Tenants\Support\WorkspaceContext;
@@ -25,6 +27,7 @@ class ReportController
         private readonly ReportSnapshotService $reportSnapshotService,
         private readonly ReportTemplateService $reportTemplateService,
         private readonly ReportDeliveryScheduleService $reportDeliveryScheduleService,
+        private readonly ReportShareLinkService $reportShareLinkService,
     ) {
     }
 
@@ -34,6 +37,7 @@ class ReportController
         $snapshotIndex = $this->reportSnapshotService->index($workspaceId);
         $templateIndex = $this->reportTemplateService->index($workspaceId);
         $deliveryIndex = $this->reportDeliveryScheduleService->index($workspaceId);
+        $shareSummary = $this->reportShareLinkService->summary($workspaceId);
 
         return new JsonResponse([
             'data' => array_merge(
@@ -43,6 +47,7 @@ class ReportController
                     'templates' => $templateIndex['items'],
                     'delivery_summary' => $deliveryIndex['summary'],
                     'delivery_schedules' => $deliveryIndex['items'],
+                    'share_summary' => $shareSummary,
                 ],
             ),
         ]);
@@ -197,8 +202,50 @@ class ReportController
             ->where('workspace_id', $workspaceId)
             ->findOrFail($snapshotId);
 
+        $detail = $this->reportSnapshotService->snapshotDetail($snapshot);
+        $shareLinks = $this->reportShareLinkService->groupedForSnapshots($workspaceId, [$snapshot->id]);
+        $detail['snapshot']['share_links'] = $shareLinks[$snapshot->id] ?? [];
+
         return new JsonResponse([
-            'data' => $this->reportSnapshotService->snapshotDetail($snapshot),
+            'data' => $detail,
+        ]);
+    }
+
+    public function storeShareLink(StoreReportShareLinkRequest $request, string $snapshotId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $shareLink = $this->reportShareLinkService->create(
+            workspace: $workspace,
+            snapshotId: $snapshotId,
+            payload: $request->validated(),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Paylasim linki olusturuldu.',
+            'data' => $shareLink,
+        ], 201);
+    }
+
+    public function revokeShareLink(Request $request, string $shareLinkId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $shareLink = $this->reportShareLinkService->revoke(
+            workspace: $workspace,
+            shareLinkId: $shareLinkId,
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Paylasim linki iptal edildi.',
+            'data' => [
+                'id' => $shareLink->id,
+                'revoked_at' => $shareLink->revoked_at?->toDateTimeString(),
+            ],
         ]);
     }
 

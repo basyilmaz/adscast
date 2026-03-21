@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ReportSnapshot extends BaseModel
 {
@@ -38,5 +39,10 @@ class ReportSnapshot extends BaseModel
     public function generator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'generated_by');
+    }
+
+    public function shareLinks(): HasMany
+    {
+        return $this->hasMany(ReportShareLink::class);
     }
 }

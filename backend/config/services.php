@@ -71,6 +71,10 @@ return [
             'enabled' => filter_var(env('REPORT_DELIVERIES_ENABLED', true), FILTER_VALIDATE_BOOL),
             'lock_seconds' => (int) env('REPORT_DELIVERIES_LOCK_SECONDS', 840),
         ],
+        'share' => [
+            'default_expiry_days' => (int) env('REPORT_SHARES_DEFAULT_EXPIRY_DAYS', 7),
+            'max_expiry_days' => (int) env('REPORT_SHARES_MAX_EXPIRY_DAYS', 30),
+        ],
     ],
 
 ];

@@ -28,6 +28,7 @@ Backend:
 - `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`
 - `AI_BASE_URL`, `AI_TIMEOUT_SECONDS`, `AI_USER_AGENT`
 - `REPORT_DELIVERIES_ENABLED`, `REPORT_DELIVERIES_LOCK_SECONDS`
+- `REPORT_SHARES_DEFAULT_EXPIRY_DAYS`, `REPORT_SHARES_MAX_EXPIRY_DAYS`
 
 Frontend:
 
@@ -63,6 +64,13 @@ Report delivery foundation:
 
 - `schedule:run` icinden `adscast:run-report-deliveries` her 15 dakikada bir tetiklenir
 - gercek e-posta gonderimi yoktur; due schedule kaydi icin yeni `report_snapshot` ve `report_delivery_run` kaydi olusur
+
+Shareable client report foundation:
+
+- public linkler canli rapora degil, kaydedilmis `report_snapshot` kaydina baglanir
+- public endpoint token hash ile dogrulanir
+- operator panelinde link revoke edilebilir
+- public CSV indirme sadece share link ayarinda aciksa kullanilabilir
 
 ## Docker Compose (Hostinger Cloud Startup)
 

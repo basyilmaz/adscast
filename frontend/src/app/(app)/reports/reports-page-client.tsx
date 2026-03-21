@@ -131,7 +131,7 @@ export default function ReportsPage() {
         <MetricCard label="Campaign Snapshot" value={data?.summary.campaign_snapshots ?? 0} />
         <MetricCard label="Kayitli Sablon" value={data?.template_summary.total_templates ?? 0} />
         <MetricCard label="Aktif Schedule" value={data?.delivery_summary.active_schedules ?? 0} />
-        <MetricCard label="Due Schedule" value={data?.delivery_summary.due_schedules ?? 0} />
+        <MetricCard label="Aktif Paylasim" value={data?.share_summary.active_links ?? 0} />
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">

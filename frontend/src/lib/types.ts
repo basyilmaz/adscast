@@ -722,6 +722,20 @@ export type ReportDeliveryRunListItem = {
   error_message: string | null;
 };
 
+export type ReportShareLinkListItem = {
+  id: string;
+  label: string | null;
+  status: "active" | "revoked" | "expired" | string;
+  allow_csv_download: boolean;
+  expires_at: string | null;
+  revoked_at: string | null;
+  last_accessed_at: string | null;
+  access_count: number;
+  created_at: string | null;
+  share_url: string | null;
+  export_csv_url: string | null;
+};
+
 export type ReportDeliveryScheduleListItem = {
   id: string;
   delivery_channel: string;
@@ -838,6 +852,15 @@ export type ClientReportPayload = {
     report_type: string;
     created_at: string | null;
     export_csv_url: string;
+    share_links?: ReportShareLinkListItem[];
+  };
+  share_link?: {
+    id: string;
+    label: string | null;
+    expires_at: string | null;
+    allow_csv_download: boolean;
+    access_count: number;
+    export_csv_url: string | null;
   };
 };
 
@@ -858,6 +881,11 @@ export type ReportIndexResponse = {
       active_schedules: number;
       due_schedules: number;
       runs_last_7_days: number;
+    };
+    share_summary: {
+      total_links: number;
+      active_links: number;
+      expiring_soon: number;
     };
     items: ReportSnapshotListItem[];
     templates: ReportTemplateListItem[];

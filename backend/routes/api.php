@@ -15,12 +15,16 @@ use App\Domain\Reporting\Http\Controllers\AdSetController;
 use App\Domain\Reporting\Http\Controllers\CampaignController;
 use App\Domain\Reporting\Http\Controllers\DashboardController;
 use App\Domain\Reporting\Http\Controllers\ExportController;
+use App\Domain\Reporting\Http\Controllers\PublicReportShareController;
 use App\Domain\Reporting\Http\Controllers\ReportController;
 use App\Domain\Rules\Http\Controllers\AlertController;
 use App\Domain\Settings\Http\Controllers\SettingController;
 use App\Domain\Tenants\Http\Controllers\WorkspaceController;
 
 Route::prefix('v1')->group(function (): void {
+    Route::get('/public/report-shares/{token}', [PublicReportShareController::class, 'show']);
+    Route::get('/public/report-shares/{token}/export.csv', [PublicReportShareController::class, 'exportCsv']);
+
     Route::get('/meta/webhook', [MetaWebhookController::class, 'verify']);
     Route::post('/meta/webhook', [MetaWebhookController::class, 'ingest']);
 
@@ -59,6 +63,8 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('workspace.permission:reporting.view');
             Route::post('/reports/snapshots', [ReportController::class, 'storeSnapshot'])
                 ->middleware('workspace.permission:reporting.view');
+            Route::post('/reports/snapshots/{snapshotId}/share-links', [ReportController::class, 'storeShareLink'])
+                ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/templates', [ReportController::class, 'storeTemplate'])
                 ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/delivery-schedules', [ReportController::class, 'storeDeliverySchedule'])
@@ -66,6 +72,8 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/reports/delivery-schedules/{scheduleId}/toggle', [ReportController::class, 'toggleDeliverySchedule'])
                 ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/delivery-schedules/{scheduleId}/run-now', [ReportController::class, 'runDeliveryScheduleNow'])
+                ->middleware('workspace.permission:settings.manage');
+            Route::post('/reports/share-links/{shareLinkId}/revoke', [ReportController::class, 'revokeShareLink'])
                 ->middleware('workspace.permission:settings.manage');
             Route::get('/reports/snapshots/{snapshotId}', [ReportController::class, 'showSnapshot'])
                 ->middleware('workspace.permission:reporting.view');

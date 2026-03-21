@@ -216,3 +216,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 15. Kaydedilmis rapor sablonlari veri modelini ve indeks gorunumunu eklemek
 16. Scheduled report delivery foundation icin schedule/run kayitlarini eklemek
 17. Reports merkezine template olusturma, schedule tanimlama ve manual run aksiyonlarini eklemek
+18. Snapshot tabanli shareable client report foundation eklemek

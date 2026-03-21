@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ClientReportCanvas } from "@/components/reports/client-report-canvas";
+import { ReportShareLinksPanel } from "@/components/reports/report-share-links-panel";
 import { PageErrorState, PageLoadingState } from "@/components/ui/page-state";
 import { downloadApiFile } from "@/lib/api";
 import { QUERY_TTLS } from "@/lib/api-query-config";
@@ -12,7 +13,7 @@ import { ClientReportResponse } from "@/lib/types";
 export function ReportSnapshotDetailClient() {
   const searchParams = useSearchParams();
   const snapshotId = searchParams.get("id");
-  const { data, error, isLoading } = useApiQuery<ClientReportResponse, ClientReportResponse["data"]>(
+  const { data, error, isLoading, reload } = useApiQuery<ClientReportResponse, ClientReportResponse["data"]>(
     `/reports/snapshots/${snapshotId ?? ""}`,
     {
       enabled: Boolean(snapshotId),
@@ -59,6 +60,11 @@ export function ReportSnapshotDetailClient() {
         ]}
       />
       <ClientReportCanvas data={data} onDownloadCsv={() => void downloadCsv()} snapshotActionLabel="Snapshot" />
+      <ReportShareLinksPanel
+        snapshotId={snapshotId}
+        shareLinks={data.snapshot?.share_links ?? []}
+        onChanged={reload}
+      />
     </div>
   );
 }
