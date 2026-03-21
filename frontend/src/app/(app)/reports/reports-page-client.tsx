@@ -212,6 +212,7 @@ export default function ReportsPage() {
           <div className="mt-4">
             <ReportScheduleForm
               templates={data?.templates ?? []}
+              contacts={data?.contacts ?? []}
               deliveryCapabilities={data?.delivery_capabilities ?? null}
               onCreated={reload}
             />
@@ -267,13 +268,16 @@ export default function ReportsPage() {
                 <p className="mt-2 font-semibold">{profile.entity_label ?? "Varlik"}</p>
                 <p className="mt-1 text-xs muted-text">
                   {profile.context_label ? `${profile.context_label} / ` : ""}
-                  {profile.recipients_count} alici / {profile.default_range_days} gun / {profile.timezone}
+                  {profile.resolved_recipients_count} alici / {profile.default_range_days} gun / {profile.timezone}
                 </p>
                 <p className="mt-2 text-sm muted-text">
                   {profile.recipient_preset_name
                     ? `Preset: ${profile.recipient_preset_name}`
                     : profile.recipients.join(", ")}
                 </p>
+                {profile.contact_tags.length > 0 ? (
+                  <p className="mt-1 text-sm muted-text">Etiketler: {profile.contact_tags.join(", ")}</p>
+                ) : null}
                 {profile.report_url ? (
                   <Link
                     href={buildHrefWithFilters(profile.report_url, searchParams, GLOBAL_DATE_FILTER_KEYS)}
@@ -431,6 +435,12 @@ export default function ReportsPage() {
                     Sonraki calisma: {schedule.next_run_at ?? "-"} / Son durum: {schedule.last_status ?? "-"}
                   </p>
                   <p className="text-sm muted-text">Alicilar: {schedule.recipients.join(", ") || "-"}</p>
+                  {schedule.contact_tags.length > 0 ? (
+                    <p className="text-sm muted-text">
+                      Etiketler: {schedule.contact_tags.join(", ")} / Dinamik kisi: {schedule.tagged_contacts_count}
+                    </p>
+                  ) : null}
+                  <p className="text-sm muted-text">Toplam cozumlenen alici: {schedule.resolved_recipients_count}</p>
                   {schedule.share_delivery.enabled ? (
                     <p className="text-sm muted-text">
                       Paylasim: {schedule.share_delivery.label_template ?? "Snapshot basligi"} / {schedule.share_delivery.expires_in_days ?? 7} gun /{" "}
@@ -522,6 +532,11 @@ export default function ReportsPage() {
                             </div>
                           ) : null}
                           {run.error_message ? <p className="mt-1 text-xs text-[var(--danger)]">{run.error_message}</p> : null}
+                          {run.contact_tags.length > 0 ? (
+                            <p className="mt-1 text-xs muted-text">
+                              Etiketler: {run.contact_tags.join(", ")} / Dinamik kisi: {run.tagged_contacts_count}
+                            </p>
+                          ) : null}
                           {run.can_retry ? (
                             <Button
                               type="button"

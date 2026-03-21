@@ -12,6 +12,7 @@ use App\Models\Creative;
 use App\Models\MetaAdAccount;
 use App\Models\MetaConnection;
 use App\Models\Recommendation;
+use App\Models\ReportContact;
 use App\Models\ReportDeliveryRun;
 use App\Models\ReportDeliverySchedule;
 use App\Models\ReportShareLink;
@@ -739,6 +740,139 @@ class ReportDeliveryFoundationTest extends TestCase
             ->postJson("/api/v1/reports/delivery-runs/{$deliveredRun->id}/retry")
             ->assertUnprocessable()
             ->assertJsonPath('errors.run_id.0', 'Sadece basarisiz teslim kayitlari tekrar denenebilir.');
+    }
+
+    public function test_delivery_schedule_can_resolve_dynamic_recipients_from_contact_tags(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Client Main',
+            'email' => 'client.main@castintech.com',
+            'tags' => ['client', 'weekly'],
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Client Ops',
+            'email' => 'client.ops@castintech.com',
+            'tags' => ['client'],
+            'is_primary' => false,
+            'is_active' => true,
+        ]);
+
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Inactive Client',
+            'email' => 'inactive.client@castintech.com',
+            'tags' => ['client'],
+            'is_primary' => false,
+            'is_active' => false,
+        ]);
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Tag Delivery Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 14,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $scheduleResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/delivery-schedules', [
+                'report_template_id' => $template->id,
+                'delivery_channel' => 'email_stub',
+                'cadence' => 'weekly',
+                'weekday' => 2,
+                'send_time' => '10:00',
+                'timezone' => 'Europe/Istanbul',
+                'contact_tags' => ['client'],
+                'auto_share_enabled' => false,
+            ]);
+
+        $scheduleId = $scheduleResponse->json('data.id');
+
+        $scheduleResponse->assertCreated()
+            ->assertJsonPath('data.id', $scheduleId);
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.delivery_schedules.0.contact_tags.0', 'client')
+            ->assertJsonPath('data.delivery_schedules.0.tagged_contacts_count', 2)
+            ->assertJsonPath('data.delivery_schedules.0.resolved_recipients_count', 2);
+
+        $runResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/delivery-schedules/{$scheduleId}/run-now");
+
+        $runResponse->assertOk()
+            ->assertJsonPath('data.status', 'delivered_stub');
+
+        $run = ReportDeliveryRun::query()->where('report_delivery_schedule_id', $scheduleId)->latest()->firstOrFail();
+        $this->assertEqualsCanonicalizing(
+            ['client.main@castintech.com', 'client.ops@castintech.com'],
+            $run->recipients ?? [],
+        );
+
+        $this->assertNotNull(ReportContact::query()->where('email', 'client.main@castintech.com')->value('last_used_at'));
+        $this->assertNotNull(ReportContact::query()->where('email', 'client.ops@castintech.com')->value('last_used_at'));
+        $this->assertNull(ReportContact::query()->where('email', 'inactive.client@castintech.com')->value('last_used_at'));
+    }
+
+    public function test_quick_delivery_setup_can_store_contact_tags_on_default_profile(): void
+    {
+        [$workspace, $token, , $campaign] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Campaign Client',
+            'email' => 'campaign.client@castintech.com',
+            'tags' => ['campaign-client'],
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/delivery-setups', [
+                'entity_type' => 'campaign',
+                'entity_id' => $campaign->id,
+                'default_range_days' => 7,
+                'layout_preset' => 'client_digest',
+                'delivery_channel' => 'email_stub',
+                'cadence' => 'weekly',
+                'weekday' => 4,
+                'send_time' => '11:00',
+                'timezone' => 'Europe/Istanbul',
+                'contact_tags' => ['campaign-client'],
+                'save_as_default_profile' => true,
+                'auto_share_enabled' => true,
+                'share_label_template' => '{template_name} / {end_date}',
+                'share_expires_in_days' => 7,
+                'share_allow_csv_download' => false,
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.profile_saved', true)
+            ->assertJsonPath('data.contact_tags.0', 'campaign-client');
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.delivery_profiles.0.contact_tags.0', 'campaign-client')
+            ->assertJsonPath('data.delivery_profiles.0.resolved_recipients_count', 1);
     }
 
     /**

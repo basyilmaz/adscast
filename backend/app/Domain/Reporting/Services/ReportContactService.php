@@ -221,6 +221,90 @@ class ReportContactService
     }
 
     /**
+     * @param  array<int, mixed>  $tags
+     * @return array<int, string>
+     */
+    public function normalizeTags(array $tags): array
+    {
+        return collect($tags)
+            ->map(fn (mixed $tag): string => trim((string) $tag))
+            ->filter()
+            ->unique(fn (string $tag): string => mb_strtolower($tag))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, mixed>  $tags
+     * @return array<int, array<string, mixed>>
+     */
+    public function findActiveByTags(string $workspaceId, array $tags): array
+    {
+        $normalizedTags = $this->normalizeTags($tags);
+
+        if ($normalizedTags === []) {
+            return [];
+        }
+
+        $tagLookup = collect($normalizedTags)
+            ->mapWithKeys(fn (string $tag): array => [mb_strtolower($tag) => true])
+            ->all();
+
+        return ReportContact::query()
+            ->where('workspace_id', $workspaceId)
+            ->where('is_active', true)
+            ->orderByDesc('is_primary')
+            ->orderBy('name')
+            ->get()
+            ->filter(function (ReportContact $contact) use ($tagLookup): bool {
+                $contactTags = collect($contact->tags ?? [])
+                    ->map(fn (mixed $tag): string => mb_strtolower(trim((string) $tag)))
+                    ->filter();
+
+                return $contactTags->contains(fn (string $tag): bool => isset($tagLookup[$tag]));
+            })
+            ->map(fn (ReportContact $contact): array => $this->toPayload($contact))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, mixed>  $tags
+     * @return array<int, string>
+     */
+    public function resolveRecipientEmailsByTags(string $workspaceId, array $tags): array
+    {
+        return $this->extractEmails($this->findActiveByTags($workspaceId, $tags));
+    }
+
+    /**
+     * @param  array<int, string>  $emails
+     */
+    public function touchLastUsedByEmails(string $workspaceId, array $emails): void
+    {
+        $normalizedEmails = collect($emails)
+            ->map(fn (string $email): string => mb_strtolower(trim($email)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($normalizedEmails === []) {
+            return;
+        }
+
+        ReportContact::query()
+            ->where('workspace_id', $workspaceId)
+            ->get()
+            ->filter(fn (ReportContact $contact): bool => in_array(mb_strtolower($contact->email), $normalizedEmails, true))
+            ->each(function (ReportContact $contact): void {
+                $contact->forceFill([
+                    'last_used_at' => now(),
+                ])->save();
+            });
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function toPayload(ReportContact $contact): array
@@ -270,20 +354,6 @@ class ReportContactService
                 'email' => 'Bu e-posta adresi kisi havuzunda zaten kayitli.',
             ]);
         }
-    }
-
-    /**
-     * @param  array<int, mixed>  $tags
-     * @return array<int, string>
-     */
-    private function normalizeTags(array $tags): array
-    {
-        return collect($tags)
-            ->map(fn (mixed $tag): string => trim((string) $tag))
-            ->filter()
-            ->unique(fn (string $tag): string => mb_strtolower($tag))
-            ->values()
-            ->all();
     }
 
     private function nullableTrimmed(mixed $value): ?string

@@ -3,10 +3,11 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
-import { ReportIndexResponse, ReportTemplateListItem } from "@/lib/types";
+import { ReportContactListItem, ReportIndexResponse, ReportTemplateListItem } from "@/lib/types";
 
 type Props = {
   templates: ReportTemplateListItem[];
+  contacts: ReportContactListItem[];
   deliveryCapabilities: ReportIndexResponse["data"]["delivery_capabilities"] | null;
   onCreated?: () => Promise<void> | void;
 };
@@ -21,7 +22,7 @@ const WEEKDAY_OPTIONS = [
   { value: "7", label: "Pazar" },
 ];
 
-export function ReportScheduleForm({ templates, deliveryCapabilities, onCreated }: Props) {
+export function ReportScheduleForm({ templates, contacts, deliveryCapabilities, onCreated }: Props) {
   const activeTemplates = useMemo(
     () => templates.filter((item) => item.is_active),
     [templates],
@@ -37,6 +38,7 @@ export function ReportScheduleForm({ templates, deliveryCapabilities, onCreated 
   const [sendTime, setSendTime] = useState("09:00");
   const [timezone, setTimezone] = useState("Europe/Istanbul");
   const [recipients, setRecipients] = useState("client@castintech.com");
+  const [contactTags, setContactTags] = useState<string[]>([]);
   const [autoShareEnabled, setAutoShareEnabled] = useState(true);
   const [shareLabelTemplate, setShareLabelTemplate] = useState("{template_name} / {end_date}");
   const [shareExpiresInDays, setShareExpiresInDays] = useState("7");
@@ -62,13 +64,46 @@ export function ReportScheduleForm({ templates, deliveryCapabilities, onCreated 
     .map((item) => item.trim())
     .filter(Boolean);
 
+  const availableContactTags = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          contacts
+            .filter((item) => item.is_active)
+            .flatMap((item) => item.tags),
+        ),
+      ).sort((left, right) => left.localeCompare(right, "tr")),
+    [contacts],
+  );
+
+  const taggedContacts = useMemo(
+    () =>
+      contactTags.length === 0
+        ? []
+        : contacts.filter(
+            (item) => item.is_active && item.tags.some((tag) => contactTags.includes(tag)),
+          ),
+    [contactTags, contacts],
+  );
+
+  const resolvedRecipientPreview = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...parsedRecipients.map((item) => item.toLowerCase()),
+          ...taggedContacts.map((item) => item.email.toLowerCase()),
+        ]),
+      ),
+    [parsedRecipients, taggedContacts],
+  );
+
   const isDisabled = activeTemplates.length === 0 || isSubmitting;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!templateId || parsedRecipients.length === 0) {
-      setError("Sablon ve en az bir alici zorunlu.");
+    if (!templateId || (parsedRecipients.length === 0 && contactTags.length === 0)) {
+      setError("Sablon ve en az bir alici veya kisi etiketi zorunlu.");
       return;
     }
 
@@ -88,6 +123,7 @@ export function ReportScheduleForm({ templates, deliveryCapabilities, onCreated 
           send_time: sendTime,
           timezone,
           recipients: parsedRecipients,
+          contact_tags: contactTags.length > 0 ? contactTags : null,
           delivery_channel: deliveryChannel,
           auto_share_enabled: autoShareEnabled,
           share_label_template: autoShareEnabled ? shareLabelTemplate.trim() || null : null,
@@ -206,6 +242,41 @@ export function ReportScheduleForm({ templates, deliveryCapabilities, onCreated 
           placeholder="client@castintech.com, ops@castintech.com"
         />
       </Field>
+
+      {availableContactTags.length > 0 ? (
+        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+          <p className="font-semibold">Kisi Etiketleriyle Alici Sec</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {availableContactTags.map((tag) => {
+              const isSelected = contactTags.includes(tag);
+
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                    isSelected
+                      ? "border-[var(--accent)] bg-[var(--surface-2)] text-[var(--accent)]"
+                      : "border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  }`}
+                  onClick={() =>
+                    setContactTags((current) =>
+                      current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag],
+                    )
+                  }
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+          {contactTags.length > 0 ? (
+            <p className="mt-2 text-xs muted-text">
+              Eslesen kisi: {taggedContacts.length} / Toplam cozumlenen alici: {resolvedRecipientPreview.length}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
         <p className="font-semibold">Mail Delivery Durumu</p>

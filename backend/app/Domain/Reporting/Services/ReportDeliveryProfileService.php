@@ -16,6 +16,7 @@ class ReportDeliveryProfileService
 
     public function __construct(
         private readonly ReportWorkspaceConfigStore $configStore,
+        private readonly ReportContactService $reportContactService,
         private readonly ReportRecipientPresetService $recipientPresetService,
         private readonly EntityContextResolver $entityContextResolver,
         private readonly AuditLogService $auditLogService,
@@ -44,17 +45,17 @@ class ReportDeliveryProfileService
         );
 
         $items = $profiles
-            ->map(function (array $profile) use ($contexts): array {
+            ->map(function (array $profile) use ($contexts, $workspaceId): array {
                 $context = $contexts[$this->entityContextResolver->key($profile['entity_type'], $profile['entity_id'])] ?? [
                     'entity_label' => 'Bilinmeyen varlik',
                     'context_label' => null,
                 ];
 
-                return array_merge($profile, [
+                return $this->enrichRecipientResolution($workspaceId, array_merge($profile, [
                     'entity_label' => $context['entity_label'],
                     'context_label' => $context['context_label'],
                     'report_url' => $this->reportUrl($profile['entity_type'], $profile['entity_id']),
-                ]);
+                ]));
             })
             ->sortBy([
                 ['is_active', 'desc'],
@@ -99,11 +100,11 @@ class ReportDeliveryProfileService
             'context_label' => null,
         ];
 
-        return array_merge($profile, [
+        return $this->enrichRecipientResolution($workspaceId, array_merge($profile, [
             'entity_label' => $resolved['entity_label'],
             'context_label' => $resolved['context_label'],
             'report_url' => $this->reportUrl($profile['entity_type'], $profile['entity_id']),
-        ]);
+        ]));
     }
 
     /**
@@ -257,6 +258,9 @@ class ReportDeliveryProfileService
             'recipient_preset_id' => isset($payload['recipient_preset_id']) && $payload['recipient_preset_id'] !== ''
                 ? (string) $payload['recipient_preset_id']
                 : null,
+            'contact_tags' => $this->reportContactService->normalizeTags(
+                is_array($payload['contact_tags'] ?? null) ? $payload['contact_tags'] : [],
+            ),
             'delivery_channel' => (string) ($payload['delivery_channel'] ?? 'email_stub'),
             'cadence' => (string) $payload['cadence'],
             'weekday' => isset($payload['weekday']) ? (int) $payload['weekday'] : null,
@@ -265,7 +269,7 @@ class ReportDeliveryProfileService
             'timezone' => (string) ($payload['timezone'] ?? $workspace->timezone),
             'default_range_days' => (int) ($payload['default_range_days'] ?? 7),
             'layout_preset' => (string) ($payload['layout_preset'] ?? 'client_digest'),
-            'recipients' => $resolvedRecipients,
+            'recipients' => $this->baseRecipients($workspace->id, $payload),
             'share_delivery' => [
                 'enabled' => (bool) ($payload['auto_share_enabled'] ?? false),
                 'label_template' => $payload['share_label_template'] ?? null,
@@ -302,6 +306,7 @@ class ReportDeliveryProfileService
                 'entity_type' => $item['entity_type'],
                 'entity_id' => $item['entity_id'],
                 'recipient_preset_id' => $item['recipient_preset_id'],
+                'contact_tags' => $item['contact_tags'],
                 'recipients_count' => $item['recipients_count'],
                 'cadence' => $item['cadence'],
             ],
@@ -329,19 +334,64 @@ class ReportDeliveryProfileService
             }
         }
 
-        $resolvedRecipients = $this->recipientPresetService->normalizeRecipients(
-            is_array($payload['recipients'] ?? null) && count($payload['recipients']) > 0
-                ? $payload['recipients']
-                : ($preset['recipients'] ?? []),
+        $contactTags = $this->reportContactService->normalizeTags(
+            is_array($payload['contact_tags'] ?? null) ? $payload['contact_tags'] : [],
         );
+
+        $resolvedRecipients = $this->recipientPresetService->normalizeRecipients(array_merge(
+            $this->baseRecipients($workspaceId, $payload, $preset),
+            $this->reportContactService->resolveRecipientEmailsByTags($workspaceId, $contactTags),
+        ));
 
         if ($resolvedRecipients === []) {
             throw ValidationException::withMessages([
-                'recipients' => 'Teslim icin en az bir alici gereklidir.',
+                'recipients' => 'Teslim icin en az bir alici, alici listesi veya kisi etiketi gereklidir.',
             ]);
         }
 
         return $resolvedRecipients;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>|null  $preset
+     * @return array<int, string>
+     */
+    private function baseRecipients(string $workspaceId, array $payload, ?array $preset = null): array
+    {
+        if ($preset === null && isset($payload['recipient_preset_id']) && $payload['recipient_preset_id'] !== '') {
+            $preset = $this->recipientPresetService->find($workspaceId, (string) $payload['recipient_preset_id']);
+        }
+
+        return $this->recipientPresetService->normalizeRecipients(
+            is_array($payload['recipients'] ?? null) && count($payload['recipients']) > 0
+                ? $payload['recipients']
+                : ($preset['recipients'] ?? []),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $profile
+     * @return array<string, mixed>
+     */
+    private function enrichRecipientResolution(string $workspaceId, array $profile): array
+    {
+        $taggedContacts = $this->reportContactService->findActiveByTags(
+            $workspaceId,
+            is_array($profile['contact_tags'] ?? null) ? $profile['contact_tags'] : [],
+        );
+
+        $resolvedRecipients = $this->recipientPresetService->normalizeRecipients(array_merge(
+            is_array($profile['recipients'] ?? null) ? $profile['recipients'] : [],
+            $this->reportContactService->extractEmails($taggedContacts),
+        ));
+
+        return array_merge($profile, [
+            'tagged_contacts' => $taggedContacts,
+            'tagged_contacts_count' => count($taggedContacts),
+            'resolved_recipients' => $resolvedRecipients,
+            'resolved_recipients_count' => count($resolvedRecipients),
+        ]);
     }
 
     /**
@@ -377,6 +427,9 @@ class ReportDeliveryProfileService
             'entity_id' => (string) ($item['entity_id'] ?? ''),
             'recipient_preset_id' => $presetId,
             'recipient_preset_name' => $preset['name'] ?? null,
+            'contact_tags' => $this->reportContactService->normalizeTags(
+                is_array($item['contact_tags'] ?? null) ? $item['contact_tags'] : [],
+            ),
             'delivery_channel' => (string) ($item['delivery_channel'] ?? 'email_stub'),
             'delivery_channel_label' => $this->deliveryChannelLabel((string) ($item['delivery_channel'] ?? 'email_stub')),
             'cadence' => (string) ($item['cadence'] ?? 'weekly'),

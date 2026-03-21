@@ -209,12 +209,14 @@ Amac: Musteri raporlarini yalnizca uretmek degil, dogru kisilere, dogru ritimde 
    - hata nedeni
    - retry aksiyonu
 6. Schedule kurulumunu kisi havuzu etiketleriyle secilebilir hale getir.
+7. Delivery formunda etiket secimiyle cozumlenen alicilari onizleyip dinamik recipient listesi olarak calistir.
 
 ### Kabul Kriterleri
 
 - Operator musteri kisilerini tek havuzdan yonetebilir.
 - Alici preset ve hizli teslim formu kisi havuzunu kullanabilir.
 - Bir teslim aksami oldugunda neden oldugu ve ne yapilacagi sistem icinde gorulebilir.
+- Schedule ve hizli teslim formlari kisi havuzu etiketlerinden dinamik alici cozebilir.
 
 ## Uygulama Sirasi
 
@@ -256,3 +258,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 25. Hesap ve kampanya detail ekranlarina inline varsayilan teslim profili yonetimini eklemek
 26. Faz 7'yi resmi backlog olarak acip workspace bazli musteri kisi havuzu / contact book temelini eklemek
 27. Delivery history merkezine basarili/basarisiz teslim ozeti, hata gorunurlugu ve failed run retry aksiyonunu eklemek
+28. Schedule ve hizli teslim akisini kisi havuzu etiketleriyle dinamik alici cozebilecek hale getirmek

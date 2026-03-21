@@ -724,6 +724,11 @@ export type ReportDeliveryRunListItem = {
   can_retry: boolean;
   retry_of_run_id: string | null;
   retried_by_run_id: string | null;
+  contact_tags: string[];
+  tagged_contacts: ReportContactListItem[];
+  tagged_contacts_count: number;
+  resolved_recipients: string[];
+  resolved_recipients_count: number;
   share_link: {
     id: string;
     label: string | null;
@@ -788,6 +793,11 @@ export type ReportDeliveryScheduleListItem = {
   month_day: number | null;
   recipients: string[];
   recipients_count: number;
+  contact_tags: string[];
+  tagged_contacts: ReportContactListItem[];
+  tagged_contacts_count: number;
+  resolved_recipients: string[];
+  resolved_recipients_count: number;
   share_delivery: {
     enabled: boolean;
     label_template: string | null;
@@ -862,6 +872,11 @@ export type ReportDeliveryProfileListItem = {
   layout_preset: string;
   recipients: string[];
   recipients_count: number;
+  contact_tags: string[];
+  tagged_contacts: ReportContactListItem[];
+  tagged_contacts_count: number;
+  resolved_recipients: string[];
+  resolved_recipients_count: number;
   share_delivery: {
     enabled: boolean;
     label_template: string | null;

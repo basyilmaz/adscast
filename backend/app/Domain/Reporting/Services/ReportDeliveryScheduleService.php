@@ -23,6 +23,7 @@ class ReportDeliveryScheduleService
 {
     public function __construct(
         private readonly EntityContextResolver $entityContextResolver,
+        private readonly ReportContactService $reportContactService,
         private readonly ReportSnapshotService $reportSnapshotService,
         private readonly ReportShareLinkService $reportShareLinkService,
         private readonly AuditLogService $auditLogService,
@@ -90,6 +91,7 @@ class ReportDeliveryScheduleService
             'delivery_runs' => $deliveryRunIndex['items'],
             'items' => $schedules->map(function (ReportDeliverySchedule $schedule) use ($contexts, $recentRuns): array {
                 $template = $schedule->template;
+                $recipientResolution = $this->resolveScheduleRecipients($schedule->workspace_id, $schedule);
                 $context = $template
                     ? ($contexts[$this->entityContextResolver->key($template->entity_type, $template->entity_id)] ?? [
                         'entity_label' => 'Bilinmeyen varlik',
@@ -112,6 +114,11 @@ class ReportDeliveryScheduleService
                     'month_day' => $schedule->month_day,
                     'recipients' => $schedule->recipients ?? [],
                     'recipients_count' => count($schedule->recipients ?? []),
+                    'contact_tags' => $recipientResolution['contact_tags'],
+                    'tagged_contacts' => $recipientResolution['tagged_contacts'],
+                    'tagged_contacts_count' => count($recipientResolution['tagged_contacts']),
+                    'resolved_recipients' => $recipientResolution['resolved_recipients'],
+                    'resolved_recipients_count' => count($recipientResolution['resolved_recipients']),
                     'share_delivery' => $this->shareDeliveryConfiguration($schedule),
                     'is_active' => $schedule->is_active,
                     'next_run_at' => $schedule->next_run_at?->toDateTimeString(),
@@ -249,7 +256,7 @@ class ReportDeliveryScheduleService
             'month_day' => $payload['month_day'] ?? null,
             'send_time' => (string) $payload['send_time'],
             'timezone' => (string) ($payload['timezone'] ?? $workspace->timezone),
-            'recipients' => array_values($payload['recipients'] ?? []),
+            'recipients' => $this->normalizeRecipients($payload['recipients'] ?? []),
             'configuration' => $this->buildScheduleConfiguration($payload),
             'is_active' => (bool) ($payload['is_active'] ?? true),
             'next_run_at' => $this->calculateNextRunAt(
@@ -276,6 +283,7 @@ class ReportDeliveryScheduleService
                 'send_time' => $schedule->send_time,
                 'timezone' => $schedule->timezone,
                 'recipients_count' => count($schedule->recipients ?? []),
+                'contact_tags' => $this->contactTagsFromSchedule($schedule),
                 'auto_share_enabled' => $this->shareDeliveryConfiguration($schedule)['enabled'],
             ],
             request: $request,
@@ -437,13 +445,14 @@ class ReportDeliveryScheduleService
         }
 
         [$startDate, $endDate] = $this->resolveDateRange($template, $schedule->timezone);
+        $recipientResolution = $this->resolveScheduleRecipients($workspace->id, $schedule);
 
         $run = ReportDeliveryRun::query()->create([
             'workspace_id' => $workspace->id,
             'report_delivery_schedule_id' => $schedule->id,
             'delivery_channel' => $schedule->delivery_channel,
             'status' => 'processing',
-            'recipients' => $schedule->recipients ?? [],
+            'recipients' => $recipientResolution['resolved_recipients'],
             'prepared_at' => now(),
             'triggered_by' => $triggeredBy,
             'trigger_mode' => $triggerMode,
@@ -451,6 +460,8 @@ class ReportDeliveryScheduleService
                 'template_id' => $template->id,
                 'template_name' => $template->name,
                 'report_type' => $template->report_type,
+                'contact_tags' => $recipientResolution['contact_tags'],
+                'tagged_contacts' => $recipientResolution['tagged_contacts'],
                 'range' => [
                     'start_date' => $startDate->toDateString(),
                     'end_date' => $endDate->toDateString(),
@@ -485,7 +496,10 @@ class ReportDeliveryScheduleService
                 schedule: $schedule,
                 snapshot: $snapshot,
                 shareLink: $shareLink,
+                resolvedRecipients: $recipientResolution['resolved_recipients'],
             );
+
+            $this->reportContactService->touchLastUsedByEmails($workspace->id, $recipientResolution['resolved_recipients']);
 
             $run->forceFill([
                 'report_snapshot_id' => $snapshot->id,
@@ -671,7 +685,7 @@ class ReportDeliveryScheduleService
             ->whereIn('report_delivery_schedule_id', $scheduleIds->all())
             ->with([
                 'snapshot:id,title',
-                'schedule:id,report_template_id,delivery_channel,cadence,weekday,month_day,send_time,timezone,is_active,next_run_at',
+                'schedule:id,workspace_id,report_template_id,delivery_channel,cadence,weekday,month_day,send_time,timezone,recipients,configuration,is_active,next_run_at',
                 'schedule.template:id,name,entity_type,entity_id,report_type',
             ])
             ->latest('prepared_at')
@@ -727,7 +741,7 @@ class ReportDeliveryScheduleService
             ->where('workspace_id', $workspaceId)
             ->with([
                 'snapshot:id,title',
-                'schedule:id,report_template_id,delivery_channel,cadence,weekday,month_day,send_time,timezone,is_active,next_run_at',
+                'schedule:id,workspace_id,report_template_id,delivery_channel,cadence,weekday,month_day,send_time,timezone,recipients,configuration,is_active,next_run_at',
                 'schedule.template:id,name,entity_type,entity_id,report_type',
             ])
             ->latest('prepared_at')
@@ -802,6 +816,15 @@ class ReportDeliveryScheduleService
         $schedule = $run->schedule;
         $template = $schedule?->template;
         $retryMetadata = is_array(data_get($run->metadata, 'retry')) ? data_get($run->metadata, 'retry') : [];
+        $recipientResolution = $schedule
+            ? $this->resolveScheduleRecipients($schedule->workspace_id, $schedule)
+            : [
+                'contact_tags' => $this->reportContactService->normalizeTags(
+                    is_array(data_get($run->metadata, 'contact_tags')) ? data_get($run->metadata, 'contact_tags') : [],
+                ),
+                'tagged_contacts' => is_array(data_get($run->metadata, 'tagged_contacts')) ? data_get($run->metadata, 'tagged_contacts') : [],
+                'resolved_recipients' => $this->normalizeRecipients($run->recipients ?? []),
+            ];
 
         return [
             'id' => $run->id,
@@ -823,6 +846,11 @@ class ReportDeliveryScheduleService
                 && $template !== null,
             'retry_of_run_id' => data_get($retryMetadata, 'source_run_id'),
             'retried_by_run_id' => data_get($retryMetadata, 'next_run_id'),
+            'contact_tags' => $recipientResolution['contact_tags'],
+            'tagged_contacts' => $recipientResolution['tagged_contacts'],
+            'tagged_contacts_count' => count($recipientResolution['tagged_contacts']),
+            'resolved_recipients' => $recipientResolution['resolved_recipients'],
+            'resolved_recipients_count' => count($recipientResolution['resolved_recipients']),
             'schedule' => $schedule ? [
                 'id' => $schedule->id,
                 'cadence' => $schedule->cadence,
@@ -907,6 +935,10 @@ class ReportDeliveryScheduleService
                 : null,
             'allow_csv_download' => (bool) ($payload['share_allow_csv_download'] ?? false),
         ];
+
+        $configuration['contact_tags'] = $this->reportContactService->normalizeTags(
+            is_array($payload['contact_tags'] ?? null) ? $payload['contact_tags'] : [],
+        );
 
         return $configuration;
     }
@@ -1015,10 +1047,11 @@ class ReportDeliveryScheduleService
         ReportDeliverySchedule $schedule,
         ReportSnapshot $snapshot,
         ?array $shareLink,
+        array $resolvedRecipients,
     ): array {
         return match ($schedule->delivery_channel) {
-            'email' => $this->deliverByEmail($workspace, $template, $schedule, $snapshot, $shareLink),
-            'email_stub' => $this->deliverByStub($schedule, $shareLink),
+            'email' => $this->deliverByEmail($workspace, $template, $schedule, $snapshot, $shareLink, $resolvedRecipients),
+            'email_stub' => $this->deliverByStub($schedule, $shareLink, $resolvedRecipients),
             default => throw new \InvalidArgumentException('Desteklenmeyen delivery channel.'),
         };
     }
@@ -1030,6 +1063,7 @@ class ReportDeliveryScheduleService
     private function deliverByStub(
         ReportDeliverySchedule $schedule,
         ?array $shareLink,
+        array $resolvedRecipients,
     ): array {
         $deliveredAt = now();
 
@@ -1040,8 +1074,8 @@ class ReportDeliveryScheduleService
                 'channel' => 'email_stub',
                 'channel_label' => $this->deliveryChannelLabel('email_stub'),
                 'mailer' => config('mail.default'),
-                'recipients' => $schedule->recipients ?? [],
-                'recipients_count' => count($schedule->recipients ?? []),
+                'recipients' => $resolvedRecipients,
+                'recipients_count' => count($resolvedRecipients),
                 'share_link_used' => $shareLink !== null,
                 'outbound' => false,
             ],
@@ -1058,8 +1092,9 @@ class ReportDeliveryScheduleService
         ReportDeliverySchedule $schedule,
         ReportSnapshot $snapshot,
         ?array $shareLink,
+        array $resolvedRecipients,
     ): array {
-        $recipients = array_values(array_filter($schedule->recipients ?? []));
+        $recipients = array_values(array_filter($resolvedRecipients));
 
         if ($recipients === []) {
             throw new \RuntimeException('Email delivery icin en az bir alici gereklidir.');
@@ -1094,5 +1129,50 @@ class ReportDeliveryScheduleService
                 'outbound' => ! in_array((string) config('mail.default'), ['log', 'array'], true),
             ],
         ];
+    }
+
+    /**
+     * @return array{contact_tags: array<int, string>, tagged_contacts: array<int, array<string, mixed>>, resolved_recipients: array<int, string>}
+     */
+    private function resolveScheduleRecipients(string $workspaceId, ReportDeliverySchedule $schedule): array
+    {
+        $contactTags = $this->contactTagsFromSchedule($schedule);
+        $taggedContacts = $this->reportContactService->findActiveByTags($workspaceId, $contactTags);
+        $resolvedRecipients = $this->normalizeRecipients(array_merge(
+            $schedule->recipients ?? [],
+            $this->reportContactService->extractEmails($taggedContacts),
+        ));
+
+        return [
+            'contact_tags' => $contactTags,
+            'tagged_contacts' => $taggedContacts,
+            'resolved_recipients' => $resolvedRecipients,
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function contactTagsFromSchedule(ReportDeliverySchedule $schedule): array
+    {
+        $configuration = is_array($schedule->configuration ?? null) ? $schedule->configuration : [];
+
+        return $this->reportContactService->normalizeTags(
+            is_array($configuration['contact_tags'] ?? null) ? $configuration['contact_tags'] : [],
+        );
+    }
+
+    /**
+     * @param  array<int, mixed>  $recipients
+     * @return array<int, string>
+     */
+    private function normalizeRecipients(array $recipients): array
+    {
+        return collect($recipients)
+            ->map(fn (mixed $recipient): string => mb_strtolower(trim((string) $recipient)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 }

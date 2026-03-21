@@ -40,7 +40,9 @@ Base path: `/api/v1`
 - `POST /reports/delivery-profiles/{entityType}/{entityId}/toggle` (`settings.manage`)
 - `DELETE /reports/delivery-profiles/{entityType}/{entityId}` (`settings.manage`)
 - `POST /reports/delivery-setups` (`settings.manage`)
+  - `recipient_preset_id`, `recipients` veya `contact_tags[]` ile alici tanimlanabilir
 - `POST /reports/delivery-schedules` (`settings.manage`)
+  - `recipients` veya `contact_tags[]` ile teslim alicilari tanimlanabilir
 - `POST /reports/delivery-schedules/{scheduleId}/toggle` (`settings.manage`)
 - `POST /reports/delivery-schedules/{scheduleId}/run-now` (`settings.manage`)
 - `POST /reports/delivery-runs/{runId}/retry` (`settings.manage`)

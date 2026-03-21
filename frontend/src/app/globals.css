@@ -12,6 +12,8 @@
   --danger: #a12d2f;
   --warning: #a8771d;
   --success: #2a7b4f;
+  --font-manrope: "Trebuchet MS", "Segoe UI", sans-serif;
+  --font-ibm-plex-mono: "Inconsolata", "Consolas", "Lucida Console", monospace;
 }
 
 @theme inline {

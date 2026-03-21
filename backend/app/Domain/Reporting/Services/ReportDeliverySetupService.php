@@ -14,6 +14,7 @@ class ReportDeliverySetupService
     public function __construct(
         private readonly ReportTemplateService $reportTemplateService,
         private readonly ReportDeliveryScheduleService $reportDeliveryScheduleService,
+        private readonly ReportContactService $reportContactService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
     ) {
@@ -46,15 +47,24 @@ class ReportDeliverySetupService
             }
         }
 
-        $resolvedRecipients = $this->reportRecipientPresetService->normalizeRecipients(
+        $selectedContactTags = $this->reportContactService->normalizeTags(
+            is_array($payload['contact_tags'] ?? null) ? $payload['contact_tags'] : [],
+        );
+
+        $baseRecipients = $this->reportRecipientPresetService->normalizeRecipients(
             is_array($payload['recipients'] ?? null) && count($payload['recipients']) > 0
                 ? $payload['recipients']
                 : ($preset['recipients'] ?? []),
         );
 
+        $resolvedRecipients = $this->reportRecipientPresetService->normalizeRecipients(array_merge(
+            $baseRecipients,
+            $this->reportContactService->resolveRecipientEmailsByTags($workspace->id, $selectedContactTags),
+        ));
+
         if ($resolvedRecipients === []) {
             throw \Illuminate\Validation\ValidationException::withMessages([
-                'recipients' => 'Teslim icin en az bir alici gereklidir.',
+                'recipients' => 'Teslim icin en az bir alici, alici listesi veya kisi etiketi gereklidir.',
             ]);
         }
 
@@ -97,7 +107,8 @@ class ReportDeliverySetupService
             workspace: $workspace,
             payload: array_merge($payload, [
                 'report_template_id' => $template->id,
-                'recipients' => $resolvedRecipients,
+                'recipients' => $baseRecipients,
+                'contact_tags' => $selectedContactTags,
                 'configuration' => [
                     'recipient_preset_id' => $preset['id'] ?? null,
                 ],
@@ -111,7 +122,10 @@ class ReportDeliverySetupService
         if ((bool) ($payload['save_as_default_profile'] ?? false)) {
             $profile = $this->reportDeliveryProfileService->upsertFromSetup(
                 workspace: $workspace,
-                payload: $payload,
+                payload: array_merge($payload, [
+                    'recipients' => $baseRecipients,
+                    'contact_tags' => $selectedContactTags,
+                ]),
                 resolvedRecipients: $resolvedRecipients,
                 actor: $actor,
                 request: $request,
@@ -128,6 +142,7 @@ class ReportDeliverySetupService
             'entity_id' => $entityId,
             'recipient_preset_id' => $preset['id'] ?? null,
             'recipient_preset_name' => $preset['name'] ?? null,
+            'contact_tags' => $selectedContactTags,
             'profile_saved' => $profile !== null,
             'profile_id' => $profile['id'] ?? null,
         ];

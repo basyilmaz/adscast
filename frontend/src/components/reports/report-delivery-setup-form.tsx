@@ -48,6 +48,7 @@ export function ReportDeliverySetupForm({
   const [sendTime, setSendTime] = useState("09:00");
   const [timezone, setTimezone] = useState("Europe/Istanbul");
   const [recipients, setRecipients] = useState("musteri@ornek.com");
+  const [contactTags, setContactTags] = useState<string[]>([]);
   const [autoShareEnabled, setAutoShareEnabled] = useState(true);
   const [shareLabelTemplate, setShareLabelTemplate] = useState("{template_name} / {end_date}");
   const [shareExpiresInDays, setShareExpiresInDays] = useState("7");
@@ -80,11 +81,45 @@ export function ReportDeliverySetupForm({
     .map((item) => item.trim())
     .filter(Boolean);
 
+  const availableContactTags = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          contacts
+            .filter((item) => item.is_active)
+            .flatMap((item) => item.tags),
+        ),
+      ).sort((left, right) => left.localeCompare(right, "tr")),
+    [contacts],
+  );
+
+  const taggedContacts = useMemo(
+    () =>
+      contactTags.length === 0
+        ? []
+        : contacts.filter(
+            (item) => item.is_active && item.tags.some((tag) => contactTags.includes(tag)),
+          ),
+    [contactTags, contacts],
+  );
+
   const selectedEntity = entityOptions.find((item) => item.id === entityId) ?? null;
   const selectedPreset = recipientPresets.find((item) => item.id === recipientPresetId) ?? null;
   const selectedProfile = useMemo(
     () => deliveryProfiles.find((item) => item.entity_type === entityType && item.entity_id === entityId) ?? null,
     [deliveryProfiles, entityId, entityType],
+  );
+
+  const resolvedRecipientPreview = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...parsedRecipients.map((item) => item.toLowerCase()),
+          ...(selectedPreset?.recipients ?? []).map((item) => item.toLowerCase()),
+          ...taggedContacts.map((item) => item.email.toLowerCase()),
+        ]),
+      ),
+    [parsedRecipients, selectedPreset?.recipients, taggedContacts],
   );
   const isDisabled = entityOptions.length === 0 || isSubmitting;
 
@@ -98,6 +133,7 @@ export function ReportDeliverySetupForm({
     setSendTime("09:00");
     setTimezone("Europe/Istanbul");
     setRecipients("musteri@ornek.com");
+    setContactTags([]);
     setAutoShareEnabled(true);
     setShareLabelTemplate("{template_name} / {end_date}");
     setShareExpiresInDays("7");
@@ -119,6 +155,7 @@ export function ReportDeliverySetupForm({
     setTimezone(profile.timezone);
     setRecipientPresetId(profile.recipient_preset_id ?? "");
     setRecipients(profile.recipients.join(", "));
+    setContactTags(profile.contact_tags);
     setAutoShareEnabled(profile.share_delivery.enabled);
     setShareLabelTemplate(profile.share_delivery.label_template ?? "{template_name} / {end_date}");
     setShareExpiresInDays(String(profile.share_delivery.expires_in_days ?? 7));
@@ -154,8 +191,8 @@ export function ReportDeliverySetupForm({
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!entityId || (!recipientPresetId && parsedRecipients.length === 0)) {
-      setError("Hedef kayit ve en az bir alici zorunlu.");
+    if (!entityId || (!recipientPresetId && parsedRecipients.length === 0 && contactTags.length === 0)) {
+      setError("Hedef kayit ve en az bir alici, alici listesi veya kisi etiketi zorunlu.");
       return;
     }
 
@@ -188,6 +225,7 @@ export function ReportDeliverySetupForm({
           send_time: sendTime,
           timezone,
           recipients: parsedRecipients.length > 0 ? parsedRecipients : null,
+          contact_tags: contactTags.length > 0 ? contactTags : null,
           save_as_default_profile: saveAsDefaultProfile,
           auto_share_enabled: autoShareEnabled,
           share_label_template: autoShareEnabled ? shareLabelTemplate.trim() || null : null,
@@ -360,6 +398,44 @@ export function ReportDeliverySetupForm({
         />
       </Field>
 
+      {availableContactTags.length > 0 ? (
+        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+          <p className="font-semibold">Kisi Etiketleriyle Alici Sec</p>
+          <p className="mt-1 muted-text">
+            Secilen etiketler schedule calistiginda aktif kisi havuzundan dinamik alici cozumler.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {availableContactTags.map((tag) => {
+              const isSelected = contactTags.includes(tag);
+
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                    isSelected
+                      ? "border-[var(--accent)] bg-[var(--surface-2)] text-[var(--accent)]"
+                      : "border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  }`}
+                  onClick={() =>
+                    setContactTags((current) =>
+                      current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag],
+                    )
+                  }
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+          {contactTags.length > 0 ? (
+            <p className="mt-2 text-xs muted-text">
+              Eslesen kisi: {taggedContacts.length} / Toplam cozumlenen alici: {resolvedRecipientPreview.length}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {contacts.filter((item) => item.is_active).length > 0 ? (
         <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
           <p className="font-semibold">Kisi Havuzundan Alici Ekle</p>
@@ -392,6 +468,17 @@ export function ReportDeliverySetupForm({
                 </button>
               ))}
           </div>
+        </div>
+      ) : null}
+
+      {contactTags.length > 0 ? (
+        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+          <p className="font-semibold">Etiket Eslesme Onizlemesi</p>
+          <p className="mt-1 muted-text">
+            {taggedContacts.length > 0
+              ? taggedContacts.map((contact) => `${contact.name} <${contact.email}>`).join(", ")
+              : "Secili etiketlerle eslesen aktif kisi yok."}
+          </p>
         </div>
       ) : null}
 
