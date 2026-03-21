@@ -187,6 +187,7 @@ export type AdAccountDetailResponse = {
     }>;
     alerts: AlertFeedItem[];
     recommendations: RecommendationFeedItem[];
+    delivery_profile: ReportDeliveryProfileListItem | null;
     next_best_actions: NextBestActionItem[];
     report_preview: {
       headline: string;
@@ -319,6 +320,7 @@ export type CampaignDetailResponse = {
     }>;
     alerts: AlertFeedItem[];
     recommendations: RecommendationFeedItem[];
+    delivery_profile: ReportDeliveryProfileListItem | null;
     next_best_actions: NextBestActionItem[];
     analysis: {
       biggest_risk: string | null;

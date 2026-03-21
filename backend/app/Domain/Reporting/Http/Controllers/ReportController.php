@@ -85,6 +85,61 @@ class ReportController
         ], 201);
     }
 
+    public function updateRecipientPreset(StoreReportRecipientPresetRequest $request, string $presetId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $preset = $this->reportRecipientPresetService->update(
+            workspace: $workspace,
+            presetId: $presetId,
+            payload: $request->validated(),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Kayitli alici listesi guncellendi.',
+            'data' => $preset,
+        ]);
+    }
+
+    public function toggleRecipientPreset(Request $request, string $presetId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+        $validated = $request->validate([
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $preset = $this->reportRecipientPresetService->toggle(
+            workspace: $workspace,
+            presetId: $presetId,
+            isActive: $validated['is_active'] ?? null,
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Kayitli alici listesi durumu guncellendi.',
+            'data' => $preset,
+        ]);
+    }
+
+    public function deleteRecipientPreset(Request $request, string $presetId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $this->reportRecipientPresetService->delete(
+            workspace: $workspace,
+            presetId: $presetId,
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Kayitli alici listesi silindi.',
+        ]);
+    }
+
     public function account(Request $request, string $adAccountId): JsonResponse
     {
         [$startDate, $endDate] = $this->resolveRange($request, 29);

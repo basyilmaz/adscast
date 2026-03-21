@@ -56,15 +56,7 @@ class ReportRecipientPresetService
         $items = $this->configStore->collection($workspace->id, self::SETTING_KEY);
         $name = trim((string) $payload['name']);
 
-        $nameExists = $items->contains(function (array $item) use ($name): bool {
-            return mb_strtolower((string) ($item['name'] ?? '')) === mb_strtolower($name);
-        });
-
-        if ($nameExists) {
-            throw ValidationException::withMessages([
-                'name' => 'Bu isimle kayitli bir alici listesi zaten var.',
-            ]);
-        }
+        $this->assertUniqueName($items, $name);
 
         $item = $this->normalizeItem([
             'id' => (string) Str::uuid(),
@@ -95,6 +87,138 @@ class ReportRecipientPresetService
         );
 
         return $item;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function update(
+        Workspace $workspace,
+        string $presetId,
+        array $payload,
+        ?User $actor = null,
+        ?Request $request = null,
+    ): array {
+        $items = $this->configStore->collection($workspace->id, self::SETTING_KEY);
+        $index = $items->search(fn (array $item): bool => (string) ($item['id'] ?? '') === $presetId);
+
+        if ($index === false) {
+            throw ValidationException::withMessages([
+                'preset_id' => 'Duzenlenecek alici listesi bulunamadi.',
+            ]);
+        }
+
+        $current = $this->normalizeItem($items->get($index));
+        $name = trim((string) $payload['name']);
+        $this->assertUniqueName($items, $name, $presetId);
+
+        $item = $this->normalizeItem([
+            'id' => $presetId,
+            'name' => $name,
+            'recipients' => $this->normalizeRecipients($payload['recipients'] ?? []),
+            'notes' => isset($payload['notes']) ? trim((string) $payload['notes']) : null,
+            'is_active' => (bool) ($payload['is_active'] ?? $current['is_active']),
+            'created_at' => $current['created_at'],
+            'updated_at' => now()->toDateTimeString(),
+        ]);
+
+        $items->put($index, $item);
+        $this->configStore->put($workspace, self::SETTING_KEY, $items->all(), $actor);
+
+        $this->auditLogService->log(
+            actor: $actor,
+            action: 'report_recipient_preset_updated',
+            targetType: 'report_recipient_preset',
+            targetId: $item['id'],
+            organizationId: $workspace->organization_id,
+            workspaceId: $workspace->id,
+            metadata: [
+                'name' => $item['name'],
+                'recipients_count' => $item['recipients_count'],
+                'is_active' => $item['is_active'],
+            ],
+            request: $request,
+        );
+
+        return $item;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toggle(
+        Workspace $workspace,
+        string $presetId,
+        ?bool $isActive,
+        ?User $actor = null,
+        ?Request $request = null,
+    ): array {
+        $items = $this->configStore->collection($workspace->id, self::SETTING_KEY);
+        $index = $items->search(fn (array $item): bool => (string) ($item['id'] ?? '') === $presetId);
+
+        if ($index === false) {
+            throw ValidationException::withMessages([
+                'preset_id' => 'Durumu degistirilecek alici listesi bulunamadi.',
+            ]);
+        }
+
+        $current = $this->normalizeItem($items->get($index));
+        $current['is_active'] = $isActive ?? ! $current['is_active'];
+        $current['updated_at'] = now()->toDateTimeString();
+
+        $items->put($index, $current);
+        $this->configStore->put($workspace, self::SETTING_KEY, $items->all(), $actor);
+
+        $this->auditLogService->log(
+            actor: $actor,
+            action: 'report_recipient_preset_toggled',
+            targetType: 'report_recipient_preset',
+            targetId: $current['id'],
+            organizationId: $workspace->organization_id,
+            workspaceId: $workspace->id,
+            metadata: [
+                'is_active' => $current['is_active'],
+                'name' => $current['name'],
+            ],
+            request: $request,
+        );
+
+        return $current;
+    }
+
+    public function delete(
+        Workspace $workspace,
+        string $presetId,
+        ?User $actor = null,
+        ?Request $request = null,
+    ): void {
+        $items = $this->configStore->collection($workspace->id, self::SETTING_KEY);
+        $item = $this->find($workspace->id, $presetId);
+
+        if (! $item) {
+            throw ValidationException::withMessages([
+                'preset_id' => 'Silinecek alici listesi bulunamadi.',
+            ]);
+        }
+
+        $items = $items
+            ->reject(fn (array $candidate): bool => (string) ($candidate['id'] ?? '') === $presetId)
+            ->values();
+
+        $this->configStore->put($workspace, self::SETTING_KEY, $items->all(), $actor);
+
+        $this->auditLogService->log(
+            actor: $actor,
+            action: 'report_recipient_preset_deleted',
+            targetType: 'report_recipient_preset',
+            targetId: $presetId,
+            organizationId: $workspace->organization_id,
+            workspaceId: $workspace->id,
+            metadata: [
+                'name' => $item['name'],
+            ],
+            request: $request,
+        );
     }
 
     /**
@@ -143,5 +267,25 @@ class ReportRecipientPresetService
             'created_at' => isset($item['created_at']) ? (string) $item['created_at'] : null,
             'updated_at' => isset($item['updated_at']) ? (string) $item['updated_at'] : null,
         ];
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $items
+     */
+    private function assertUniqueName(Collection $items, string $name, ?string $ignoreId = null): void
+    {
+        $nameExists = $items->contains(function (array $item) use ($name, $ignoreId): bool {
+            if ($ignoreId !== null && (string) ($item['id'] ?? '') === $ignoreId) {
+                return false;
+            }
+
+            return mb_strtolower((string) ($item['name'] ?? '')) === mb_strtolower($name);
+        });
+
+        if ($nameExists) {
+            throw ValidationException::withMessages([
+                'name' => 'Bu isimle kayitli bir alici listesi zaten var.',
+            ]);
+        }
     }
 }

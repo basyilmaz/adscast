@@ -19,6 +19,7 @@ class AdAccountQueryService
 {
     public function __construct(
         private readonly ActionFeedService $actionFeedService,
+        private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
     ) {
     }
 
@@ -300,6 +301,11 @@ class AdAccountQueryService
             'campaigns' => $campaignRows->all(),
             'alerts' => $alertPayload['items'],
             'recommendations' => $recommendationPayload['items'],
+            'delivery_profile' => $this->reportDeliveryProfileService->findByEntity(
+                $account->workspace_id,
+                'account',
+                $account->id,
+            ),
             'next_best_actions' => $this->actionFeedService->nextBestActions(
                 $account->workspace_id,
                 $alerts,

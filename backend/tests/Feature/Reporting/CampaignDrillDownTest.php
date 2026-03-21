@@ -10,6 +10,7 @@ use App\Models\Creative;
 use App\Models\MetaAdAccount;
 use App\Models\MetaConnection;
 use App\Models\Recommendation;
+use App\Models\Setting;
 use App\Models\Workspace;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\TenantSeeder;
@@ -25,6 +26,36 @@ class CampaignDrillDownTest extends TestCase
     {
         [$workspace, $token, $campaign, $adSet, $ad] = $this->seedDrillDownFixture();
 
+        Setting::query()->create([
+            'workspace_id' => $workspace->id,
+            'key' => 'reports.delivery_profiles',
+            'value' => [[
+                'id' => (string) Str::uuid(),
+                'entity_type' => 'campaign',
+                'entity_id' => $campaign->id,
+                'recipient_preset_id' => null,
+                'delivery_channel' => 'email',
+                'cadence' => 'monthly',
+                'weekday' => null,
+                'month_day' => 5,
+                'send_time' => '08:45',
+                'timezone' => 'Europe/Istanbul',
+                'default_range_days' => 7,
+                'layout_preset' => 'client_digest',
+                'recipients' => ['musteri@castintech.com'],
+                'share_delivery' => [
+                    'enabled' => true,
+                    'label_template' => '{template_name} / {end_date}',
+                    'expires_in_days' => 14,
+                    'allow_csv_download' => true,
+                ],
+                'is_active' => true,
+                'created_at' => now()->subHour()->toDateTimeString(),
+                'updated_at' => now()->toDateTimeString(),
+            ]],
+            'is_encrypted' => false,
+        ]);
+
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspace->id)
             ->getJson("/api/v1/campaigns/{$campaign->id}?start_date=2026-03-10&end_date=2026-03-16");
@@ -36,6 +67,12 @@ class CampaignDrillDownTest extends TestCase
             ->assertJsonPath('data.summary.active_ads', 2)
             ->assertJsonPath('data.analysis.biggest_risk', 'Lead Engine Campaign sonuc kaybi yasiyor.')
             ->assertJsonPath('data.next_best_actions.0.source', 'alert')
+            ->assertJsonPath('data.delivery_profile.entity_type', 'campaign')
+            ->assertJsonPath('data.delivery_profile.entity_id', $campaign->id)
+            ->assertJsonPath('data.delivery_profile.delivery_channel', 'email')
+            ->assertJsonPath('data.delivery_profile.month_day', 5)
+            ->assertJsonPath('data.delivery_profile.recipients_count', 1)
+            ->assertJsonPath('data.delivery_profile.share_delivery.allow_csv_download', true)
             ->assertJsonPath('data.report_preview.next_test', 'Yeni aci ile headline varyasyonu test edin.')
             ->assertJsonFragment([
                 'name' => 'Prospecting Ad Set',

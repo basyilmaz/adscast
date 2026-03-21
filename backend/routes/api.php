@@ -69,6 +69,12 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/recipient-presets', [ReportController::class, 'storeRecipientPreset'])
                 ->middleware('workspace.permission:settings.manage');
+            Route::put('/reports/recipient-presets/{presetId}', [ReportController::class, 'updateRecipientPreset'])
+                ->middleware('workspace.permission:settings.manage');
+            Route::post('/reports/recipient-presets/{presetId}/toggle', [ReportController::class, 'toggleRecipientPreset'])
+                ->middleware('workspace.permission:settings.manage');
+            Route::delete('/reports/recipient-presets/{presetId}', [ReportController::class, 'deleteRecipientPreset'])
+                ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/delivery-setups', [ReportController::class, 'storeDeliverySetup'])
                 ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/delivery-schedules', [ReportController::class, 'storeDeliverySchedule'])

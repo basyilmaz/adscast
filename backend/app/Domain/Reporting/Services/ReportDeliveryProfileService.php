@@ -71,6 +71,42 @@ class ReportDeliveryProfileService
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function findByEntity(string $workspaceId, string $entityType, string $entityId): ?array
+    {
+        $presets = collect($this->recipientPresetService->index($workspaceId)['items'])->keyBy('id');
+
+        $raw = $this->configStore
+            ->collection($workspaceId, self::SETTING_KEY)
+            ->first(function (array $item) use ($entityType, $entityId): bool {
+                return (string) ($item['entity_type'] ?? '') === $entityType
+                    && (string) ($item['entity_id'] ?? '') === $entityId
+                    && (bool) ($item['is_active'] ?? true);
+            });
+
+        if (! $raw) {
+            return null;
+        }
+
+        $profile = $this->normalizeItem($raw, $presets);
+        $context = $this->entityContextResolver->resolveMany($workspaceId, [[
+            'type' => $profile['entity_type'],
+            'id' => $profile['entity_id'],
+        ]]);
+        $resolved = $context[$this->entityContextResolver->key($profile['entity_type'], $profile['entity_id'])] ?? [
+            'entity_label' => 'Bilinmeyen varlik',
+            'context_label' => null,
+        ];
+
+        return array_merge($profile, [
+            'entity_label' => $resolved['entity_label'],
+            'context_label' => $resolved['context_label'],
+            'report_url' => $this->reportUrl($profile['entity_type'], $profile['entity_id']),
+        ]);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @param  array<int, string>  $resolvedRecipients
      * @return array<string, mixed>

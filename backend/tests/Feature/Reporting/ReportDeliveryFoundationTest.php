@@ -387,6 +387,52 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.delivery_profiles.0.weekday', 4);
     }
 
+    public function test_recipient_preset_can_be_updated_toggled_and_deleted(): void
+    {
+        [$workspace, $token] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $createResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/recipient-presets', [
+                'name' => 'Silinecek Preset',
+                'recipients' => ['first@castintech.com'],
+            ]);
+
+        $presetId = $createResponse->json('data.id');
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->putJson("/api/v1/reports/recipient-presets/{$presetId}", [
+                'name' => 'Guncel Preset',
+                'recipients' => ['first@castintech.com', 'second@castintech.com'],
+                'notes' => 'Guncel liste',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Guncel Preset')
+            ->assertJsonPath('data.recipients_count', 2);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/recipient-presets/{$presetId}/toggle", [
+                'is_active' => false,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.is_active', false);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->deleteJson("/api/v1/reports/recipient-presets/{$presetId}")
+            ->assertOk();
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.recipient_preset_summary.total_presets', 0)
+            ->assertJsonPath('data.recipient_presets', []);
+    }
+
     /**
      * @return array{0: Workspace, 1: string, 2: MetaAdAccount, 3: Campaign}
      */

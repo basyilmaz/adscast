@@ -277,6 +277,41 @@ export function CampaignDetailClient() {
                 </div>
               </div>
             </Card>
+
+            <Card>
+              <CardTitle>Varsayilan Rapor Teslim Profili</CardTitle>
+              {data.delivery_profile ? (
+                <div className="mt-3 space-y-3 text-sm">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge label={data.delivery_profile.cadence_label} variant="neutral" />
+                    <Badge label={data.delivery_profile.delivery_channel_label} variant="neutral" />
+                    {data.delivery_profile.share_delivery.enabled ? <Badge label="Auto Share" variant="success" /> : null}
+                  </div>
+                  <p className="muted-text">
+                    Alicilar: {data.delivery_profile.recipient_preset_name ?? data.delivery_profile.recipients.join(", ")}
+                  </p>
+                  <p className="muted-text">
+                    {data.delivery_profile.default_range_days} gun / {data.delivery_profile.timezone}
+                  </p>
+                  <Link
+                    href={buildHrefWithFilters("/reports", searchParams, GLOBAL_DATE_FILTER_KEYS)}
+                    className="inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
+                  >
+                    Rapor merkezinde yonet
+                  </Link>
+                </div>
+              ) : (
+                <div className="mt-3 space-y-2 text-sm">
+                  <p className="muted-text">Bu kampanya icin kayitli varsayilan teslim profili yok.</p>
+                  <Link
+                    href={buildHrefWithFilters("/reports", searchParams, GLOBAL_DATE_FILTER_KEYS)}
+                    className="inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
+                  >
+                    Profil olustur
+                  </Link>
+                </div>
+              )}
+            </Card>
           </div>
         </section>
       ) : null}
@@ -501,6 +536,21 @@ export function CampaignDetailClient() {
               >
                 Tam campaign raporunu ac
               </Link>
+            </div>
+            <div className="rounded-lg border border-[var(--border)] p-4 xl:col-span-2">
+              <p className="text-sm font-semibold">Teslim Profili</p>
+              {data.delivery_profile ? (
+                <>
+                  <p className="mt-2 text-sm">
+                    {data.delivery_profile.cadence_label} / {data.delivery_profile.delivery_channel_label}
+                  </p>
+                  <p className="mt-1 text-xs muted-text">
+                    Alicilar: {data.delivery_profile.recipient_preset_name ?? data.delivery_profile.recipients.join(", ")}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm muted-text">Bu kampanya icin varsayilan teslim profili tanimli degil.</p>
+              )}
             </div>
           </div>
         </Card>

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ReportDeliverySetupForm } from "@/components/reports/report-delivery-setup-form";
+import { ReportRecipientPresetManager } from "@/components/reports/report-recipient-preset-manager";
 import { ReportRecipientPresetForm } from "@/components/reports/report-recipient-preset-form";
 import { ReportScheduleForm } from "@/components/reports/report-schedule-form";
 import { ReportTemplateForm } from "@/components/reports/report-template-form";
@@ -20,7 +21,6 @@ import {
   ReportDeliveryScheduleListItem,
   ReportDeliveryProfileListItem,
   ReportIndexResponse,
-  ReportRecipientPresetListItem,
   ReportSnapshotListItem,
   ReportTemplateListItem,
 } from "@/lib/types";
@@ -187,19 +187,8 @@ export default function ReportsPage() {
             <ReportRecipientPresetForm onCreated={reload} />
           </div>
 
-          <div className="mt-4 space-y-3">
-            {(data?.recipient_presets ?? []).map((preset: ReportRecipientPresetListItem) => (
-              <div key={preset.id} className="rounded-lg border border-[var(--border)] p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge label={preset.is_active ? "active" : "inactive"} variant={preset.is_active ? "success" : "warning"} />
-                  <Badge label={`${preset.recipients_count} alici`} variant="neutral" />
-                </div>
-                <p className="mt-2 font-semibold">{preset.name}</p>
-                <p className="mt-1 text-sm muted-text">{preset.recipients.join(", ")}</p>
-                {preset.notes ? <p className="mt-2 text-xs muted-text">{preset.notes}</p> : null}
-              </div>
-            ))}
-            {(data?.recipient_presets ?? []).length === 0 ? <p className="text-sm muted-text">Henuz kayitli alici listesi yok.</p> : null}
+          <div className="mt-4">
+            <ReportRecipientPresetManager presets={data?.recipient_presets ?? []} onChanged={reload} />
           </div>
         </Card>
 

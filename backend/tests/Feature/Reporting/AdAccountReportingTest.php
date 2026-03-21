@@ -9,6 +9,7 @@ use App\Models\Campaign;
 use App\Models\MetaAdAccount;
 use App\Models\MetaConnection;
 use App\Models\Recommendation;
+use App\Models\Setting;
 use App\Models\Workspace;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\TenantSeeder;
@@ -245,6 +246,36 @@ class AdAccountReportingTest extends TestCase
             'metadata' => ['source' => 'phpunit'],
         ]);
 
+        Setting::query()->create([
+            'workspace_id' => $workspace->id,
+            'key' => 'reports.delivery_profiles',
+            'value' => [[
+                'id' => (string) Str::uuid(),
+                'entity_type' => 'account',
+                'entity_id' => $account->id,
+                'recipient_preset_id' => null,
+                'delivery_channel' => 'email_stub',
+                'cadence' => 'weekly',
+                'weekday' => 4,
+                'month_day' => null,
+                'send_time' => '11:30',
+                'timezone' => 'Europe/Istanbul',
+                'default_range_days' => 14,
+                'layout_preset' => 'client_digest',
+                'recipients' => ['client@castintech.com', 'ops@castintech.com'],
+                'share_delivery' => [
+                    'enabled' => true,
+                    'label_template' => '{template_name} / {end_date}',
+                    'expires_in_days' => 7,
+                    'allow_csv_download' => false,
+                ],
+                'is_active' => true,
+                'created_at' => now()->subHour()->toDateTimeString(),
+                'updated_at' => now()->toDateTimeString(),
+            ]],
+            'is_encrypted' => false,
+        ]);
+
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspace->id)
             ->getJson("/api/v1/meta/ad-accounts/{$account->id}?start_date=2026-03-10&end_date=2026-03-16");
@@ -263,6 +294,12 @@ class AdAccountReportingTest extends TestCase
             ->assertJsonPath('data.alerts.0.summary', 'Watch Campaign sonuc uretmiyor.')
             ->assertJsonPath('data.recommendations.0.summary', 'Kazanan kampanyada kontrollu butce artisi deneyin.')
             ->assertJsonPath('data.next_best_actions.0.source', 'alert')
+            ->assertJsonPath('data.delivery_profile.entity_type', 'account')
+            ->assertJsonPath('data.delivery_profile.entity_id', $account->id)
+            ->assertJsonPath('data.delivery_profile.cadence', 'weekly')
+            ->assertJsonPath('data.delivery_profile.delivery_channel', 'email_stub')
+            ->assertJsonPath('data.delivery_profile.recipients_count', 2)
+            ->assertJsonPath('data.delivery_profile.share_delivery.enabled', true)
             ->assertJsonPath('data.report_preview.headline', 'Castintech Main Account hesabi secili aralikta 650.00 harcama ile 16 sonuc uretti.')
             ->assertJsonCount(7, 'data.trend');
     }
