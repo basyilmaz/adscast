@@ -38,48 +38,46 @@ $qualityBuildRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("adscast-fronte
 $qualityFrontend = Join-Path $qualityBuildRoot "frontend"
 $outDir = Join-Path $qualityFrontend "out"
 
-try {
-    if (-not (Test-Path (Join-Path $frontendDir "node_modules"))) {
-        Push-Location $frontendDir
-        try {
-            npm ci
-            if ($LASTEXITCODE -ne 0) {
-                throw "Frontend bagimliliklari kurulurken hata olustu."
-            }
-        }
-        finally {
-            Pop-Location
-        }
-    }
-
-    New-Item -ItemType Directory -Path $qualityFrontend -Force | Out-Null
-
-    $robocopyArgs = @(
-        $frontendDir,
-        $qualityFrontend,
-        "/MIR",
-        "/XD", "node_modules", ".next", ".next-quality", "out"
-    )
-
-    & robocopy @robocopyArgs | Out-Null
-    if ($LASTEXITCODE -gt 7) {
-        throw "Frontend deploy build icin gecici kopya olusturulamadi."
-    }
-
-    New-Item -ItemType Junction -Path (Join-Path $qualityFrontend "node_modules") -Target (Join-Path $frontendDir "node_modules") -Force | Out-Null
-
-    Push-Location $qualityFrontend
+if (-not (Test-Path (Join-Path $frontendDir "node_modules"))) {
+    Push-Location $frontendDir
     try {
-        $env:NEXT_PUBLIC_API_BASE_URL = "/api/v1"
-        npm run build -- --webpack
+        npm ci
         if ($LASTEXITCODE -ne 0) {
-            throw "Frontend build basarisiz."
+            throw "Frontend bagimliliklari kurulurken hata olustu."
         }
     }
     finally {
-        Remove-Item Env:\NEXT_PUBLIC_API_BASE_URL -ErrorAction SilentlyContinue
         Pop-Location
     }
+}
+
+New-Item -ItemType Directory -Path $qualityFrontend -Force | Out-Null
+
+$robocopyArgs = @(
+    $frontendDir,
+    $qualityFrontend,
+    "/MIR",
+    "/XD", "node_modules", ".next", ".next-quality", "out"
+)
+
+& robocopy @robocopyArgs | Out-Null
+if ($LASTEXITCODE -gt 7) {
+    throw "Frontend deploy build icin gecici kopya olusturulamadi."
+}
+
+New-Item -ItemType Junction -Path (Join-Path $qualityFrontend "node_modules") -Target (Join-Path $frontendDir "node_modules") -Force | Out-Null
+
+Push-Location $qualityFrontend
+try {
+    $env:NEXT_PUBLIC_API_BASE_URL = "/api/v1"
+    npm run build -- --webpack
+    if ($LASTEXITCODE -ne 0) {
+        throw "Frontend build basarisiz."
+    }
+}
+finally {
+    Remove-Item Env:\NEXT_PUBLIC_API_BASE_URL -ErrorAction SilentlyContinue
+    Pop-Location
 }
 
 if (-not (Test-Path $outDir)) {
