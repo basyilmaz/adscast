@@ -13,6 +13,7 @@ use App\Domain\Reporting\Http\Requests\ToggleReportDeliveryProfileRequest;
 use App\Domain\Reporting\Http\Requests\UpsertReportDeliveryProfileRequest;
 use App\Domain\Reporting\Services\ReportBuilderService;
 use App\Domain\Reporting\Services\ReportContactService;
+use App\Domain\Reporting\Services\ReportRecipientGroupAdvisorService;
 use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
 use App\Domain\Reporting\Services\ReportDeliverySetupService;
@@ -36,6 +37,7 @@ class ReportController
         private readonly ReportSnapshotService $reportSnapshotService,
         private readonly ReportTemplateService $reportTemplateService,
         private readonly ReportContactService $reportContactService,
+        private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
         private readonly ReportDeliveryScheduleService $reportDeliveryScheduleService,
@@ -50,6 +52,7 @@ class ReportController
         $snapshotIndex = $this->reportSnapshotService->index($workspaceId);
         $templateIndex = $this->reportTemplateService->index($workspaceId);
         $contactIndex = $this->reportContactService->index($workspaceId);
+        $recipientGroupCatalog = $this->reportRecipientGroupAdvisorService->catalog($workspaceId);
         $presetIndex = $this->reportRecipientPresetService->index($workspaceId);
         $profileIndex = $this->reportDeliveryProfileService->index($workspaceId);
         $deliveryIndex = $this->reportDeliveryScheduleService->index($workspaceId);
@@ -65,6 +68,8 @@ class ReportController
                     'contact_segment_summary' => $contactIndex['segment_summary'],
                     'contacts' => $contactIndex['items'],
                     'contact_segments' => $contactIndex['segments'],
+                    'recipient_group_catalog_summary' => $recipientGroupCatalog['summary'],
+                    'recipient_group_catalog' => $recipientGroupCatalog['items'],
                     'recipient_preset_summary' => $presetIndex['summary'],
                     'recipient_presets' => $presetIndex['items'],
                     'delivery_profile_summary' => $profileIndex['summary'],

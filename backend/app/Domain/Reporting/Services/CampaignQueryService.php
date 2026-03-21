@@ -20,6 +20,7 @@ class CampaignQueryService
     public function __construct(
         private readonly ActionFeedService $actionFeedService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
+        private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
     ) {
     }
 
@@ -287,6 +288,11 @@ class CampaignQueryService
         $healthStatus = $this->campaignHealthStatus($campaign, $summary, $alerts->count());
         $alertPayload = $this->actionFeedService->presentAlerts($campaign->workspace_id, $alerts);
         $recommendationPayload = $this->actionFeedService->presentRecommendations($campaign->workspace_id, $recommendations);
+        $deliveryProfile = $this->reportDeliveryProfileService->findByEntity(
+            $campaign->workspace_id,
+            'campaign',
+            $campaign->id,
+        );
 
         return [
             'range' => [
@@ -322,10 +328,12 @@ class CampaignQueryService
             'ads' => $adRows->all(),
             'alerts' => $alertPayload['items'],
             'recommendations' => $recommendationPayload['items'],
-            'delivery_profile' => $this->reportDeliveryProfileService->findByEntity(
+            'delivery_profile' => $deliveryProfile,
+            'suggested_recipient_groups' => $this->reportRecipientGroupAdvisorService->suggestForEntity(
                 $campaign->workspace_id,
                 'campaign',
                 $campaign->id,
+                $deliveryProfile,
             ),
             'next_best_actions' => $this->actionFeedService->nextBestActions(
                 $campaign->workspace_id,

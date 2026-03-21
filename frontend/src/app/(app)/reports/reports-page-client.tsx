@@ -7,6 +7,7 @@ import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ReportContactForm } from "@/components/reports/report-contact-form";
 import { ReportContactManager } from "@/components/reports/report-contact-manager";
 import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery-history-panel";
+import { ReportRecipientGroupCatalog } from "@/components/reports/report-recipient-group-catalog";
 import { ReportDeliverySetupForm } from "@/components/reports/report-delivery-setup-form";
 import { ReportRecipientPresetManager } from "@/components/reports/report-recipient-preset-manager";
 import { ReportRecipientPresetForm } from "@/components/reports/report-recipient-preset-form";
@@ -181,6 +182,7 @@ export default function ReportsPage() {
         <MetricCard label="Kayitli Sablon" value={data?.template_summary.total_templates ?? 0} />
         <MetricCard label="Kisi Havuzu" value={data?.contact_summary.total_contacts ?? 0} />
         <MetricCard label="Kisi Segmenti" value={data?.contact_segment_summary.total_segments ?? 0} />
+        <MetricCard label="Grup Katalogu" value={data?.recipient_group_catalog_summary.total_groups ?? 0} />
         <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
         <MetricCard label="Aktif Schedule" value={data?.delivery_summary.active_schedules ?? 0} />
@@ -283,6 +285,25 @@ export default function ReportsPage() {
           {(data?.contact_segments ?? []).length === 0 ? (
             <p className="text-sm muted-text">Henuz tanimli kisi segmenti yok.</p>
           ) : null}
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Alici Grubu Katalogu</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Kayitli grup, segment ve akilli grup adaylari burada toplanir. Operator dogru alici yapisini secmeden once tum teslim seceneklerini tek listede gorur.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
+          <span>Toplam: {data?.recipient_group_catalog_summary.total_groups ?? 0}</span>
+          <span>Kayitli grup: {data?.recipient_group_catalog_summary.preset_groups ?? 0}</span>
+          <span>Segment: {data?.recipient_group_catalog_summary.segment_groups ?? 0}</span>
+          <span>Akilli grup: {data?.recipient_group_catalog_summary.smart_groups ?? 0}</span>
+        </div>
+        <div className="mt-4">
+          <ReportRecipientGroupCatalog
+            items={data?.recipient_group_catalog ?? []}
+            emptyText="Katalogda henuz gosterilecek alici grubu yok."
+          />
         </div>
       </Card>
 

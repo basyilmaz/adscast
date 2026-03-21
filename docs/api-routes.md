@@ -20,10 +20,12 @@ Base path: `/api/v1`
 - `GET /campaigns`
   - desteklenen query parametreleri: `start_date`, `end_date`, `ad_account_id`, `objective`, `status`
 - `GET /campaigns/{campaignId}`
+  - `suggested_recipient_groups[]` ile kampanya baglamina uygun onerilen alici gruplarini doner
 - `GET /ad-sets/{adSetId}`
 - `GET /ads/{adId}`
 - `GET /reports`
   - `contact_segment_summary` ve `contact_segments[]` ile kisi etiket segmentlerini doner
+  - `recipient_group_catalog_summary` ve `recipient_group_catalog[]` ile kayitli grup + segment + akilli grup katalogunu doner
   - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner
   - `delivery_profiles[].recipient_group_summary` ile varsayilan alici grubunun kaynagini ozetler
 - `GET /reports/account/{adAccountId}`
@@ -41,6 +43,7 @@ Base path: `/api/v1`
 - `POST /reports/recipient-presets/{presetId}/toggle` (`settings.manage`)
 - `DELETE /reports/recipient-presets/{presetId}` (`settings.manage`)
 - `PUT /reports/delivery-profiles/{entityType}/{entityId}` (`settings.manage`)
+  - `recipient_preset_id`, `recipients` ve/veya `contact_tags[]` ile varsayilan teslim profili kaydedilebilir
 - `POST /reports/delivery-profiles/{entityType}/{entityId}/toggle` (`settings.manage`)
 - `DELETE /reports/delivery-profiles/{entityType}/{entityId}` (`settings.manage`)
 - `POST /reports/delivery-setups` (`settings.manage`)
@@ -68,6 +71,8 @@ Base path: `/api/v1`
 - `POST /meta/connections`
 - `POST /meta/connections/{connectionId}/revoke`
 - `GET /meta/ad-accounts`
+- `GET /meta/ad-accounts/{adAccountId}`
+  - `suggested_recipient_groups[]` ile hesap baglamina uygun onerilen alici gruplarini doner
 - `POST /meta/connections/{connectionId}/sync-assets`
 - `POST /meta/connections/{connectionId}/sync-insights`
 

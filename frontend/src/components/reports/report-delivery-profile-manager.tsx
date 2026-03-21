@@ -5,21 +5,29 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageLoadingState } from "@/components/ui/page-state";
+import { ReportRecipientGroupCatalog } from "@/components/reports/report-recipient-group-catalog";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { apiRequest } from "@/lib/api";
 import { QUERY_TTLS } from "@/lib/api-query-config";
-import { ReportDeliveryProfileListItem, ReportIndexResponse } from "@/lib/types";
+import {
+  RecipientGroupCatalogItem,
+  ReportContactSegmentListItem,
+  ReportDeliveryProfileListItem,
+  ReportIndexResponse,
+} from "@/lib/types";
 
 type Props = {
   entityType: "account" | "campaign";
   entityId: string;
   currentProfile: ReportDeliveryProfileListItem | null;
+  suggestedGroups?: RecipientGroupCatalogItem[];
   reportCenterHref: string;
   onChanged?: () => Promise<void> | void;
 };
 
 type DeliveryOptions = {
   recipientPresets: ReportIndexResponse["data"]["recipient_presets"];
+  contactSegments: ReportContactSegmentListItem[];
   deliveryCapabilities: ReportIndexResponse["data"]["delivery_capabilities"];
 };
 
@@ -46,6 +54,7 @@ export function ReportDeliveryProfileManager({
   entityType,
   entityId,
   currentProfile,
+  suggestedGroups = [],
   reportCenterHref,
   onChanged,
 }: Props) {
@@ -59,6 +68,7 @@ export function ReportDeliveryProfileManager({
   const [sendTime, setSendTime] = useState("09:00");
   const [timezone, setTimezone] = useState("Europe/Istanbul");
   const [recipients, setRecipients] = useState("");
+  const [contactTags, setContactTags] = useState<string[]>([]);
   const [autoShareEnabled, setAutoShareEnabled] = useState(true);
   const [shareLabelTemplate, setShareLabelTemplate] = useState("{template_name} / {end_date}");
   const [shareExpiresInDays, setShareExpiresInDays] = useState("7");
@@ -75,6 +85,7 @@ export function ReportDeliveryProfileManager({
     ttlMs: QUERY_TTLS.reports,
     select: (response) => ({
       recipientPresets: response.data.recipient_presets,
+      contactSegments: response.data.contact_segments,
       deliveryCapabilities: response.data.delivery_capabilities,
     }),
   });
@@ -84,7 +95,13 @@ export function ReportDeliveryProfileManager({
       (item) => item.is_active || item.id === currentProfile?.recipient_preset_id,
     );
   }, [currentProfile?.recipient_preset_id, options?.recipientPresets]);
+
   const selectedPreset = visiblePresets.find((item) => item.id === recipientPresetId) ?? null;
+  const selectedSegments = (options?.contactSegments ?? []).filter((segment) => contactTags.includes(segment.tag));
+  const parsedRecipients = recipients
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 
   useEffect(() => {
     if (!isEditing) {
@@ -105,6 +122,7 @@ export function ReportDeliveryProfileManager({
       setSendTime(currentProfile.send_time);
       setTimezone(currentProfile.timezone);
       setRecipients(currentProfile.recipients.join(", "));
+      setContactTags(currentProfile.contact_tags);
       setAutoShareEnabled(currentProfile.share_delivery.enabled);
       setShareLabelTemplate(currentProfile.share_delivery.label_template ?? "{template_name} / {end_date}");
       setShareExpiresInDays(String(currentProfile.share_delivery.expires_in_days ?? 7));
@@ -122,16 +140,12 @@ export function ReportDeliveryProfileManager({
     setSendTime("09:00");
     setTimezone("Europe/Istanbul");
     setRecipients("");
+    setContactTags([]);
     setAutoShareEnabled(true);
     setShareLabelTemplate("{template_name} / {end_date}");
     setShareExpiresInDays("7");
     setShareAllowCsvDownload(false);
   }, [currentProfile, isEditing, options?.deliveryCapabilities.real_email_available]);
-
-  const parsedRecipients = recipients
-    .split(/[\n,;]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
 
   const closeEditor = () => {
     setIsEditing(false);
@@ -139,9 +153,30 @@ export function ReportDeliveryProfileManager({
     setError(null);
   };
 
+  const toggleTag = (tag: string) => {
+    setContactTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]));
+  };
+
+  const applySuggestedGroup = (group: RecipientGroupCatalogItem) => {
+    setError(null);
+    setMessage(null);
+
+    if (group.source_type === "preset" && group.recipient_preset_id) {
+      setRecipientPresetId(group.recipient_preset_id);
+      setContactTags([]);
+      setRecipients("");
+
+      return;
+    }
+
+    setRecipientPresetId("");
+    setContactTags(group.contact_tags);
+    setRecipients(group.recipients.join(", "));
+  };
+
   const handleSave = async () => {
-    if (!recipientPresetId && parsedRecipients.length === 0) {
-      setError("En az bir alici veya kayitli alici grubu secilmelidir.");
+    if (!recipientPresetId && parsedRecipients.length === 0 && contactTags.length === 0) {
+      setError("En az bir alici, kisi etiketi veya kayitli alici grubu secilmelidir.");
       return;
     }
 
@@ -166,6 +201,7 @@ export function ReportDeliveryProfileManager({
             default_range_days: Number(defaultRangeDays),
             layout_preset: "client_digest",
             recipients: parsedRecipients.length > 0 ? parsedRecipients : null,
+            contact_tags: contactTags.length > 0 ? contactTags : null,
             auto_share_enabled: autoShareEnabled,
             share_label_template: autoShareEnabled ? shareLabelTemplate.trim() || null : null,
             share_expires_in_days: autoShareEnabled ? Number(shareExpiresInDays) : null,
@@ -286,6 +322,19 @@ export function ReportDeliveryProfileManager({
               </Button>
             </>
           )}
+
+          {suggestedGroups.length > 0 ? (
+            <div className="rounded-lg border border-[var(--border)] p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide muted-text">Onerilen Alici Gruplari</p>
+              <div className="mt-3">
+                <ReportRecipientGroupCatalog
+                  items={suggestedGroups}
+                  emptyText="Bu kayit icin onerilen alici grubu yok."
+                />
+              </div>
+            </div>
+          ) : null}
+
           <Link href={reportCenterHref} className="inline-flex text-sm font-semibold text-[var(--accent)] hover:underline">
             Rapor merkezinde yonet
           </Link>
@@ -293,9 +342,25 @@ export function ReportDeliveryProfileManager({
       ) : (
         <>
           {isOptionsLoading && !options ? (
-            <PageLoadingState title="Teslim profili hazirlaniyor" detail="Kayitli alici listeleri getiriliyor." />
+            <PageLoadingState title="Teslim profili hazirlaniyor" detail="Kayitli alici gruplari getiriliyor." />
           ) : (
             <div className="space-y-4 rounded-lg border border-[var(--border)] p-4">
+              {suggestedGroups.length > 0 ? (
+                <div>
+                  <p className="text-sm font-semibold">Bu Kayit Icin Onerilen Gruplar</p>
+                  <p className="mt-1 text-xs muted-text">
+                    Hesap veya kampanya baglamina gore secimi hizlandiran hazir grup onerileri.
+                  </p>
+                  <div className="mt-3">
+                    <ReportRecipientGroupCatalog
+                      items={suggestedGroups}
+                      emptyText="Bu kayit icin onerilen alici grubu yok."
+                      onApply={applySuggestedGroup}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Kayitli Alici Grubu">
                   <select
@@ -303,7 +368,7 @@ export function ReportDeliveryProfileManager({
                     value={recipientPresetId}
                     onChange={(event) => setRecipientPresetId(event.target.value)}
                   >
-                    <option value="">Ozel Alici Girisi</option>
+                    <option value="">Ozel Grup Kur</option>
                     {visiblePresets.map((preset) => (
                       <option key={preset.id} value={preset.id}>
                         {preset.name} ({preset.resolved_recipients_count})
@@ -398,6 +463,26 @@ export function ReportDeliveryProfileManager({
                 </Field>
               </div>
 
+              <Field label="Kisi Segmentleri">
+                <div className="flex flex-wrap gap-2">
+                  {(options?.contactSegments ?? []).map((segment) => (
+                    <button
+                      key={segment.tag}
+                      type="button"
+                      className={`rounded-full border px-3 py-2 text-xs font-medium ${
+                        contactTags.includes(segment.tag)
+                          ? "border-[var(--accent)] bg-[var(--surface-2)] text-[var(--accent)]"
+                          : "border-[var(--border)] bg-white"
+                      }`}
+                      onClick={() => toggleTag(segment.tag)}
+                    >
+                      {segment.tag} ({segment.active_contacts_count})
+                    </button>
+                  ))}
+                  {(options?.contactSegments ?? []).length === 0 ? <p className="text-sm muted-text">Kullanilabilir segment yok.</p> : null}
+                </div>
+              </Field>
+
               <Field label="Ek Manuel Alicilar">
                 <textarea
                   className="min-h-[84px] w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
@@ -413,6 +498,16 @@ export function ReportDeliveryProfileManager({
                   <p className="mt-1 muted-text">{selectedPreset.recipient_group_summary.label}</p>
                   <p className="mt-1 text-xs muted-text">
                     Statik: {selectedPreset.recipient_group_summary.static_recipients_count} / Dinamik: {selectedPreset.recipient_group_summary.dynamic_contacts_count} / Cozumlenen: {selectedPreset.resolved_recipients_count}
+                  </p>
+                </div>
+              ) : null}
+
+              {selectedSegments.length > 0 ? (
+                <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+                  <p className="font-semibold">Secili Segmentler</p>
+                  <p className="mt-1 muted-text">{selectedSegments.map((segment) => segment.tag).join(", ")}</p>
+                  <p className="mt-1 text-xs muted-text">
+                    Toplam aktif kisi: {selectedSegments.reduce((total, segment) => total + segment.active_contacts_count, 0)}
                   </p>
                 </div>
               ) : null}

@@ -20,6 +20,7 @@ class AdAccountQueryService
     public function __construct(
         private readonly ActionFeedService $actionFeedService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
+        private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
     ) {
     }
 
@@ -268,6 +269,11 @@ class AdAccountQueryService
         );
         $alertPayload = $this->actionFeedService->presentAlerts($account->workspace_id, $alerts);
         $recommendationPayload = $this->actionFeedService->presentRecommendations($account->workspace_id, $recommendations);
+        $deliveryProfile = $this->reportDeliveryProfileService->findByEntity(
+            $account->workspace_id,
+            'account',
+            $account->id,
+        );
 
         return [
             'range' => [
@@ -301,10 +307,12 @@ class AdAccountQueryService
             'campaigns' => $campaignRows->all(),
             'alerts' => $alertPayload['items'],
             'recommendations' => $recommendationPayload['items'],
-            'delivery_profile' => $this->reportDeliveryProfileService->findByEntity(
+            'delivery_profile' => $deliveryProfile,
+            'suggested_recipient_groups' => $this->reportRecipientGroupAdvisorService->suggestForEntity(
                 $account->workspace_id,
                 'account',
                 $account->id,
+                $deliveryProfile,
             ),
             'next_best_actions' => $this->actionFeedService->nextBestActions(
                 $account->workspace_id,

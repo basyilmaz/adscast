@@ -252,6 +252,7 @@ export function AdAccountDetailClient() {
                 entityType="account"
                 entityId={data.ad_account.id}
                 currentProfile={data.delivery_profile}
+                suggestedGroups={data.suggested_recipient_groups}
                 reportCenterHref={buildHrefWithFilters("/reports", searchParams, GLOBAL_DATE_FILTER_KEYS)}
                 onChanged={reload}
               />

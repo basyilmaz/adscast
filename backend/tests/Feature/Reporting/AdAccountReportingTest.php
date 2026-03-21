@@ -9,6 +9,7 @@ use App\Models\Campaign;
 use App\Models\MetaAdAccount;
 use App\Models\MetaConnection;
 use App\Models\Recommendation;
+use App\Models\ReportContact;
 use App\Models\Setting;
 use App\Models\Workspace;
 use Database\Seeders\RolePermissionSeeder;
@@ -276,6 +277,34 @@ class AdAccountReportingTest extends TestCase
             'is_encrypted' => false,
         ]);
 
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Main Contact',
+            'email' => 'main.contact@castintech.com',
+            'company_name' => 'Castintech',
+            'tags' => ['castintech-main'],
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        $presetId = (string) Str::uuid();
+
+        Setting::query()->create([
+            'workspace_id' => $workspace->id,
+            'key' => 'reports.recipient_presets',
+            'value' => [[
+                'id' => $presetId,
+                'name' => 'Castintech Main Stakeholders',
+                'recipients' => ['ops@castintech.com'],
+                'contact_tags' => ['castintech-main'],
+                'notes' => 'Ana hesap icin musteri dagitimi.',
+                'is_active' => true,
+                'created_at' => now()->subHour()->toDateTimeString(),
+                'updated_at' => now()->toDateTimeString(),
+            ]],
+            'is_encrypted' => false,
+        ]);
+
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspace->id)
             ->getJson("/api/v1/meta/ad-accounts/{$account->id}?start_date=2026-03-10&end_date=2026-03-16");
@@ -302,6 +331,9 @@ class AdAccountReportingTest extends TestCase
             ->assertJsonPath('data.delivery_profile.recipient_group_summary.mode', 'manual')
             ->assertJsonPath('data.delivery_profile.recipient_group_summary.static_recipients_count', 2)
             ->assertJsonPath('data.delivery_profile.share_delivery.enabled', true)
+            ->assertJsonPath('data.suggested_recipient_groups.0.source_type', 'preset')
+            ->assertJsonPath('data.suggested_recipient_groups.0.recipient_preset_id', $presetId)
+            ->assertJsonPath('data.suggested_recipient_groups.0.recipient_group_summary.mode', 'preset_plus_segment')
             ->assertJsonPath('data.report_preview.headline', 'Castintech Main Account hesabi secili aralikta 650.00 harcama ile 16 sonuc uretti.')
             ->assertJsonCount(7, 'data.trend');
     }

@@ -188,6 +188,7 @@ export type AdAccountDetailResponse = {
     alerts: AlertFeedItem[];
     recommendations: RecommendationFeedItem[];
     delivery_profile: ReportDeliveryProfileListItem | null;
+    suggested_recipient_groups: RecipientGroupCatalogItem[];
     next_best_actions: NextBestActionItem[];
     report_preview: {
       headline: string;
@@ -321,6 +322,7 @@ export type CampaignDetailResponse = {
     alerts: AlertFeedItem[];
     recommendations: RecommendationFeedItem[];
     delivery_profile: ReportDeliveryProfileListItem | null;
+    suggested_recipient_groups: RecipientGroupCatalogItem[];
     next_best_actions: NextBestActionItem[];
     analysis: {
       biggest_risk: string | null;
@@ -899,6 +901,37 @@ export type ReportContactSegmentListItem = {
   last_used_at: string | null;
 };
 
+export type RecipientGroupCatalogItem = {
+  id: string;
+  source_type: "preset" | "segment" | "smart" | string;
+  source_id: string | null;
+  name: string;
+  description: string | null;
+  recommendation_label?: string | null;
+  recommendation_reason?: string | null;
+  score?: number | null;
+  recipient_preset_id: string | null;
+  recipients: string[];
+  recipients_count: number;
+  contact_tags: string[];
+  tagged_contacts: ReportContactListItem[];
+  tagged_contacts_count: number;
+  resolved_recipients: string[];
+  resolved_recipients_count: number;
+  recipient_group_summary: {
+    mode: string;
+    label: string;
+    preset_name: string | null;
+    contact_tags: string[];
+    static_recipients_count: number;
+    manual_recipients_count: number;
+    preset_recipients_count: number;
+    dynamic_contacts_count: number;
+    resolved_recipients_count: number;
+    sample_contact_names: string[];
+  };
+};
+
 export type ReportDeliveryProfileListItem = {
   id: string;
   entity_type: "account" | "campaign" | string;
@@ -1066,6 +1099,12 @@ export type ReportIndexResponse = {
       segments_with_primary_contact: number;
       segments_used_recently: number;
     };
+    recipient_group_catalog_summary: {
+      total_groups: number;
+      preset_groups: number;
+      segment_groups: number;
+      smart_groups: number;
+    };
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1105,6 +1144,7 @@ export type ReportIndexResponse = {
     templates: ReportTemplateListItem[];
     contacts: ReportContactListItem[];
     contact_segments: ReportContactSegmentListItem[];
+    recipient_group_catalog: RecipientGroupCatalogItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];

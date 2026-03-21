@@ -526,6 +526,54 @@ class ReportDeliveryFoundationTest extends TestCase
         );
     }
 
+    public function test_reports_index_exposes_recipient_group_catalog(): void
+    {
+        [$workspace, $token] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Primary Client',
+            'email' => 'primary.client@castintech.com',
+            'company_name' => 'Castintech',
+            'tags' => ['growth-core'],
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Secondary Client',
+            'email' => 'secondary.client@castintech.com',
+            'company_name' => 'Castintech',
+            'tags' => ['growth-core'],
+            'is_primary' => false,
+            'is_active' => true,
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/recipient-presets', [
+                'name' => 'Growth Core Group',
+                'recipients' => ['ops@castintech.com'],
+                'contact_tags' => ['growth-core'],
+            ])
+            ->assertCreated();
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $response->assertOk()
+            ->assertJsonPath('data.recipient_group_catalog_summary.total_groups', 3)
+            ->assertJsonPath('data.recipient_group_catalog_summary.preset_groups', 1)
+            ->assertJsonPath('data.recipient_group_catalog_summary.segment_groups', 1)
+            ->assertJsonPath('data.recipient_group_catalog_summary.smart_groups', 1)
+            ->assertJsonPath('data.recipient_group_catalog.0.source_type', 'preset')
+            ->assertJsonPath('data.recipient_group_catalog.0.recipient_group_summary.mode', 'preset_plus_segment')
+            ->assertJsonPath('data.recipient_group_catalog.1.source_type', 'segment')
+            ->assertJsonPath('data.recipient_group_catalog.2.source_type', 'smart');
+    }
+
     public function test_delivery_profile_can_be_managed_from_entity_endpoints(): void
     {
         [$workspace, $token, $account, $campaign] = $this->seedReportFixture('agency.admin@adscast.test');

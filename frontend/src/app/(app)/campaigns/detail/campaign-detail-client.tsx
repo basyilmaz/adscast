@@ -285,6 +285,7 @@ export function CampaignDetailClient() {
                 entityType="campaign"
                 entityId={data.campaign.id}
                 currentProfile={data.delivery_profile}
+                suggestedGroups={data.suggested_recipient_groups}
                 reportCenterHref={buildHrefWithFilters("/reports", searchParams, GLOBAL_DATE_FILTER_KEYS)}
                 onChanged={reload}
               />
