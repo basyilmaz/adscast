@@ -66,4 +66,11 @@ return [
         'user_agent' => env('AI_USER_AGENT', 'AdsCast/0.2.0'),
     ],
 
+    'reports' => [
+        'schedule' => [
+            'enabled' => filter_var(env('REPORT_DELIVERIES_ENABLED', true), FILTER_VALIDATE_BOOL),
+            'lock_seconds' => (int) env('REPORT_DELIVERIES_LOCK_SECONDS', 840),
+        ],
+    ],
+
 ];

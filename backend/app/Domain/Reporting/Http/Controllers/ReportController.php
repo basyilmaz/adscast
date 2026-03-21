@@ -3,8 +3,12 @@
 namespace App\Domain\Reporting\Http\Controllers;
 
 use App\Domain\Reporting\Http\Requests\StoreReportSnapshotRequest;
+use App\Domain\Reporting\Http\Requests\StoreReportDeliveryScheduleRequest;
+use App\Domain\Reporting\Http\Requests\StoreReportTemplateRequest;
 use App\Domain\Reporting\Services\ReportBuilderService;
+use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
 use App\Domain\Reporting\Services\ReportSnapshotService;
+use App\Domain\Reporting\Services\ReportTemplateService;
 use App\Domain\Tenants\Support\WorkspaceContext;
 use App\Models\Campaign;
 use App\Models\MetaAdAccount;
@@ -19,15 +23,28 @@ class ReportController
     public function __construct(
         private readonly ReportBuilderService $reportBuilderService,
         private readonly ReportSnapshotService $reportSnapshotService,
+        private readonly ReportTemplateService $reportTemplateService,
+        private readonly ReportDeliveryScheduleService $reportDeliveryScheduleService,
     ) {
     }
 
     public function index(): JsonResponse
     {
         $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
+        $snapshotIndex = $this->reportSnapshotService->index($workspaceId);
+        $templateIndex = $this->reportTemplateService->index($workspaceId);
+        $deliveryIndex = $this->reportDeliveryScheduleService->index($workspaceId);
 
         return new JsonResponse([
-            'data' => $this->reportSnapshotService->index($workspaceId),
+            'data' => array_merge(
+                $snapshotIndex,
+                [
+                    'template_summary' => $templateIndex['summary'],
+                    'templates' => $templateIndex['items'],
+                    'delivery_summary' => $deliveryIndex['summary'],
+                    'delivery_schedules' => $deliveryIndex['items'],
+                ],
+            ),
         ]);
     }
 
@@ -88,6 +105,88 @@ class ReportController
                 'export_csv_url' => sprintf('/api/v1/reports/snapshots/%s/export.csv', $snapshot->id),
             ],
         ], 201);
+    }
+
+    public function storeTemplate(StoreReportTemplateRequest $request): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $template = $this->reportTemplateService->store(
+            workspace: $workspace,
+            payload: $request->validated(),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Rapor sablonu kaydedildi.',
+            'data' => [
+                'id' => $template->id,
+                'name' => $template->name,
+            ],
+        ], 201);
+    }
+
+    public function storeDeliverySchedule(StoreReportDeliveryScheduleRequest $request): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $schedule = $this->reportDeliveryScheduleService->store(
+            workspace: $workspace,
+            payload: $request->validated(),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Rapor teslim schedule kaydi olusturuldu.',
+            'data' => [
+                'id' => $schedule->id,
+                'next_run_at' => $schedule->next_run_at?->toDateTimeString(),
+            ],
+        ], 201);
+    }
+
+    public function toggleDeliverySchedule(Request $request, string $scheduleId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+        $validated = $request->validate([
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $schedule = $this->reportDeliveryScheduleService->toggle(
+            workspace: $workspace,
+            scheduleId: $scheduleId,
+            isActive: $validated['is_active'] ?? null,
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Rapor teslim schedule durumu guncellendi.',
+            'data' => [
+                'id' => $schedule->id,
+                'is_active' => $schedule->is_active,
+                'next_run_at' => $schedule->next_run_at?->toDateTimeString(),
+            ],
+        ]);
+    }
+
+    public function runDeliveryScheduleNow(Request $request, string $scheduleId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $result = $this->reportDeliveryScheduleService->runNow(
+            workspace: $workspace,
+            scheduleId: $scheduleId,
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Rapor teslim run kaydi hazirlandi.',
+            'data' => $result,
+        ]);
     }
 
     public function showSnapshot(string $snapshotId): JsonResponse

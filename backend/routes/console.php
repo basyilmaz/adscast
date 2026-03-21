@@ -16,4 +16,11 @@ if (config('services.meta.schedule.enabled', true)) {
         ->name('adscast-meta-automation');
 }
 
+if (config('services.reports.schedule.enabled', true)) {
+    Schedule::command('adscast:run-report-deliveries')
+        ->everyFifteenMinutes()
+        ->withoutOverlapping(max(60, (int) ceil(config('services.reports.schedule.lock_seconds', 840) / 60)))
+        ->name('adscast-report-deliveries');
+}
+
 Schedule::job(new CheckStaleMetaConnectionsJob())->hourlyAt(35);

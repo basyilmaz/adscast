@@ -27,6 +27,7 @@ Backend:
 - `META_RULES_WINDOW_DAYS`, `META_RECOMMENDATION_INTERVAL_HOURS`, `META_AUTOMATION_LOCK_SECONDS`
 - `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`
 - `AI_BASE_URL`, `AI_TIMEOUT_SECONDS`, `AI_USER_AGENT`
+- `REPORT_DELIVERIES_ENABLED`, `REPORT_DELIVERIES_LOCK_SECONDS`
 
 Frontend:
 
@@ -57,6 +58,11 @@ Varsayilan Meta automation cadence:
 - insight sync: 24 saatte bir
 - rules window: son 30 gun
 - recommendation generation: 24 saatte bir
+
+Report delivery foundation:
+
+- `schedule:run` icinden `adscast:run-report-deliveries` her 15 dakikada bir tetiklenir
+- gercek e-posta gonderimi yoktur; due schedule kaydi icin yeni `report_snapshot` ve `report_delivery_run` kaydi olusur
 
 ## Docker Compose (Hostinger Cloud Startup)
 

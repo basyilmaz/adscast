@@ -59,6 +59,14 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('workspace.permission:reporting.view');
             Route::post('/reports/snapshots', [ReportController::class, 'storeSnapshot'])
                 ->middleware('workspace.permission:reporting.view');
+            Route::post('/reports/templates', [ReportController::class, 'storeTemplate'])
+                ->middleware('workspace.permission:settings.manage');
+            Route::post('/reports/delivery-schedules', [ReportController::class, 'storeDeliverySchedule'])
+                ->middleware('workspace.permission:settings.manage');
+            Route::post('/reports/delivery-schedules/{scheduleId}/toggle', [ReportController::class, 'toggleDeliverySchedule'])
+                ->middleware('workspace.permission:settings.manage');
+            Route::post('/reports/delivery-schedules/{scheduleId}/run-now', [ReportController::class, 'runDeliveryScheduleNow'])
+                ->middleware('workspace.permission:settings.manage');
             Route::get('/reports/snapshots/{snapshotId}', [ReportController::class, 'showSnapshot'])
                 ->middleware('workspace.permission:reporting.view');
             Route::get('/reports/account/{adAccountId}/export.csv', [ReportController::class, 'exportAccountCsv'])

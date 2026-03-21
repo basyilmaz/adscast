@@ -694,6 +694,67 @@ export type ReportSnapshotListItem = {
   export_csv_url: string;
 };
 
+export type ReportTemplateListItem = {
+  id: string;
+  name: string;
+  entity_type: "account" | "campaign" | string;
+  entity_id: string;
+  entity_label: string | null;
+  context_label: string | null;
+  report_type: string;
+  default_range_days: number;
+  layout_preset: string;
+  notes: string | null;
+  is_active: boolean;
+  delivery_schedules_count: number;
+  created_at: string | null;
+  report_url: string;
+};
+
+export type ReportDeliveryRunListItem = {
+  id: string;
+  status: string;
+  trigger_mode: string;
+  prepared_at: string | null;
+  delivered_at: string | null;
+  snapshot_title: string | null;
+  snapshot_url: string | null;
+  error_message: string | null;
+};
+
+export type ReportDeliveryScheduleListItem = {
+  id: string;
+  delivery_channel: string;
+  delivery_channel_label: string;
+  cadence: string;
+  cadence_label: string;
+  send_time: string;
+  timezone: string;
+  weekday: number | null;
+  month_day: number | null;
+  recipients: string[];
+  recipients_count: number;
+  is_active: boolean;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  last_status: string | null;
+  last_report_snapshot_id: string | null;
+  last_report_snapshot_title: string | null;
+  last_report_snapshot_url: string | null;
+  created_at: string | null;
+  template: {
+    id: string | null;
+    name: string | null;
+    entity_type: string | null;
+    entity_id: string | null;
+    entity_label: string | null;
+    context_label: string | null;
+    report_type: string | null;
+    report_url: string | null;
+  };
+  recent_runs: ReportDeliveryRunListItem[];
+};
+
 export type ClientReportPayload = {
   range: {
     start_date: string;
@@ -787,7 +848,20 @@ export type ReportIndexResponse = {
       account_snapshots: number;
       campaign_snapshots: number;
     };
+    template_summary: {
+      total_templates: number;
+      active_templates: number;
+      templates_with_schedules: number;
+    };
+    delivery_summary: {
+      total_schedules: number;
+      active_schedules: number;
+      due_schedules: number;
+      runs_last_7_days: number;
+    };
     items: ReportSnapshotListItem[];
+    templates: ReportTemplateListItem[];
+    delivery_schedules: ReportDeliveryScheduleListItem[];
     builders: {
       accounts: Array<{
         id: string;

@@ -26,6 +26,10 @@ Base path: `/api/v1`
 - `GET /reports/account/{adAccountId}`
 - `GET /reports/campaign/{campaignId}`
 - `POST /reports/snapshots`
+- `POST /reports/templates` (`settings.manage`)
+- `POST /reports/delivery-schedules` (`settings.manage`)
+- `POST /reports/delivery-schedules/{scheduleId}/toggle` (`settings.manage`)
+- `POST /reports/delivery-schedules/{scheduleId}/run-now` (`settings.manage`)
 - `GET /reports/snapshots/{snapshotId}`
 - `GET /reports/account/{adAccountId}/export.csv`
 - `GET /reports/campaign/{campaignId}/export.csv`
