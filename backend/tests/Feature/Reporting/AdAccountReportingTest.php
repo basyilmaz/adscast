@@ -334,6 +334,12 @@ class AdAccountReportingTest extends TestCase
             ->assertJsonPath('data.suggested_recipient_groups.0.source_type', 'preset')
             ->assertJsonPath('data.suggested_recipient_groups.0.recipient_preset_id', $presetId)
             ->assertJsonPath('data.suggested_recipient_groups.0.recipient_group_summary.mode', 'preset_plus_segment')
+            ->assertJsonFragment([
+                'source_type' => 'smart',
+                'source_subtype' => 'company',
+                'name' => 'Castintech Musteri Grubu',
+                'resolved_recipients_count' => 1,
+            ])
             ->assertJsonPath('data.report_preview.headline', 'Castintech Main Account hesabi secili aralikta 650.00 harcama ile 16 sonuc uretti.')
             ->assertJsonCount(7, 'data.trend');
     }

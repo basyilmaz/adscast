@@ -33,6 +33,7 @@ class ReportRecipientGroupAdvisorService
         $items = collect()
             ->merge($presets->map(fn (array $preset): array => $this->presetCandidate($workspaceId, $preset)))
             ->merge($segments->map(fn (array $segment): array => $this->segmentCandidate($workspaceId, $segment)))
+            ->merge($this->companyCandidates($workspaceId, $contacts))
             ->when(
                 $contacts->where('is_primary', true)->where('is_active', true)->isNotEmpty(),
                 fn (Collection $collection): Collection => $collection->push(
@@ -127,6 +128,7 @@ class ReportRecipientGroupAdvisorService
         return [
             'id' => sprintf('preset:%s', $preset['id']),
             'source_type' => 'preset',
+            'source_subtype' => null,
             'source_id' => $preset['id'],
             'name' => $preset['name'],
             'description' => $preset['notes'] ?: 'Kayitli alici grubu',
@@ -158,6 +160,7 @@ class ReportRecipientGroupAdvisorService
         return [
             'id' => sprintf('segment:%s', Str::slug((string) $segment['tag'])),
             'source_type' => 'segment',
+            'source_subtype' => null,
             'source_id' => (string) $segment['tag'],
             'name' => sprintf('%s Segmenti', $segment['tag']),
             'description' => sprintf(
@@ -199,9 +202,84 @@ class ReportRecipientGroupAdvisorService
         return [
             'id' => 'smart:primary_contacts',
             'source_type' => 'smart',
+            'source_subtype' => 'primary',
             'source_id' => 'primary_contacts',
             'name' => 'Primary Musteri Kisileri',
             'description' => sprintf('%d primary kisi otomatik olarak secildi.', $primaryContacts->count()),
+            'recipient_preset_id' => null,
+            'recipients' => $emails,
+            'recipients_count' => count($emails),
+            'contact_tags' => [],
+            'tagged_contacts' => $recipientGroup['tagged_contacts'],
+            'tagged_contacts_count' => count($recipientGroup['tagged_contacts']),
+            'resolved_recipients' => $recipientGroup['resolved_recipients'],
+            'resolved_recipients_count' => count($recipientGroup['resolved_recipients']),
+            'recipient_group_summary' => $recipientGroup['recipient_group_summary'],
+        ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, array<string, mixed>>  $contacts
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function companyCandidates(string $workspaceId, Collection $contacts): Collection
+    {
+        return $contacts
+            ->where('is_active', true)
+            ->filter(fn (array $contact): bool => filled($contact['company_name'] ?? null))
+            ->groupBy(fn (array $contact): string => mb_strtolower(trim((string) $contact['company_name'])))
+            ->map(function (Collection $group): array {
+                $contacts = $group
+                    ->sortBy([
+                        ['is_primary', 'desc'],
+                        ['name', 'asc'],
+                    ])
+                    ->values();
+
+                return [
+                    'company_name' => trim((string) ($contacts->first()['company_name'] ?? '')),
+                    'contacts' => $contacts->all(),
+                ];
+            })
+            ->filter(fn (array $group): bool => $group['company_name'] !== '')
+            ->sort(fn (array $left, array $right): int => $this->compareCompanyCandidateGroups($left, $right))
+            ->map(fn (array $group): array => $this->companyCandidate(
+                workspaceId: $workspaceId,
+                companyName: $group['company_name'],
+                contacts: $group['contacts'],
+            ))
+            ->values();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $contacts
+     * @return array<string, mixed>
+     */
+    private function companyCandidate(string $workspaceId, string $companyName, array $contacts): array
+    {
+        $companyContacts = collect($contacts)
+            ->where('is_active', true)
+            ->values();
+
+        $emails = $this->reportContactService->extractEmails($companyContacts->all());
+        $recipientGroup = $this->recipientPresetService->resolveRecipientGroup(
+            workspaceId: $workspaceId,
+            preset: null,
+            manualRecipients: $emails,
+            manualContactTags: [],
+        );
+
+        return [
+            'id' => sprintf('smart:company:%s', Str::slug($companyName)),
+            'source_type' => 'smart',
+            'source_subtype' => 'company',
+            'source_id' => sprintf('company:%s', Str::slug($companyName)),
+            'name' => sprintf('%s Musteri Grubu', $companyName),
+            'description' => sprintf(
+                '%d aktif kisi / %d primary kisi',
+                $companyContacts->count(),
+                $companyContacts->where('is_primary', true)->count(),
+            ),
             'recipient_preset_id' => null,
             'recipients' => $emails,
             'recipients_count' => count($emails),
@@ -267,6 +345,11 @@ class ReportRecipientGroupAdvisorService
         if ($candidate['source_type'] === 'smart' && ($candidate['source_id'] ?? null) === 'primary_contacts') {
             $score += 8;
             $reasons[] = 'Primary musteri kisilerini iceriyor.';
+        }
+
+        if (($candidate['source_subtype'] ?? null) === 'company' && $matchedTokens !== []) {
+            $score += 12;
+            $reasons[] = 'Sirket/marka eslesmesine gore akilli grup onerildi.';
         }
 
         if ((int) ($candidate['recipient_group_summary']['dynamic_contacts_count'] ?? 0) > 0) {
@@ -371,5 +454,20 @@ class ReportRecipientGroupAdvisorService
         }
 
         return $this->compareCatalogItems($left, $right);
+    }
+
+    /**
+     * @param  array{company_name: string, contacts: array<int, array<string, mixed>>}  $left
+     * @param  array{company_name: string, contacts: array<int, array<string, mixed>>}  $right
+     */
+    private function compareCompanyCandidateGroups(array $left, array $right): int
+    {
+        $contactCountComparison = count($right['contacts']) <=> count($left['contacts']);
+
+        if ($contactCountComparison !== 0) {
+            return $contactCountComparison;
+        }
+
+        return strcmp($left['company_name'], $right['company_name']);
     }
 }

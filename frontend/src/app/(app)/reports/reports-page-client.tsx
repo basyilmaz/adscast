@@ -291,7 +291,7 @@ export default function ReportsPage() {
       <Card>
         <CardTitle>Alici Grubu Katalogu</CardTitle>
         <p className="mt-2 text-sm muted-text">
-          Kayitli grup, segment ve akilli grup adaylari burada toplanir. Operator dogru alici yapisini secmeden once tum teslim seceneklerini tek listede gorur.
+          Kayitli grup, segment ve primary/sirket bazli akilli grup adaylari burada toplanir. Operator dogru alici yapisini secmeden once tum teslim seceneklerini tek listede gorur.
         </p>
         <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
           <span>Toplam: {data?.recipient_group_catalog_summary.total_groups ?? 0}</span>

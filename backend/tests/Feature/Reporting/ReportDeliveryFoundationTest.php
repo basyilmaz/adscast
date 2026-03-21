@@ -564,14 +564,24 @@ class ReportDeliveryFoundationTest extends TestCase
             ->getJson('/api/v1/reports');
 
         $response->assertOk()
-            ->assertJsonPath('data.recipient_group_catalog_summary.total_groups', 3)
+            ->assertJsonPath('data.recipient_group_catalog_summary.total_groups', 4)
             ->assertJsonPath('data.recipient_group_catalog_summary.preset_groups', 1)
             ->assertJsonPath('data.recipient_group_catalog_summary.segment_groups', 1)
-            ->assertJsonPath('data.recipient_group_catalog_summary.smart_groups', 1)
+            ->assertJsonPath('data.recipient_group_catalog_summary.smart_groups', 2)
             ->assertJsonPath('data.recipient_group_catalog.0.source_type', 'preset')
             ->assertJsonPath('data.recipient_group_catalog.0.recipient_group_summary.mode', 'preset_plus_segment')
             ->assertJsonPath('data.recipient_group_catalog.1.source_type', 'segment')
-            ->assertJsonPath('data.recipient_group_catalog.2.source_type', 'smart');
+            ->assertJsonFragment([
+                'source_type' => 'smart',
+                'source_subtype' => 'company',
+                'name' => 'Castintech Musteri Grubu',
+                'resolved_recipients_count' => 2,
+            ])
+            ->assertJsonFragment([
+                'source_type' => 'smart',
+                'source_subtype' => 'primary',
+                'name' => 'Primary Musteri Kisileri',
+            ]);
     }
 
     public function test_delivery_profile_can_be_managed_from_entity_endpoints(): void

@@ -904,6 +904,7 @@ export type ReportContactSegmentListItem = {
 export type RecipientGroupCatalogItem = {
   id: string;
   source_type: "preset" | "segment" | "smart" | string;
+  source_subtype?: "company" | "primary" | string | null;
   source_id: string | null;
   name: string;
   description: string | null;

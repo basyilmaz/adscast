@@ -20,12 +20,12 @@ Base path: `/api/v1`
 - `GET /campaigns`
   - desteklenen query parametreleri: `start_date`, `end_date`, `ad_account_id`, `objective`, `status`
 - `GET /campaigns/{campaignId}`
-  - `suggested_recipient_groups[]` ile kampanya baglamina uygun onerilen alici gruplarini doner
+  - `suggested_recipient_groups[]` ile kampanya baglamina uygun onerilen alici gruplarini doner; sirket/marka eslesmesi olan akilli gruplar dahil edilir
 - `GET /ad-sets/{adSetId}`
 - `GET /ads/{adId}`
 - `GET /reports`
   - `contact_segment_summary` ve `contact_segments[]` ile kisi etiket segmentlerini doner
-  - `recipient_group_catalog_summary` ve `recipient_group_catalog[]` ile kayitli grup + segment + akilli grup katalogunu doner
+  - `recipient_group_catalog_summary` ve `recipient_group_catalog[]` ile kayitli grup + segment + primary/sirket bazli akilli grup katalogunu doner
   - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner
   - `delivery_profiles[].recipient_group_summary` ile varsayilan alici grubunun kaynagini ozetler
 - `GET /reports/account/{adAccountId}`
@@ -72,7 +72,7 @@ Base path: `/api/v1`
 - `POST /meta/connections/{connectionId}/revoke`
 - `GET /meta/ad-accounts`
 - `GET /meta/ad-accounts/{adAccountId}`
-  - `suggested_recipient_groups[]` ile hesap baglamina uygun onerilen alici gruplarini doner
+  - `suggested_recipient_groups[]` ile hesap baglamina uygun onerilen alici gruplarini doner; sirket/marka eslesmesi olan akilli gruplar dahil edilir
 - `POST /meta/connections/{connectionId}/sync-assets`
 - `POST /meta/connections/{connectionId}/sync-insights`
 

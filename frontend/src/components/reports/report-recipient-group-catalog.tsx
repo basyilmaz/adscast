@@ -10,17 +10,25 @@ type Props = {
   onApply?: (item: RecipientGroupCatalogItem) => void;
 };
 
-function sourceLabel(sourceType: string) {
-  return matchSource(sourceType);
+function sourceLabel(sourceType: string, sourceSubtype?: string | null) {
+  return matchSource(sourceType, sourceSubtype);
 }
 
-function matchSource(sourceType: string) {
+function matchSource(sourceType: string, sourceSubtype?: string | null) {
   switch (sourceType) {
     case "preset":
       return "Kayitli Grup";
     case "segment":
       return "Segment";
     case "smart":
+      if (sourceSubtype === "company") {
+        return "Sirket Akilli Grup";
+      }
+
+      if (sourceSubtype === "primary") {
+        return "Primary Akilli Grup";
+      }
+
       return "Akilli Grup";
     default:
       return sourceType;
@@ -39,7 +47,7 @@ export function ReportRecipientGroupCatalog({ items, emptyText, onApply }: Props
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap gap-2">
-                <Badge label={sourceLabel(item.source_type)} variant="neutral" />
+                <Badge label={sourceLabel(item.source_type, item.source_subtype)} variant="neutral" />
                 <Badge label={`${item.resolved_recipients_count} alici`} variant="neutral" />
                 {item.recommendation_label ? <Badge label={item.recommendation_label} variant="success" /> : null}
               </div>
