@@ -101,6 +101,7 @@ class ReportShareLinkService
             'token_hash' => hash('sha256', $rawToken),
             'token_encrypted' => Crypt::encryptString($rawToken),
             'allow_csv_download' => (bool) ($payload['allow_csv_download'] ?? false),
+            'access_count' => 0,
             'expires_at' => isset($payload['expires_in_days'])
                 ? now()->addDays((int) $payload['expires_in_days'])
                 : now()->addDays((int) config('services.reports.share.default_expiry_days', 7)),
@@ -240,7 +241,7 @@ class ReportShareLinkService
             'expires_at' => $shareLink->expires_at?->toDateTimeString(),
             'revoked_at' => $shareLink->revoked_at?->toDateTimeString(),
             'last_accessed_at' => $shareLink->last_accessed_at?->toDateTimeString(),
-            'access_count' => $shareLink->access_count,
+            'access_count' => $shareLink->access_count ?? 0,
             'created_at' => $shareLink->created_at?->toDateTimeString(),
             'share_url' => $rawToken ? $this->shareUrl($rawToken) : null,
             'export_csv_url' => $rawToken && $shareLink->allow_csv_download
