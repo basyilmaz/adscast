@@ -1190,6 +1190,53 @@ export type ReportRecipientGroupAlignmentItem = {
   };
 };
 
+export type ReportRecipientGroupCorrelationSummary = {
+  tracked_runs: number;
+  aligned_runs: number;
+  overridden_runs: number;
+  unclassified_runs: number;
+  aligned_success_rate: number | null;
+  override_success_rate: number | null;
+  success_rate_gap: number | null;
+  recommendation_outperforming_groups: number;
+  override_outperforming_groups: number;
+  top_positive_recommended_group_label: string | null;
+  top_negative_recommended_group_label: string | null;
+  window_days: number;
+};
+
+export type ReportRecipientGroupCorrelationItem = {
+  key: string;
+  label: string;
+  source_type: string;
+  source_subtype: string | null;
+  source_id: string | null;
+  tracked_runs: number;
+  aligned_runs: number;
+  overridden_runs: number;
+  unclassified_runs: number;
+  aligned_successful_runs: number;
+  aligned_failed_runs: number;
+  override_successful_runs: number;
+  override_failed_runs: number;
+  aligned_success_rate: number | null;
+  override_success_rate: number | null;
+  success_rate_delta: number | null;
+  last_run_at: string | null;
+  top_override_group_label: string | null;
+  top_override_group_count: number;
+  unique_entities_count: number;
+  entities: Array<{
+    entity_type: string;
+    entity_id: string;
+    label: string | null;
+    context_label: string | null;
+    uses_count: number;
+  }>;
+  correlation_status: string;
+  correlation_summary: string;
+};
+
 export type ClientReportPayload = {
   range: {
     start_date: string;
@@ -1316,6 +1363,7 @@ export type ReportIndexResponse = {
     };
     recipient_group_analytics_summary: ReportRecipientGroupAnalyticsSummary;
     recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
+    recipient_group_correlation_summary: ReportRecipientGroupCorrelationSummary;
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1360,6 +1408,7 @@ export type ReportIndexResponse = {
     recipient_group_catalog: RecipientGroupCatalogItem[];
     recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
     recipient_group_alignment: ReportRecipientGroupAlignmentItem[];
+    recipient_group_correlation: ReportRecipientGroupCorrelationItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];

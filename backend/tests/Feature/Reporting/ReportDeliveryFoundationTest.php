@@ -1093,6 +1093,104 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.recipient_group_alignment.0.entity_type', 'account');
     }
 
+    public function test_reports_index_includes_recipient_group_correlation_summary(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Recipient Group Correlation Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 7,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $alignedSelection = [
+            'id' => 'smart:company:castintech',
+            'source_type' => 'smart',
+            'source_subtype' => 'company',
+            'source_id' => 'company:castintech',
+            'name' => 'Castintech Onerilen Grup',
+        ];
+        $overrideSelection = [
+            'id' => 'manual:override-group',
+            'source_type' => 'manual',
+            'source_subtype' => null,
+            'source_id' => 'custom:override-group',
+            'name' => 'Operator Override Grubu',
+        ];
+
+        $schedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $template->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 2,
+            'send_time' => '10:00',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['client@castintech.com'],
+            'configuration' => [
+                'recipient_group_selection' => $overrideSelection,
+                'recommended_recipient_group' => $alignedSelection,
+            ],
+            'is_active' => true,
+            'next_run_at' => now()->addDay(),
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'delivered_stub',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(10),
+            'delivered_at' => now()->subMinutes(9),
+            'trigger_mode' => 'scheduled',
+            'metadata' => [
+                'recipient_group_selection' => $alignedSelection,
+                'recommended_recipient_group' => $alignedSelection,
+            ],
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(5),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'SMTP timeout',
+            'metadata' => [
+                'recipient_group_selection' => $overrideSelection,
+                'recommended_recipient_group' => $alignedSelection,
+            ],
+        ]);
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.recipient_group_correlation_summary.tracked_runs', 2)
+            ->assertJsonPath('data.recipient_group_correlation_summary.aligned_runs', 1)
+            ->assertJsonPath('data.recipient_group_correlation_summary.overridden_runs', 1)
+            ->assertJsonPath('data.recipient_group_correlation_summary.aligned_success_rate', 100)
+            ->assertJsonPath('data.recipient_group_correlation_summary.override_success_rate', 0)
+            ->assertJsonPath('data.recipient_group_correlation_summary.success_rate_gap', 100)
+            ->assertJsonPath('data.recipient_group_correlation_summary.recommendation_outperforming_groups', 1)
+            ->assertJsonPath('data.recipient_group_correlation_summary.top_positive_recommended_group_label', 'Castintech Onerilen Grup')
+            ->assertJsonPath('data.recipient_group_correlation.0.label', 'Castintech Onerilen Grup')
+            ->assertJsonPath('data.recipient_group_correlation.0.correlation_status', 'recommendation_outperforms')
+            ->assertJsonPath('data.recipient_group_correlation.0.top_override_group_label', 'Operator Override Grubu')
+            ->assertJsonPath('data.recipient_group_correlation.0.aligned_failed_runs', 0)
+            ->assertJsonPath('data.recipient_group_correlation.0.override_failed_runs', 1)
+            ->assertJsonPath('data.recipient_group_correlation.0.entities.0.entity_type', 'account');
+    }
+
     public function test_only_failed_delivery_runs_can_be_retried(): void
     {
         [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');

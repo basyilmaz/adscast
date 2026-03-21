@@ -9,6 +9,7 @@ import { ReportContactManager } from "@/components/reports/report-contact-manage
 import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery-history-panel";
 import { ReportRecipientGroupAnalyticsPanel } from "@/components/reports/report-recipient-group-analytics-panel";
 import { ReportRecipientGroupAlignmentPanel } from "@/components/reports/report-recipient-group-alignment-panel";
+import { ReportRecipientGroupCorrelationPanel } from "@/components/reports/report-recipient-group-correlation-panel";
 import { ReportRecipientGroupCatalog } from "@/components/reports/report-recipient-group-catalog";
 import { ReportDeliverySetupForm } from "@/components/reports/report-delivery-setup-form";
 import { ReportRecipientPresetManager } from "@/components/reports/report-recipient-preset-manager";
@@ -187,6 +188,7 @@ export default function ReportsPage() {
         <MetricCard label="Grup Katalogu" value={data?.recipient_group_catalog_summary.total_groups ?? 0} />
         <MetricCard label="Izlenen Grup" value={data?.recipient_group_analytics_summary.total_groups ?? 0} />
         <MetricCard label="Override Karar" value={data?.recipient_group_alignment_summary.overridden_decisions ?? 0} />
+        <MetricCard label="Korelasyon Run" value={data?.recipient_group_correlation_summary.tracked_runs ?? 0} />
         <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Sablon Kurali" value={data?.recipient_preset_summary.managed_templates ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
@@ -344,6 +346,24 @@ export default function ReportsPage() {
           <ReportRecipientGroupAlignmentPanel
             summary={data?.recipient_group_alignment_summary ?? null}
             items={data?.recipient_group_alignment ?? []}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Oneri - Teslim Korelasyonu</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Onerilen alici grubuna uyuldugunda teslim sonucu gercekten daha iyi mi, yoksa operator override secimleri mi daha saglikli calisiyor; bunu run verisiyle izleyin.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
+          <span>Aligned basari: {data?.recipient_group_correlation_summary.aligned_success_rate ?? 0}%</span>
+          <span>Override basari: {data?.recipient_group_correlation_summary.override_success_rate ?? 0}%</span>
+          <span>Basari farki: {data?.recipient_group_correlation_summary.success_rate_gap ?? 0} puan</span>
+        </div>
+        <div className="mt-4">
+          <ReportRecipientGroupCorrelationPanel
+            summary={data?.recipient_group_correlation_summary ?? null}
+            items={data?.recipient_group_correlation ?? []}
           />
         </div>
       </Card>
