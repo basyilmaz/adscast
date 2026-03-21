@@ -299,6 +299,8 @@ class AdAccountReportingTest extends TestCase
             ->assertJsonPath('data.delivery_profile.cadence', 'weekly')
             ->assertJsonPath('data.delivery_profile.delivery_channel', 'email_stub')
             ->assertJsonPath('data.delivery_profile.recipients_count', 2)
+            ->assertJsonPath('data.delivery_profile.recipient_group_summary.mode', 'manual')
+            ->assertJsonPath('data.delivery_profile.recipient_group_summary.static_recipients_count', 2)
             ->assertJsonPath('data.delivery_profile.share_delivery.enabled', true)
             ->assertJsonPath('data.report_preview.headline', 'Castintech Main Account hesabi secili aralikta 650.00 harcama ile 16 sonuc uretti.')
             ->assertJsonCount(7, 'data.trend');

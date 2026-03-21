@@ -23,6 +23,8 @@ Base path: `/api/v1`
 - `GET /ad-sets/{adSetId}`
 - `GET /ads/{adId}`
 - `GET /reports`
+  - `contact_segment_summary` ve `contact_segments[]` ile kisi etiket segmentlerini doner
+  - `delivery_profiles[].recipient_group_summary` ile varsayilan alici grubunun kaynagini ozetler
 - `GET /reports/account/{adAccountId}`
 - `GET /reports/campaign/{campaignId}`
 - `POST /reports/snapshots`

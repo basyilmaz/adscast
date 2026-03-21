@@ -809,7 +809,8 @@ class ReportDeliveryFoundationTest extends TestCase
         $indexResponse->assertOk()
             ->assertJsonPath('data.delivery_schedules.0.contact_tags.0', 'client')
             ->assertJsonPath('data.delivery_schedules.0.tagged_contacts_count', 2)
-            ->assertJsonPath('data.delivery_schedules.0.resolved_recipients_count', 2);
+            ->assertJsonPath('data.delivery_schedules.0.resolved_recipients_count', 2)
+            ->assertJsonPath('data.contact_segment_summary.total_segments', 2);
 
         $runResponse = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspace->id)
@@ -872,7 +873,9 @@ class ReportDeliveryFoundationTest extends TestCase
 
         $indexResponse->assertOk()
             ->assertJsonPath('data.delivery_profiles.0.contact_tags.0', 'campaign-client')
-            ->assertJsonPath('data.delivery_profiles.0.resolved_recipients_count', 1);
+            ->assertJsonPath('data.delivery_profiles.0.resolved_recipients_count', 1)
+            ->assertJsonPath('data.delivery_profiles.0.recipient_group_summary.mode', 'segment')
+            ->assertJsonPath('data.delivery_profiles.0.recipient_group_summary.dynamic_contacts_count', 1);
     }
 
     /**

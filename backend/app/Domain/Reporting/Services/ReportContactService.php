@@ -18,7 +18,12 @@ class ReportContactService
     }
 
     /**
-     * @return array{summary: array<string, int>, items: array<int, array<string, mixed>>}
+     * @return array{
+     *   summary: array<string, int>,
+     *   segment_summary: array<string, int>,
+     *   items: array<int, array<string, mixed>>,
+     *   segments: array<int, array<string, mixed>>
+     * }
      */
     public function index(string $workspaceId): array
     {
@@ -31,6 +36,8 @@ class ReportContactService
             ->map(fn (ReportContact $contact): array => $this->toPayload($contact))
             ->values();
 
+        $segments = $this->segmentIndex($items);
+
         return [
             'summary' => [
                 'total_contacts' => $items->count(),
@@ -38,7 +45,17 @@ class ReportContactService
                 'primary_contacts' => $items->where('is_primary', true)->count(),
                 'tagged_contacts' => $items->filter(fn (array $item): bool => count($item['tags']) > 0)->count(),
             ],
+            'segment_summary' => [
+                'total_segments' => $segments->count(),
+                'segments_with_primary_contact' => $segments->filter(
+                    fn (array $segment): bool => (int) $segment['primary_contacts_count'] > 0,
+                )->count(),
+                'segments_used_recently' => $segments->filter(
+                    fn (array $segment): bool => $segment['last_used_at'] !== null,
+                )->count(),
+            ],
             'items' => $items->all(),
+            'segments' => $segments->all(),
         ];
     }
 
@@ -302,6 +319,68 @@ class ReportContactService
                     'last_used_at' => now(),
                 ])->save();
             });
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, array<string, mixed>>  $contacts
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function segmentIndex(Collection $contacts): Collection
+    {
+        return $contacts
+            ->flatMap(function (array $contact): array {
+                return collect($contact['tags'] ?? [])
+                    ->map(fn (string $tag): array => [
+                        'tag' => $tag,
+                        'contact' => $contact,
+                    ])
+                    ->all();
+            })
+            ->groupBy(fn (array $item): string => mb_strtolower((string) $item['tag']))
+            ->map(function (Collection $group): array {
+                $contacts = $group
+                    ->pluck('contact')
+                    ->unique('id')
+                    ->sortBy([
+                        ['is_primary', 'desc'],
+                        ['name', 'asc'],
+                    ])
+                    ->values();
+
+                $companies = $contacts
+                    ->pluck('company_name')
+                    ->filter()
+                    ->unique()
+                    ->sort()
+                    ->values()
+                    ->all();
+
+                return [
+                    'tag' => (string) $group->first()['tag'],
+                    'contacts_count' => $contacts->count(),
+                    'active_contacts_count' => $contacts->where('is_active', true)->count(),
+                    'primary_contacts_count' => $contacts->where('is_primary', true)->count(),
+                    'companies_count' => count($companies),
+                    'companies' => $companies,
+                    'sample_contacts' => $contacts->take(3)->map(fn (array $contact): array => [
+                        'id' => $contact['id'],
+                        'name' => $contact['name'],
+                        'email' => $contact['email'],
+                        'is_primary' => $contact['is_primary'],
+                        'last_used_at' => $contact['last_used_at'],
+                    ])->all(),
+                    'last_used_at' => $contacts
+                        ->pluck('last_used_at')
+                        ->filter()
+                        ->sortDesc()
+                        ->first(),
+                ];
+            })
+            ->sortBy([
+                ['contacts_count', 'desc'],
+                ['tag', 'asc'],
+            ])
+            ->values();
     }
 
     /**

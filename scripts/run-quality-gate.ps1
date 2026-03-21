@@ -40,7 +40,7 @@ finally {
 Write-Host "`n[3/5] Frontend lint" -ForegroundColor Yellow
 Push-Location $frontend
 try {
-  npm run lint
+  node .\node_modules\eslint\bin\eslint.js .
   if ($LASTEXITCODE -ne 0) {
     throw "Frontend lint basarisiz."
   }
@@ -52,7 +52,7 @@ finally {
 Write-Host "`n[4/5] Frontend smoke routes" -ForegroundColor Yellow
 Push-Location $frontend
 try {
-  npm run smoke
+  node .\scripts\smoke-check.mjs
   if ($LASTEXITCODE -ne 0) {
     throw "Frontend smoke testi basarisiz."
   }
@@ -64,29 +64,32 @@ finally {
 Write-Host "`n[5/5] Frontend build smoke" -ForegroundColor Yellow
 Push-Location $frontend
 try {
-  if (Test-Path ".next") {
-    Remove-Item ".next" -Recurse -Force -ErrorAction SilentlyContinue
+  $qualityDistDir = ".next-quality"
+  if (Test-Path $qualityDistDir) {
+    Remove-Item $qualityDistDir -Recurse -Force -ErrorAction SilentlyContinue
   }
   if (Test-Path "out") {
     Remove-Item "out" -Recurse -Force -ErrorAction SilentlyContinue
   }
-  npm run build
+  $env:NEXT_DIST_DIR = $qualityDistDir
+  node .\node_modules\next\dist\bin\next build
   if ($LASTEXITCODE -ne 0) {
     Write-Host "Ilk build denemesi basarisiz. Temizleyip tekrar deneniyor..." -ForegroundColor DarkYellow
     Start-Sleep -Seconds 1
-    if (Test-Path ".next") {
-      Remove-Item ".next" -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path $qualityDistDir) {
+      Remove-Item $qualityDistDir -Recurse -Force -ErrorAction SilentlyContinue
     }
     if (Test-Path "out") {
       Remove-Item "out" -Recurse -Force -ErrorAction SilentlyContinue
     }
-    npm run build
+    node .\node_modules\next\dist\bin\next build
     if ($LASTEXITCODE -ne 0) {
       throw "Frontend build basarisiz."
     }
   }
 }
 finally {
+  Remove-Item Env:NEXT_DIST_DIR -ErrorAction SilentlyContinue
   Pop-Location
 }
 

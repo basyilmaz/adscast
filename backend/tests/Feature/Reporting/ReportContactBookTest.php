@@ -42,8 +42,10 @@ class ReportContactBookTest extends TestCase
         $indexResponse->assertOk()
             ->assertJsonPath('data.contact_summary.total_contacts', 1)
             ->assertJsonPath('data.contact_summary.primary_contacts', 1)
+            ->assertJsonPath('data.contact_segment_summary.total_segments', 2)
             ->assertJsonPath('data.contacts.0.id', $contactId)
-            ->assertJsonPath('data.contacts.0.tags.0', 'musteri');
+            ->assertJsonPath('data.contacts.0.tags.0', 'musteri')
+            ->assertJsonPath('data.contact_segments.0.tag', 'haftalik');
 
         $updateResponse = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspace->id)
@@ -87,6 +89,7 @@ class ReportContactBookTest extends TestCase
 
         $indexAfterDelete->assertOk()
             ->assertJsonPath('data.contact_summary.total_contacts', 0)
+            ->assertJsonPath('data.contact_segment_summary.total_segments', 0)
             ->assertJsonPath('data.contacts', []);
 
         $this->assertDatabaseHas('audit_logs', [

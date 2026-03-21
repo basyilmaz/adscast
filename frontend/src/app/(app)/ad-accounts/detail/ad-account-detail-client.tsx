@@ -436,7 +436,10 @@ export function AdAccountDetailClient() {
                     {data.delivery_profile.cadence_label} / {data.delivery_profile.delivery_channel_label}
                   </p>
                   <p className="mt-1 text-xs muted-text">
-                    Alicilar: {data.delivery_profile.recipient_preset_name ?? data.delivery_profile.recipients.join(", ")}
+                    Grup: {data.delivery_profile.recipient_group_summary.label}
+                  </p>
+                  <p className="mt-1 text-xs muted-text">
+                    Statik: {data.delivery_profile.recipient_group_summary.static_recipients_count} / Dinamik: {data.delivery_profile.recipient_group_summary.dynamic_contacts_count}
                   </p>
                 </>
               ) : (

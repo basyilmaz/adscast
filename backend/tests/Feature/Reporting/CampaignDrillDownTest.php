@@ -72,6 +72,8 @@ class CampaignDrillDownTest extends TestCase
             ->assertJsonPath('data.delivery_profile.delivery_channel', 'email')
             ->assertJsonPath('data.delivery_profile.month_day', 5)
             ->assertJsonPath('data.delivery_profile.recipients_count', 1)
+            ->assertJsonPath('data.delivery_profile.recipient_group_summary.mode', 'manual')
+            ->assertJsonPath('data.delivery_profile.recipient_group_summary.static_recipients_count', 1)
             ->assertJsonPath('data.delivery_profile.share_delivery.allow_csv_download', true)
             ->assertJsonPath('data.report_preview.next_test', 'Yeni aci ile headline varyasyonu test edin.')
             ->assertJsonFragment([

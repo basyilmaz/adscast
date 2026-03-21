@@ -21,6 +21,7 @@ import { QUERY_TTLS } from "@/lib/api-query-config";
 import { apiRequest } from "@/lib/api";
 import { buildHrefWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
 import {
+  ReportContactSegmentListItem,
   ReportDeliveryScheduleListItem,
   ReportDeliveryRunListItem,
   ReportDeliveryProfileListItem,
@@ -179,6 +180,7 @@ export default function ReportsPage() {
         <MetricCard label="Campaign Snapshot" value={data?.summary.campaign_snapshots ?? 0} />
         <MetricCard label="Kayitli Sablon" value={data?.template_summary.total_templates ?? 0} />
         <MetricCard label="Kisi Havuzu" value={data?.contact_summary.total_contacts ?? 0} />
+        <MetricCard label="Kisi Segmenti" value={data?.contact_segment_summary.total_segments ?? 0} />
         <MetricCard label="Alici Preseti" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
         <MetricCard label="Aktif Schedule" value={data?.delivery_summary.active_schedules ?? 0} />
@@ -250,6 +252,39 @@ export default function ReportsPage() {
         </Card>
       </section>
 
+      <Card>
+        <CardTitle>Kisi Segmentleri</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Etiketler artik first-class segment gibi izlenir. Varsayilan teslim profilleri ve schedule&apos;lar bu segmentlerden dinamik alici cozer.
+        </p>
+        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+          {(data?.contact_segments ?? []).map((segment: ReportContactSegmentListItem) => (
+            <div key={segment.tag} className="rounded-lg border border-[var(--border)] p-3">
+              <div className="flex flex-wrap gap-2">
+                <Badge label={segment.tag} variant="neutral" />
+                <Badge label={`${segment.contacts_count} kisi`} variant="neutral" />
+                {segment.primary_contacts_count > 0 ? (
+                  <Badge label={`${segment.primary_contacts_count} primary`} variant="success" />
+                ) : null}
+              </div>
+              <p className="mt-2 text-sm muted-text">
+                {segment.active_contacts_count} aktif kisi
+                {segment.companies_count > 0 ? ` / ${segment.companies_count} sirket` : ""}
+                {segment.last_used_at ? ` / Son kullanim: ${segment.last_used_at}` : ""}
+              </p>
+              {segment.sample_contacts.length > 0 ? (
+                <p className="mt-2 text-sm">
+                  {segment.sample_contacts.map((contact) => contact.name).join(", ")}
+                </p>
+              ) : null}
+            </div>
+          ))}
+          {(data?.contact_segments ?? []).length === 0 ? (
+            <p className="text-sm muted-text">Henuz tanimli kisi segmenti yok.</p>
+          ) : null}
+        </div>
+      </Card>
+
       <section className="grid grid-cols-1 gap-4">
         <Card>
           <CardTitle>Varsayilan Teslim Profilleri</CardTitle>
@@ -270,13 +305,14 @@ export default function ReportsPage() {
                   {profile.context_label ? `${profile.context_label} / ` : ""}
                   {profile.resolved_recipients_count} alici / {profile.default_range_days} gun / {profile.timezone}
                 </p>
-                <p className="mt-2 text-sm muted-text">
-                  {profile.recipient_preset_name
-                    ? `Preset: ${profile.recipient_preset_name}`
-                    : profile.recipients.join(", ")}
+                <p className="mt-2 text-sm muted-text">{profile.recipient_group_summary.label}</p>
+                <p className="mt-1 text-xs muted-text">
+                  Statik: {profile.recipient_group_summary.static_recipients_count} / Dinamik: {profile.recipient_group_summary.dynamic_contacts_count}
                 </p>
-                {profile.contact_tags.length > 0 ? (
-                  <p className="mt-1 text-sm muted-text">Etiketler: {profile.contact_tags.join(", ")}</p>
+                {profile.recipient_group_summary.sample_contact_names.length > 0 ? (
+                  <p className="mt-1 text-xs muted-text">
+                    Ornek kisiler: {profile.recipient_group_summary.sample_contact_names.join(", ")}
+                  </p>
                 ) : null}
                 {profile.report_url ? (
                   <Link

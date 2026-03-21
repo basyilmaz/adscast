@@ -851,6 +851,23 @@ export type ReportContactListItem = {
   updated_at: string | null;
 };
 
+export type ReportContactSegmentListItem = {
+  tag: string;
+  contacts_count: number;
+  active_contacts_count: number;
+  primary_contacts_count: number;
+  companies_count: number;
+  companies: string[];
+  sample_contacts: Array<{
+    id: string;
+    name: string;
+    email: string;
+    is_primary: boolean;
+    last_used_at: string | null;
+  }>;
+  last_used_at: string | null;
+};
+
 export type ReportDeliveryProfileListItem = {
   id: string;
   entity_type: "account" | "campaign" | string;
@@ -877,6 +894,16 @@ export type ReportDeliveryProfileListItem = {
   tagged_contacts_count: number;
   resolved_recipients: string[];
   resolved_recipients_count: number;
+  recipient_group_summary: {
+    mode: string;
+    label: string;
+    preset_name: string | null;
+    contact_tags: string[];
+    static_recipients_count: number;
+    dynamic_contacts_count: number;
+    resolved_recipients_count: number;
+    sample_contact_names: string[];
+  };
   share_delivery: {
     enabled: boolean;
     label_template: string | null;
@@ -1001,6 +1028,11 @@ export type ReportIndexResponse = {
       primary_contacts: number;
       tagged_contacts: number;
     };
+    contact_segment_summary: {
+      total_segments: number;
+      segments_with_primary_contact: number;
+      segments_used_recently: number;
+    };
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1038,6 +1070,7 @@ export type ReportIndexResponse = {
     items: ReportSnapshotListItem[];
     templates: ReportTemplateListItem[];
     contacts: ReportContactListItem[];
+    contact_segments: ReportContactSegmentListItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];

@@ -391,7 +391,57 @@ class ReportDeliveryProfileService
             'tagged_contacts_count' => count($taggedContacts),
             'resolved_recipients' => $resolvedRecipients,
             'resolved_recipients_count' => count($resolvedRecipients),
+            'recipient_group_summary' => $this->recipientGroupSummary($profile, $taggedContacts, $resolvedRecipients),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $profile
+     * @param  array<int, array<string, mixed>>  $taggedContacts
+     * @param  array<int, string>  $resolvedRecipients
+     * @return array<string, mixed>
+     */
+    private function recipientGroupSummary(array $profile, array $taggedContacts, array $resolvedRecipients): array
+    {
+        $hasPreset = ! empty($profile['recipient_preset_id']);
+        $hasStaticRecipients = count($profile['recipients'] ?? []) > 0;
+        $hasSegments = count($profile['contact_tags'] ?? []) > 0;
+
+        $mode = match (true) {
+            $hasPreset && $hasSegments => 'preset_plus_segment',
+            $hasStaticRecipients && $hasSegments => 'manual_plus_segment',
+            $hasPreset => 'preset',
+            $hasSegments => 'segment',
+            $hasStaticRecipients => 'manual',
+            default => 'empty',
+        };
+
+        $label = match ($mode) {
+            'preset_plus_segment' => sprintf(
+                'Preset + segment (%s + %s)',
+                $profile['recipient_preset_name'] ?? 'Kayitli liste',
+                implode(', ', $profile['contact_tags'] ?? []),
+            ),
+            'manual_plus_segment' => sprintf(
+                'Manuel alici + segment (%s)',
+                implode(', ', $profile['contact_tags'] ?? []),
+            ),
+            'preset' => sprintf('Preset: %s', $profile['recipient_preset_name'] ?? 'Kayitli liste'),
+            'segment' => sprintf('Segment: %s', implode(', ', $profile['contact_tags'] ?? [])),
+            'manual' => 'Manuel alici listesi',
+            default => 'Alici grubu tanimli degil',
+        };
+
+        return [
+            'mode' => $mode,
+            'label' => $label,
+            'preset_name' => $profile['recipient_preset_name'] ?? null,
+            'contact_tags' => $profile['contact_tags'] ?? [],
+            'static_recipients_count' => count($profile['recipients'] ?? []),
+            'dynamic_contacts_count' => count($taggedContacts),
+            'resolved_recipients_count' => count($resolvedRecipients),
+            'sample_contact_names' => collect($taggedContacts)->pluck('name')->take(3)->values()->all(),
+        ];
     }
 
     /**
