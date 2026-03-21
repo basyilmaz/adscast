@@ -280,3 +280,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 41. Recipient group bazli teslim hata nedenlerini siniflandirip reports merkezi ve entity detail ekranlarina tasimak
 42. Onerilen alici grubu secimi ile failure reason dagilimi arasindaki baglantiyi recipient group failure alignment analytics olarak reports merkezine eklemek
 43. Failure reason siniflarini provider ve teslim asamasi metadata'si ile genisletip reports merkezinde daha operasyonel hale getirmek
+44. Account ve campaign detail ekranlarina failure alignment ozetini tasiyip report sekmesini secim kaynakli teslim risklerini gosterecek sekilde genisletmek

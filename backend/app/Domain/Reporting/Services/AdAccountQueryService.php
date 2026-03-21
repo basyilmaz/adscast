@@ -24,6 +24,7 @@ class AdAccountQueryService
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
         private readonly ReportRecipientGroupAnalyticsService $reportRecipientGroupAnalyticsService,
         private readonly ReportRecipientGroupAlignmentAnalyticsService $reportRecipientGroupAlignmentAnalyticsService,
+        private readonly ReportRecipientGroupFailureAlignmentAnalyticsService $reportRecipientGroupFailureAlignmentAnalyticsService,
         private readonly ReportRecipientGroupFailureReasonAnalyticsService $reportRecipientGroupFailureReasonAnalyticsService,
     ) {
     }
@@ -299,6 +300,11 @@ class AdAccountQueryService
             'account',
             $account->id,
         );
+        $recipientGroupFailureAlignment = $this->reportRecipientGroupFailureAlignmentAnalyticsService->forEntity(
+            $account->workspace_id,
+            'account',
+            $account->id,
+        );
 
         return [
             'range' => [
@@ -338,6 +344,8 @@ class AdAccountQueryService
             'recipient_group_analytics' => $recipientGroupAnalytics['items'],
             'recipient_group_alignment_summary' => $recipientGroupAlignment['summary'],
             'recipient_group_alignment' => $recipientGroupAlignment['items'],
+            'recipient_group_failure_alignment_summary' => $recipientGroupFailureAlignment['summary'],
+            'recipient_group_failure_alignment' => $recipientGroupFailureAlignment['items'],
             'recipient_group_failure_reason_summary' => $recipientGroupFailureReasons['summary'],
             'recipient_group_failure_reasons' => $recipientGroupFailureReasons['items'],
             'suggested_recipient_groups' => $this->reportRecipientGroupAdvisorService->suggestForEntity(

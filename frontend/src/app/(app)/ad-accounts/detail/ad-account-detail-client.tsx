@@ -413,6 +413,8 @@ export function AdAccountDetailClient() {
             analyticsItems={data.recipient_group_analytics}
             alignmentSummary={data.recipient_group_alignment_summary}
             alignmentItems={data.recipient_group_alignment}
+            failureAlignmentSummary={data.recipient_group_failure_alignment_summary}
+            failureAlignmentItems={data.recipient_group_failure_alignment}
             failureReasonSummary={data.recipient_group_failure_reason_summary}
             failureReasonItems={data.recipient_group_failure_reasons}
             entityLabel={data.ad_account.name}

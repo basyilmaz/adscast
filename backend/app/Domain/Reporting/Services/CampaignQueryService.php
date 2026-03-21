@@ -24,6 +24,7 @@ class CampaignQueryService
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
         private readonly ReportRecipientGroupAnalyticsService $reportRecipientGroupAnalyticsService,
         private readonly ReportRecipientGroupAlignmentAnalyticsService $reportRecipientGroupAlignmentAnalyticsService,
+        private readonly ReportRecipientGroupFailureAlignmentAnalyticsService $reportRecipientGroupFailureAlignmentAnalyticsService,
         private readonly ReportRecipientGroupFailureReasonAnalyticsService $reportRecipientGroupFailureReasonAnalyticsService,
     ) {
     }
@@ -318,6 +319,11 @@ class CampaignQueryService
             'campaign',
             $campaign->id,
         );
+        $recipientGroupFailureAlignment = $this->reportRecipientGroupFailureAlignmentAnalyticsService->forEntity(
+            $campaign->workspace_id,
+            'campaign',
+            $campaign->id,
+        );
 
         return [
             'range' => [
@@ -359,6 +365,8 @@ class CampaignQueryService
             'recipient_group_analytics' => $recipientGroupAnalytics['items'],
             'recipient_group_alignment_summary' => $recipientGroupAlignment['summary'],
             'recipient_group_alignment' => $recipientGroupAlignment['items'],
+            'recipient_group_failure_alignment_summary' => $recipientGroupFailureAlignment['summary'],
+            'recipient_group_failure_alignment' => $recipientGroupFailureAlignment['items'],
             'recipient_group_failure_reason_summary' => $recipientGroupFailureReasons['summary'],
             'recipient_group_failure_reasons' => $recipientGroupFailureReasons['items'],
             'suggested_recipient_groups' => $this->reportRecipientGroupAdvisorService->suggestForEntity(

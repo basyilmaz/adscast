@@ -7,6 +7,8 @@ import {
   ReportRecipientGroupAlignmentSummary,
   ReportRecipientGroupAnalyticsItem,
   ReportRecipientGroupAnalyticsSummary,
+  ReportRecipientGroupFailureAlignmentItem,
+  ReportRecipientGroupFailureAlignmentSummary,
   ReportRecipientGroupFailureReasonItem,
   ReportRecipientGroupFailureReasonSummary,
 } from "@/lib/types";
@@ -16,6 +18,8 @@ type Props = {
   analyticsItems: ReportRecipientGroupAnalyticsItem[];
   alignmentSummary: ReportRecipientGroupAlignmentSummary;
   alignmentItems: ReportRecipientGroupAlignmentItem[];
+  failureAlignmentSummary: ReportRecipientGroupFailureAlignmentSummary;
+  failureAlignmentItems: ReportRecipientGroupFailureAlignmentItem[];
   failureReasonSummary: ReportRecipientGroupFailureReasonSummary;
   failureReasonItems: ReportRecipientGroupFailureReasonItem[];
   entityLabel: string;
@@ -26,6 +30,8 @@ export function ReportRecipientGroupEntityInsightsPanel({
   analyticsItems,
   alignmentSummary,
   alignmentItems,
+  failureAlignmentSummary,
+  failureAlignmentItems,
   failureReasonSummary,
   failureReasonItems,
   entityLabel,
@@ -42,10 +48,11 @@ export function ReportRecipientGroupEntityInsightsPanel({
         <Metric label="Fail Ureten Grup" value={analyticsSummary.groups_with_failures} />
         <Metric label="Izlenen Karar" value={alignmentSummary.tracked_decisions} />
         <Metric label="Override" value={alignmentSummary.overridden_decisions} />
+        <Metric label="Override Fail Tipi" value={failureAlignmentSummary.override_dominant_reasons} />
         <Metric label="Hata Tipi" value={failureReasonSummary.total_reason_types} />
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+      <div className="mt-4 grid gap-4 xl:grid-cols-4">
         <div className="rounded-lg border border-[var(--border)] p-4">
           <p className="text-sm font-semibold">En Cok Kullanilan Gruplar</p>
           <div className="mt-3 space-y-3">
@@ -107,6 +114,34 @@ export function ReportRecipientGroupEntityInsightsPanel({
               </div>
             ))}
             {failureReasonItems.length === 0 ? <p className="text-sm muted-text">Bu kayit icin siniflanmis teslim hatasi yok.</p> : null}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-[var(--border)] p-4">
+          <p className="text-sm font-semibold">Hata - Secim Iliskisi</p>
+          <div className="mt-3 space-y-3">
+            {failureAlignmentItems.slice(0, 3).map((item) => (
+              <div key={item.reason_code} className="rounded-md border border-[var(--border)] p-3">
+                <div className="flex flex-wrap gap-2">
+                  <Badge
+                    label={item.label}
+                    variant={item.severity === "critical" ? "danger" : item.severity === "warning" ? "warning" : "neutral"}
+                  />
+                  <Badge
+                    label={item.dominant_alignment_label}
+                    variant={item.dominant_alignment_status === "override_driven" ? "danger" : item.dominant_alignment_status === "recommendation_driven" ? "success" : "neutral"}
+                  />
+                </div>
+                <p className="mt-2 text-sm muted-text">
+                  Oneriye uyulan fail: {item.aligned_failed_runs} / Override fail: {item.overridden_failed_runs}
+                </p>
+                <p className="mt-2 text-xs muted-text">
+                  En cok secilen override: {item.top_selected_override_group_label ?? "-"} / Oran: {item.override_rate ?? 0}%
+                </p>
+                <p className="mt-2 text-xs muted-text">Son gorulum: {item.last_seen_at ?? "-"}</p>
+              </div>
+            ))}
+            {failureAlignmentItems.length === 0 ? <p className="text-sm muted-text">Bu kayit icin secim kaynakli hata dagilimi yok.</p> : null}
           </div>
         </div>
       </div>

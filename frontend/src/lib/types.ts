@@ -193,6 +193,8 @@ export type AdAccountDetailResponse = {
     recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
     recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
     recipient_group_alignment: ReportRecipientGroupAlignmentItem[];
+    recipient_group_failure_alignment_summary: ReportRecipientGroupFailureAlignmentSummary;
+    recipient_group_failure_alignment: ReportRecipientGroupFailureAlignmentItem[];
     recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
     suggested_recipient_groups: RecipientGroupCatalogItem[];
@@ -334,6 +336,8 @@ export type CampaignDetailResponse = {
     recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
     recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
     recipient_group_alignment: ReportRecipientGroupAlignmentItem[];
+    recipient_group_failure_alignment_summary: ReportRecipientGroupFailureAlignmentSummary;
+    recipient_group_failure_alignment: ReportRecipientGroupFailureAlignmentItem[];
     recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
     suggested_recipient_groups: RecipientGroupCatalogItem[];

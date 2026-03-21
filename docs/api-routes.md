@@ -22,6 +22,7 @@ Base path: `/api/v1`
 - `GET /campaigns/{campaignId}`
   - `suggested_recipient_groups[]` ile kampanya baglamina uygun onerilen alici gruplarini doner; sirket/marka eslesmesi olan akilli gruplar dahil edilir
   - `suggested_delivery_profile` ile rule-managed template kaynakli varsayilan teslim profili onerisi doner
+  - `recipient_group_failure_alignment_summary` ve `recipient_group_failure_alignment[]` ile kampanya scope'unda failure reason dagiliminin onerilen grup mu yoksa override secimi mi tarafinda biriktigini doner
   - `recipient_group_failure_reason_summary` ve `recipient_group_failure_reasons[]` ile kampanya scope'unda teslim hata siniflarini doner
 - `GET /ad-sets/{adSetId}`
 - `GET /ads/{adId}`
@@ -89,6 +90,7 @@ Base path: `/api/v1`
 - `GET /meta/ad-accounts/{adAccountId}`
   - `suggested_recipient_groups[]` ile hesap baglamina uygun onerilen alici gruplarini doner; sirket/marka eslesmesi olan akilli gruplar dahil edilir
   - `suggested_delivery_profile` ile rule-managed template kaynakli varsayilan teslim profili onerisi doner
+  - `recipient_group_failure_alignment_summary` ve `recipient_group_failure_alignment[]` ile hesap scope'unda failure reason dagiliminin onerilen grup mu yoksa override secimi mi tarafinda biriktigini doner
   - `recipient_group_failure_reason_summary` ve `recipient_group_failure_reasons[]` ile hesap scope'unda teslim hata siniflarini doner
 - `POST /meta/connections/{connectionId}/sync-assets`
 - `POST /meta/connections/{connectionId}/sync-insights`
