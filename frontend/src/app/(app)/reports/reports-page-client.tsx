@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
+import { ReportDeliverySetupForm } from "@/components/reports/report-delivery-setup-form";
 import { ReportScheduleForm } from "@/components/reports/report-schedule-form";
 import { ReportTemplateForm } from "@/components/reports/report-template-form";
 import { Badge } from "@/components/ui/badge";
@@ -141,19 +142,23 @@ export default function ReportsPage() {
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
         <Card>
-          <CardTitle>Kaydedilmis Rapor Sablonu Olustur</CardTitle>
+          <CardTitle>Musteri Rapor Teslimi Kur</CardTitle>
           <p className="mt-2 text-sm muted-text">
-            Tekrar kullanilabilir rapor yapisi kurun. Bu sablonlar manuel ya da schedule ile yeni snapshot uretebilir.
+            Kampanya veya reklam hesabi secin, musteri alicilarini girin ve teslim sikligini belirleyin. Sistem uygun sablonu kullanarak schedule olusturur.
           </p>
           <div className="mt-4">
-            <ReportTemplateForm builders={data?.builders ?? { accounts: [], campaigns: [] }} onCreated={reload} />
+            <ReportDeliverySetupForm
+              builders={data?.builders ?? { accounts: [], campaigns: [] }}
+              deliveryCapabilities={data?.delivery_capabilities ?? null}
+              onCreated={reload}
+            />
           </div>
         </Card>
 
         <Card>
-          <CardTitle>Scheduled Delivery</CardTitle>
+          <CardTitle>Mevcut Sablondan Schedule Kur</CardTitle>
           <p className="mt-2 text-sm muted-text">
-            Schedule calistiginda yeni snapshot uretilir, secilen kanala gore email gonderimi veya stub teslim kaydi acilir.
+            Daha ileri seviye kullanim icin, daha once olusturulmus bir rapor sablonundan yeni schedule acabilirsiniz.
           </p>
           <div className="mt-4">
             <ReportScheduleForm
@@ -164,6 +169,16 @@ export default function ReportsPage() {
           </div>
         </Card>
       </section>
+
+      <Card>
+        <CardTitle>Kaydedilmis Rapor Sablonu Olustur</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Tekrar kullanilabilir sablonlari manuel yonetmek istiyorsaniz bu bolumu kullanin. Hemen ustteki hizli teslim formu daha tipik operator akisidir.
+        </p>
+        <div className="mt-4">
+          <ReportTemplateForm builders={data?.builders ?? { accounts: [], campaigns: [] }} onCreated={reload} />
+        </div>
+      </Card>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
         <Card>

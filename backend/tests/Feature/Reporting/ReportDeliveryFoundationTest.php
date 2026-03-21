@@ -267,6 +267,66 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.delivery_schedules.0.recent_runs.0.delivery.channel', 'email');
     }
 
+    public function test_quick_delivery_setup_creates_campaign_scoped_schedule_with_recipients(): void
+    {
+        [$workspace, $token, , $campaign] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/delivery-setups', [
+                'entity_type' => 'campaign',
+                'entity_id' => $campaign->id,
+                'template_name' => 'Kampanya Musteri Ritmi',
+                'default_range_days' => 7,
+                'layout_preset' => 'client_digest',
+                'delivery_channel' => 'email_stub',
+                'cadence' => 'monthly',
+                'month_day' => 5,
+                'send_time' => '08:45',
+                'timezone' => 'Europe/Istanbul',
+                'recipients' => ['musteri@castintech.com', 'marka@castintech.com'],
+                'auto_share_enabled' => true,
+                'share_label_template' => '{template_name} / {end_date}',
+                'share_expires_in_days' => 14,
+                'share_allow_csv_download' => true,
+            ]);
+
+        $scheduleId = $response->json('data.schedule_id');
+        $templateId = $response->json('data.template_id');
+
+        $response->assertCreated()
+            ->assertJsonPath('data.template_created', true)
+            ->assertJsonPath('data.entity_type', 'campaign')
+            ->assertJsonPath('data.entity_id', $campaign->id)
+            ->assertJsonPath('data.schedule_id', $scheduleId);
+
+        $this->assertDatabaseHas('report_templates', [
+            'id' => $templateId,
+            'workspace_id' => $workspace->id,
+            'entity_type' => 'campaign',
+            'entity_id' => $campaign->id,
+            'report_type' => 'client_campaign_summary_v1',
+        ]);
+
+        $this->assertDatabaseHas('report_delivery_schedules', [
+            'id' => $scheduleId,
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $templateId,
+            'cadence' => 'monthly',
+            'month_day' => 5,
+            'delivery_channel' => 'email_stub',
+        ]);
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.delivery_schedules.0.template.entity_type', 'campaign')
+            ->assertJsonPath('data.delivery_schedules.0.recipients_count', 2)
+            ->assertJsonPath('data.delivery_schedules.0.share_delivery.enabled', true);
+    }
+
     /**
      * @return array{0: Workspace, 1: string, 2: MetaAdAccount, 3: Campaign}
      */

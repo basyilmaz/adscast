@@ -3,11 +3,13 @@
 namespace App\Domain\Reporting\Http\Controllers;
 
 use App\Domain\Reporting\Http\Requests\StoreReportSnapshotRequest;
+use App\Domain\Reporting\Http\Requests\StoreReportDeliverySetupRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliveryScheduleRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportShareLinkRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportTemplateRequest;
 use App\Domain\Reporting\Services\ReportBuilderService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
+use App\Domain\Reporting\Services\ReportDeliverySetupService;
 use App\Domain\Reporting\Services\ReportShareLinkService;
 use App\Domain\Reporting\Services\ReportSnapshotService;
 use App\Domain\Reporting\Services\ReportTemplateService;
@@ -27,6 +29,7 @@ class ReportController
         private readonly ReportSnapshotService $reportSnapshotService,
         private readonly ReportTemplateService $reportTemplateService,
         private readonly ReportDeliveryScheduleService $reportDeliveryScheduleService,
+        private readonly ReportDeliverySetupService $reportDeliverySetupService,
         private readonly ReportShareLinkService $reportShareLinkService,
     ) {
     }
@@ -150,6 +153,23 @@ class ReportController
                 'id' => $schedule->id,
                 'next_run_at' => $schedule->next_run_at?->toDateTimeString(),
             ],
+        ], 201);
+    }
+
+    public function storeDeliverySetup(StoreReportDeliverySetupRequest $request): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $result = $this->reportDeliverySetupService->store(
+            workspace: $workspace,
+            payload: $request->validated(),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Rapor teslim plani olusturuldu.',
+            'data' => $result,
         ], 201);
     }
 

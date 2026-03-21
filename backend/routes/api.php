@@ -67,6 +67,8 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/templates', [ReportController::class, 'storeTemplate'])
                 ->middleware('workspace.permission:settings.manage');
+            Route::post('/reports/delivery-setups', [ReportController::class, 'storeDeliverySetup'])
+                ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/delivery-schedules', [ReportController::class, 'storeDeliverySchedule'])
                 ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/delivery-schedules/{scheduleId}/toggle', [ReportController::class, 'toggleDeliverySchedule'])
