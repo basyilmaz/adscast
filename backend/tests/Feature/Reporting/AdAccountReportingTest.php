@@ -10,6 +10,9 @@ use App\Models\MetaAdAccount;
 use App\Models\MetaConnection;
 use App\Models\Recommendation;
 use App\Models\ReportContact;
+use App\Models\ReportDeliveryRun;
+use App\Models\ReportDeliverySchedule;
+use App\Models\ReportTemplate;
 use App\Models\Setting;
 use App\Models\Workspace;
 use Database\Seeders\RolePermissionSeeder;
@@ -305,6 +308,120 @@ class AdAccountReportingTest extends TestCase
             'is_encrypted' => false,
         ]);
 
+        $selectionPayload = [
+            'id' => sprintf('preset:%s', $presetId),
+            'source_type' => 'preset',
+            'source_subtype' => 'preset_plus_segment',
+            'source_id' => $presetId,
+            'name' => 'Castintech Main Stakeholders',
+        ];
+
+        $recommendedPayload = [
+            'id' => 'smart:company:castintech',
+            'source_type' => 'smart',
+            'source_subtype' => 'company',
+            'source_id' => 'company:castintech',
+            'name' => 'Castintech Musteri Grubu',
+        ];
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Account Delivery Insights Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 14,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $schedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $template->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 4,
+            'month_day' => null,
+            'send_time' => '11:30',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['client@castintech.com', 'ops@castintech.com'],
+            'configuration' => [
+                'recipient_preset_id' => $presetId,
+                'contact_tags' => ['castintech-main'],
+                'recipient_group_selection' => $selectionPayload,
+                'recommended_recipient_group' => $recommendedPayload,
+                'recipient_group_summary' => [
+                    'mode' => 'preset_plus_segment',
+                    'label' => 'Castintech Main Stakeholders',
+                    'preset_name' => 'Castintech Main Stakeholders',
+                    'contact_tags' => ['castintech-main'],
+                    'static_recipients_count' => 1,
+                    'manual_recipients_count' => 0,
+                    'preset_recipients_count' => 1,
+                    'dynamic_contacts_count' => 1,
+                    'resolved_recipients_count' => 2,
+                    'sample_contact_names' => ['Main Contact'],
+                ],
+            ],
+            'is_active' => true,
+            'next_run_at' => now()->addDay(),
+            'last_status' => 'failed',
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'delivered_stub',
+            'recipients' => ['client@castintech.com', 'ops@castintech.com'],
+            'prepared_at' => now()->subHours(2),
+            'delivered_at' => now()->subHours(2)->addMinute(),
+            'trigger_mode' => 'scheduled',
+            'metadata' => [
+                'recipient_group_selection' => $selectionPayload,
+                'recommended_recipient_group' => $recommendedPayload,
+                'recipient_group_summary' => [
+                    'mode' => 'preset_plus_segment',
+                    'label' => 'Castintech Main Stakeholders',
+                    'preset_name' => 'Castintech Main Stakeholders',
+                    'contact_tags' => ['castintech-main'],
+                    'static_recipients_count' => 1,
+                    'manual_recipients_count' => 0,
+                    'preset_recipients_count' => 1,
+                    'dynamic_contacts_count' => 1,
+                    'resolved_recipients_count' => 2,
+                    'sample_contact_names' => ['Main Contact'],
+                ],
+            ],
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com', 'ops@castintech.com'],
+            'prepared_at' => now()->subHour(),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'SMTP timeout',
+            'metadata' => [
+                'recipient_group_selection' => $selectionPayload,
+                'recommended_recipient_group' => $recommendedPayload,
+                'recipient_group_summary' => [
+                    'mode' => 'preset_plus_segment',
+                    'label' => 'Castintech Main Stakeholders',
+                    'preset_name' => 'Castintech Main Stakeholders',
+                    'contact_tags' => ['castintech-main'],
+                    'static_recipients_count' => 1,
+                    'manual_recipients_count' => 0,
+                    'preset_recipients_count' => 1,
+                    'dynamic_contacts_count' => 1,
+                    'resolved_recipients_count' => 2,
+                    'sample_contact_names' => ['Main Contact'],
+                ],
+            ],
+        ]);
+
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspace->id)
             ->getJson("/api/v1/meta/ad-accounts/{$account->id}?start_date=2026-03-10&end_date=2026-03-16");
@@ -331,6 +448,17 @@ class AdAccountReportingTest extends TestCase
             ->assertJsonPath('data.delivery_profile.recipient_group_summary.mode', 'manual')
             ->assertJsonPath('data.delivery_profile.recipient_group_summary.static_recipients_count', 2)
             ->assertJsonPath('data.delivery_profile.share_delivery.enabled', true)
+            ->assertJsonPath('data.recipient_group_analytics_summary.total_groups', 1)
+            ->assertJsonPath('data.recipient_group_analytics_summary.groups_with_failures', 1)
+            ->assertJsonPath('data.recipient_group_analytics_summary.most_used_group_label', 'Castintech Main Stakeholders')
+            ->assertJsonPath('data.recipient_group_analytics.0.label', 'Castintech Main Stakeholders')
+            ->assertJsonPath('data.recipient_group_analytics.0.entities.0.entity_type', 'account')
+            ->assertJsonPath('data.recipient_group_alignment_summary.tracked_decisions', 1)
+            ->assertJsonPath('data.recipient_group_alignment_summary.overridden_decisions', 1)
+            ->assertJsonPath('data.recipient_group_alignment_summary.top_overridden_recommended_group_label', 'Castintech Musteri Grubu')
+            ->assertJsonPath('data.recipient_group_alignment_summary.top_selected_override_group_label', 'Castintech Main Stakeholders')
+            ->assertJsonPath('data.recipient_group_alignment.0.alignment.status', 'override')
+            ->assertJsonPath('data.recipient_group_alignment.0.selected_group.name', 'Castintech Main Stakeholders')
             ->assertJsonPath('data.suggested_recipient_groups.0.source_type', 'preset')
             ->assertJsonPath('data.suggested_recipient_groups.0.recipient_preset_id', $presetId)
             ->assertJsonPath('data.suggested_recipient_groups.0.recipient_group_summary.mode', 'preset_plus_segment')

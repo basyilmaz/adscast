@@ -16,10 +16,22 @@ class ReportRecipientGroupAlignmentAnalyticsService
     /**
      * @return array{summary: array<string, mixed>, items: array<int, array<string, mixed>>}
      */
-    public function index(string $workspaceId): array
+    public function index(
+        string $workspaceId,
+        ?string $entityType = null,
+        ?string $entityId = null,
+    ): array
     {
         $schedules = ReportDeliverySchedule::query()
             ->where('workspace_id', $workspaceId)
+            ->when(
+                filled($entityType) && filled($entityId),
+                fn ($query) => $query->whereHas('template', function ($templateQuery) use ($entityType, $entityId): void {
+                    $templateQuery
+                        ->where('entity_type', $entityType)
+                        ->where('entity_id', $entityId);
+                }),
+            )
             ->with('template:id,name,entity_type,entity_id')
             ->latest()
             ->get([
@@ -125,18 +137,25 @@ class ReportRecipientGroupAlignmentAnalyticsService
         $tracked = $items->count();
 
         return [
-            'summary' => [
-                'tracked_decisions' => $tracked,
-                'aligned_decisions' => $alignedCount,
-                'overridden_decisions' => $overrideCount,
-                'no_recommendation_decisions' => $noRecommendationCount,
-                'unknown_decisions' => $unknownCount,
-                'override_rate' => $tracked > 0 ? round(($overrideCount / $tracked) * 100, 1) : null,
-                'top_overridden_recommended_group_label' => $this->topLabel($recommendedOverrideCounts),
-                'top_selected_override_group_label' => $this->topLabel($selectedOverrideCounts),
-            ],
+            'summary' => $this->summaryPayload(
+                tracked: $tracked,
+                alignedCount: $alignedCount,
+                overrideCount: $overrideCount,
+                noRecommendationCount: $noRecommendationCount,
+                unknownCount: $unknownCount,
+                recommendedOverrideCounts: $recommendedOverrideCounts,
+                selectedOverrideCounts: $selectedOverrideCounts,
+            ),
             'items' => $items->all(),
         ];
+    }
+
+    /**
+     * @return array{summary: array<string, mixed>, items: array<int, array<string, mixed>>}
+     */
+    public function forEntity(string $workspaceId, string $entityType, string $entityId): array
+    {
+        return $this->index($workspaceId, $entityType, $entityId);
     }
 
     private function cadenceLabel(ReportDeliverySchedule $schedule): string
@@ -172,5 +191,31 @@ class ReportRecipientGroupAlignmentAnalyticsService
         arsort($items);
 
         return array_key_first($items);
+    }
+
+    /**
+     * @param  array<string, int>  $recommendedOverrideCounts
+     * @param  array<string, int>  $selectedOverrideCounts
+     * @return array<string, mixed>
+     */
+    private function summaryPayload(
+        int $tracked,
+        int $alignedCount,
+        int $overrideCount,
+        int $noRecommendationCount,
+        int $unknownCount,
+        array $recommendedOverrideCounts,
+        array $selectedOverrideCounts,
+    ): array {
+        return [
+            'tracked_decisions' => $tracked,
+            'aligned_decisions' => $alignedCount,
+            'overridden_decisions' => $overrideCount,
+            'no_recommendation_decisions' => $noRecommendationCount,
+            'unknown_decisions' => $unknownCount,
+            'override_rate' => $tracked > 0 ? round(($overrideCount / $tracked) * 100, 1) : null,
+            'top_overridden_recommended_group_label' => $this->topLabel($recommendedOverrideCounts),
+            'top_selected_override_group_label' => $this->topLabel($selectedOverrideCounts),
+        ];
     }
 }

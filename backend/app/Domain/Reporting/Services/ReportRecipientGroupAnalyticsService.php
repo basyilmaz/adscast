@@ -18,11 +18,24 @@ class ReportRecipientGroupAnalyticsService
     /**
      * @return array{summary: array<string, mixed>, items: array<int, array<string, mixed>>}
      */
-    public function index(string $workspaceId, int $windowDays = 90): array
+    public function index(
+        string $workspaceId,
+        int $windowDays = 90,
+        ?string $entityType = null,
+        ?string $entityId = null,
+    ): array
     {
         $windowStart = now()->subDays($windowDays);
         $schedules = ReportDeliverySchedule::query()
             ->where('workspace_id', $workspaceId)
+            ->when(
+                filled($entityType) && filled($entityId),
+                fn ($query) => $query->whereHas('template', function ($templateQuery) use ($entityType, $entityId): void {
+                    $templateQuery
+                        ->where('entity_type', $entityType)
+                        ->where('entity_id', $entityId);
+                }),
+            )
             ->with('template:id,name,entity_type,entity_id')
             ->get([
                 'id',
@@ -36,6 +49,14 @@ class ReportRecipientGroupAnalyticsService
         $runs = ReportDeliveryRun::query()
             ->where('workspace_id', $workspaceId)
             ->where('prepared_at', '>=', $windowStart)
+            ->when(
+                filled($entityType) && filled($entityId),
+                fn ($query) => $query->whereHas('schedule.template', function ($templateQuery) use ($entityType, $entityId): void {
+                    $templateQuery
+                        ->where('entity_type', $entityType)
+                        ->where('entity_id', $entityId);
+                }),
+            )
             ->with([
                 'schedule:id,workspace_id,report_template_id,recipients,configuration,is_active',
                 'schedule.template:id,name,entity_type,entity_id',
@@ -96,24 +117,17 @@ class ReportRecipientGroupAnalyticsService
             ->values();
 
         return [
-            'summary' => [
-                'total_groups' => $items->count(),
-                'groups_with_failures' => $items->where('failed_runs', '>', 0)->count(),
-                'preset_groups' => $items->where('source_type', 'preset')->count(),
-                'segment_groups' => $items->where('source_type', 'segment')->count(),
-                'smart_groups' => $items->where('source_type', 'smart')->count(),
-                'manual_groups' => $items->where('source_type', 'manual')->count(),
-                'active_schedule_groups' => $items->where('active_schedules_count', '>', 0)->count(),
-                'tracked_run_groups' => $items->where('run_uses_count', '>', 0)->count(),
-                'most_used_group_label' => data_get($items->sortByDesc('run_uses_count')->first(), 'label'),
-                'highest_failure_group_label' => $items
-                    ->filter(fn (array $item): bool => $item['failed_runs'] > 0)
-                    ->sortByDesc('failed_runs')
-                    ->pipe(fn (Collection $collection): ?string => data_get($collection->first(), 'label')),
-                'window_days' => $windowDays,
-            ],
+            'summary' => $this->summaryPayload($items, $windowDays),
             'items' => $items->all(),
         ];
+    }
+
+    /**
+     * @return array{summary: array<string, mixed>, items: array<int, array<string, mixed>>}
+     */
+    public function forEntity(string $workspaceId, string $entityType, string $entityId, int $windowDays = 90): array
+    {
+        return $this->index($workspaceId, $windowDays, $entityType, $entityId);
     }
 
     /**
@@ -247,6 +261,30 @@ class ReportRecipientGroupAnalyticsService
             'unique_entities_count' => $uniqueEntitiesCount,
             'entities' => $entities,
         ]);
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $items
+     * @return array<string, mixed>
+     */
+    private function summaryPayload(Collection $items, int $windowDays): array
+    {
+        return [
+            'total_groups' => $items->count(),
+            'groups_with_failures' => $items->where('failed_runs', '>', 0)->count(),
+            'preset_groups' => $items->where('source_type', 'preset')->count(),
+            'segment_groups' => $items->where('source_type', 'segment')->count(),
+            'smart_groups' => $items->where('source_type', 'smart')->count(),
+            'manual_groups' => $items->where('source_type', 'manual')->count(),
+            'active_schedule_groups' => $items->where('active_schedules_count', '>', 0)->count(),
+            'tracked_run_groups' => $items->where('run_uses_count', '>', 0)->count(),
+            'most_used_group_label' => data_get($items->sortByDesc('run_uses_count')->first(), 'label'),
+            'highest_failure_group_label' => $items
+                ->filter(fn (array $item): bool => $item['failed_runs'] > 0)
+                ->sortByDesc('failed_runs')
+                ->pipe(fn (Collection $collection): ?string => data_get($collection->first(), 'label')),
+            'window_days' => $windowDays,
+        ];
     }
 
     /**

@@ -11,6 +11,9 @@ use App\Models\MetaAdAccount;
 use App\Models\MetaConnection;
 use App\Models\Recommendation;
 use App\Models\ReportContact;
+use App\Models\ReportDeliveryRun;
+use App\Models\ReportDeliverySchedule;
+use App\Models\ReportTemplate;
 use App\Models\Setting;
 use App\Models\Workspace;
 use Database\Seeders\RolePermissionSeeder;
@@ -84,6 +87,93 @@ class CampaignDrillDownTest extends TestCase
             'is_encrypted' => false,
         ]);
 
+        $selectionPayload = [
+            'id' => sprintf('preset:%s', $presetId),
+            'source_type' => 'preset',
+            'source_subtype' => 'preset_plus_segment',
+            'source_id' => $presetId,
+            'name' => 'Lead Engine Musteri Grubu',
+        ];
+
+        $recommendedPayload = [
+            'id' => 'smart:company:castintech',
+            'source_type' => 'smart',
+            'source_subtype' => 'company',
+            'source_id' => 'company:castintech',
+            'name' => 'Castintech Musteri Grubu',
+        ];
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Campaign Delivery Insights Template',
+            'entity_type' => 'campaign',
+            'entity_id' => $campaign->id,
+            'report_type' => 'client_campaign_summary_v1',
+            'default_range_days' => 7,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $schedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $template->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'monthly',
+            'weekday' => null,
+            'month_day' => 5,
+            'send_time' => '08:45',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['musteri@castintech.com'],
+            'configuration' => [
+                'recipient_preset_id' => $presetId,
+                'contact_tags' => ['lead-engine'],
+                'recipient_group_selection' => $selectionPayload,
+                'recommended_recipient_group' => $recommendedPayload,
+                'recipient_group_summary' => [
+                    'mode' => 'preset_plus_segment',
+                    'label' => 'Lead Engine Musteri Grubu',
+                    'preset_name' => 'Lead Engine Musteri Grubu',
+                    'contact_tags' => ['lead-engine'],
+                    'static_recipients_count' => 1,
+                    'manual_recipients_count' => 0,
+                    'preset_recipients_count' => 1,
+                    'dynamic_contacts_count' => 1,
+                    'resolved_recipients_count' => 1,
+                    'sample_contact_names' => ['Lead Engine Client'],
+                ],
+            ],
+            'is_active' => true,
+            'next_run_at' => now()->addDay(),
+            'last_status' => 'delivered_stub',
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'delivered_stub',
+            'recipients' => ['musteri@castintech.com'],
+            'prepared_at' => now()->subMinutes(45),
+            'delivered_at' => now()->subMinutes(44),
+            'trigger_mode' => 'scheduled',
+            'metadata' => [
+                'recipient_group_selection' => $selectionPayload,
+                'recommended_recipient_group' => $recommendedPayload,
+                'recipient_group_summary' => [
+                    'mode' => 'preset_plus_segment',
+                    'label' => 'Lead Engine Musteri Grubu',
+                    'preset_name' => 'Lead Engine Musteri Grubu',
+                    'contact_tags' => ['lead-engine'],
+                    'static_recipients_count' => 1,
+                    'manual_recipients_count' => 0,
+                    'preset_recipients_count' => 1,
+                    'dynamic_contacts_count' => 1,
+                    'resolved_recipients_count' => 1,
+                    'sample_contact_names' => ['Lead Engine Client'],
+                ],
+            ],
+        ]);
+
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspace->id)
             ->getJson("/api/v1/campaigns/{$campaign->id}?start_date=2026-03-10&end_date=2026-03-16");
@@ -103,6 +193,15 @@ class CampaignDrillDownTest extends TestCase
             ->assertJsonPath('data.delivery_profile.recipient_group_summary.mode', 'manual')
             ->assertJsonPath('data.delivery_profile.recipient_group_summary.static_recipients_count', 1)
             ->assertJsonPath('data.delivery_profile.share_delivery.allow_csv_download', true)
+            ->assertJsonPath('data.recipient_group_analytics_summary.total_groups', 1)
+            ->assertJsonPath('data.recipient_group_analytics_summary.groups_with_failures', 0)
+            ->assertJsonPath('data.recipient_group_analytics.0.label', 'Lead Engine Musteri Grubu')
+            ->assertJsonPath('data.recipient_group_analytics.0.source_type', 'preset')
+            ->assertJsonPath('data.recipient_group_alignment_summary.tracked_decisions', 1)
+            ->assertJsonPath('data.recipient_group_alignment_summary.overridden_decisions', 1)
+            ->assertJsonPath('data.recipient_group_alignment.0.alignment.status', 'override')
+            ->assertJsonPath('data.recipient_group_alignment.0.selected_group.name', 'Lead Engine Musteri Grubu')
+            ->assertJsonPath('data.recipient_group_alignment.0.recommended_group.name', 'Castintech Musteri Grubu')
             ->assertJsonPath('data.suggested_recipient_groups.0.source_type', 'preset')
             ->assertJsonPath('data.suggested_recipient_groups.0.recipient_preset_id', $presetId)
             ->assertJsonPath('data.suggested_recipient_groups.0.recipient_group_summary.mode', 'preset_plus_segment')

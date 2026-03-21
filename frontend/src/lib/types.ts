@@ -188,6 +188,10 @@ export type AdAccountDetailResponse = {
     alerts: AlertFeedItem[];
     recommendations: RecommendationFeedItem[];
     delivery_profile: ReportDeliveryProfileListItem | null;
+    recipient_group_analytics_summary: ReportRecipientGroupAnalyticsSummary;
+    recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
+    recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
+    recipient_group_alignment: ReportRecipientGroupAlignmentItem[];
     suggested_recipient_groups: RecipientGroupCatalogItem[];
     next_best_actions: NextBestActionItem[];
     report_preview: {
@@ -322,6 +326,10 @@ export type CampaignDetailResponse = {
     alerts: AlertFeedItem[];
     recommendations: RecommendationFeedItem[];
     delivery_profile: ReportDeliveryProfileListItem | null;
+    recipient_group_analytics_summary: ReportRecipientGroupAnalyticsSummary;
+    recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
+    recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
+    recipient_group_alignment: ReportRecipientGroupAlignmentItem[];
     suggested_recipient_groups: RecipientGroupCatalogItem[];
     next_best_actions: NextBestActionItem[];
     analysis: {

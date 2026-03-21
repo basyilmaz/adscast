@@ -11,6 +11,7 @@ import { Card, CardTitle, CardValue } from "@/components/ui/card";
 import { PageErrorState, PageLoadingState } from "@/components/ui/page-state";
 import { NextBestActionsPanel } from "@/components/operations/next-best-actions-panel";
 import { ReportDeliveryProfileManager } from "@/components/reports/report-delivery-profile-manager";
+import { ReportRecipientGroupEntityInsightsPanel } from "@/components/reports/report-recipient-group-entity-insights-panel";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
 import { buildApiPathWithFilters, buildHrefWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
@@ -486,59 +487,69 @@ export function CampaignDetailClient() {
       ) : null}
 
       {activeTab === "report" ? (
-        <Card>
-          <CardTitle>Musteri Raporu Hazirlik Bloku</CardTitle>
-          <div className="mt-3 grid gap-4 xl:grid-cols-2">
-            <div className="rounded-lg border border-[var(--border)] p-4">
-              <p className="text-sm font-semibold">Musteri Ozet Basligi</p>
-              <p className="mt-2 text-sm">{data.report_preview.headline}</p>
-            </div>
-            <div className="rounded-lg border border-[var(--border)] p-4">
-              <p className="text-sm font-semibold">Musteri Dili</p>
-              <p className="mt-2 text-sm">{data.report_preview.client_summary}</p>
-            </div>
-            <div className="rounded-lg border border-[var(--border)] p-4">
-              <p className="text-sm font-semibold">Operasyon Ozet</p>
-              <p className="mt-2 text-sm">{data.report_preview.operator_summary}</p>
-            </div>
-            <div className="rounded-lg border border-[var(--border)] p-4">
-              <p className="text-sm font-semibold">Bir Sonraki Test</p>
-              <p className="mt-2 text-sm">{data.report_preview.next_test}</p>
-              <Link
-                href={buildHrefWithFilters(
-                  `/reports/campaign?id=${encodeURIComponent(data.campaign.id)}`,
-                  searchParams,
-                  GLOBAL_DATE_FILTER_KEYS,
+        <section className="space-y-4">
+          <ReportRecipientGroupEntityInsightsPanel
+            analyticsSummary={data.recipient_group_analytics_summary}
+            analyticsItems={data.recipient_group_analytics}
+            alignmentSummary={data.recipient_group_alignment_summary}
+            alignmentItems={data.recipient_group_alignment}
+            entityLabel={data.campaign.name}
+          />
+
+          <Card>
+            <CardTitle>Musteri Raporu Hazirlik Bloku</CardTitle>
+            <div className="mt-3 grid gap-4 xl:grid-cols-2">
+              <div className="rounded-lg border border-[var(--border)] p-4">
+                <p className="text-sm font-semibold">Musteri Ozet Basligi</p>
+                <p className="mt-2 text-sm">{data.report_preview.headline}</p>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] p-4">
+                <p className="text-sm font-semibold">Musteri Dili</p>
+                <p className="mt-2 text-sm">{data.report_preview.client_summary}</p>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] p-4">
+                <p className="text-sm font-semibold">Operasyon Ozet</p>
+                <p className="mt-2 text-sm">{data.report_preview.operator_summary}</p>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] p-4">
+                <p className="text-sm font-semibold">Bir Sonraki Test</p>
+                <p className="mt-2 text-sm">{data.report_preview.next_test}</p>
+                <Link
+                  href={buildHrefWithFilters(
+                    `/reports/campaign?id=${encodeURIComponent(data.campaign.id)}`,
+                    searchParams,
+                    GLOBAL_DATE_FILTER_KEYS,
+                  )}
+                  className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
+                >
+                  Tam campaign raporunu ac
+                </Link>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] p-4 xl:col-span-2">
+                <p className="text-sm font-semibold">Teslim Profili</p>
+                {data.delivery_profile ? (
+                  <>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Badge label={data.delivery_profile.is_active ? "active" : "inactive"} variant={data.delivery_profile.is_active ? "success" : "warning"} />
+                      <Badge label={data.delivery_profile.cadence_label} variant="neutral" />
+                    </div>
+                    <p className="mt-2 text-sm">
+                      {data.delivery_profile.cadence_label} / {data.delivery_profile.delivery_channel_label}
+                    </p>
+                    <p className="mt-1 text-xs muted-text">
+                      Grup: {data.delivery_profile.recipient_group_summary.label}
+                    </p>
+                    <p className="mt-1 text-xs muted-text">
+                      Statik: {data.delivery_profile.recipient_group_summary.static_recipients_count} / Dinamik: {data.delivery_profile.recipient_group_summary.dynamic_contacts_count}
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-2 text-sm muted-text">Bu kampanya icin varsayilan teslim profili tanimli degil.</p>
                 )}
-                className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
-              >
-                Tam campaign raporunu ac
-              </Link>
+              </div>
             </div>
-            <div className="rounded-lg border border-[var(--border)] p-4 xl:col-span-2">
-              <p className="text-sm font-semibold">Teslim Profili</p>
-              {data.delivery_profile ? (
-                <>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Badge label={data.delivery_profile.is_active ? "active" : "inactive"} variant={data.delivery_profile.is_active ? "success" : "warning"} />
-                    <Badge label={data.delivery_profile.cadence_label} variant="neutral" />
-                  </div>
-                  <p className="mt-2 text-sm">
-                    {data.delivery_profile.cadence_label} / {data.delivery_profile.delivery_channel_label}
-                  </p>
-                  <p className="mt-1 text-xs muted-text">
-                    Grup: {data.delivery_profile.recipient_group_summary.label}
-                  </p>
-                  <p className="mt-1 text-xs muted-text">
-                    Statik: {data.delivery_profile.recipient_group_summary.static_recipients_count} / Dinamik: {data.delivery_profile.recipient_group_summary.dynamic_contacts_count}
-                  </p>
-                </>
-              ) : (
-                <p className="mt-2 text-sm muted-text">Bu kampanya icin varsayilan teslim profili tanimli degil.</p>
-              )}
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </section>
       ) : null}
     </div>
   );

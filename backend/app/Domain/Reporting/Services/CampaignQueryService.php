@@ -21,6 +21,8 @@ class CampaignQueryService
         private readonly ActionFeedService $actionFeedService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
+        private readonly ReportRecipientGroupAnalyticsService $reportRecipientGroupAnalyticsService,
+        private readonly ReportRecipientGroupAlignmentAnalyticsService $reportRecipientGroupAlignmentAnalyticsService,
     ) {
     }
 
@@ -293,6 +295,16 @@ class CampaignQueryService
             'campaign',
             $campaign->id,
         );
+        $recipientGroupAnalytics = $this->reportRecipientGroupAnalyticsService->forEntity(
+            $campaign->workspace_id,
+            'campaign',
+            $campaign->id,
+        );
+        $recipientGroupAlignment = $this->reportRecipientGroupAlignmentAnalyticsService->forEntity(
+            $campaign->workspace_id,
+            'campaign',
+            $campaign->id,
+        );
 
         return [
             'range' => [
@@ -329,6 +341,10 @@ class CampaignQueryService
             'alerts' => $alertPayload['items'],
             'recommendations' => $recommendationPayload['items'],
             'delivery_profile' => $deliveryProfile,
+            'recipient_group_analytics_summary' => $recipientGroupAnalytics['summary'],
+            'recipient_group_analytics' => $recipientGroupAnalytics['items'],
+            'recipient_group_alignment_summary' => $recipientGroupAlignment['summary'],
+            'recipient_group_alignment' => $recipientGroupAlignment['items'],
             'suggested_recipient_groups' => $this->reportRecipientGroupAdvisorService->suggestForEntity(
                 $campaign->workspace_id,
                 'campaign',
