@@ -933,6 +933,19 @@ export type RecipientGroupCatalogItem = {
   };
 };
 
+export type RecipientGroupSuggestionsResponse = {
+  data: {
+    entity_type: "account" | "campaign" | string;
+    entity_id: string;
+    summary: {
+      total_suggestions: number;
+      top_source_type: string | null;
+      top_source_subtype: string | null;
+    };
+    suggested_groups: RecipientGroupCatalogItem[];
+  };
+};
+
 export type ReportDeliveryProfileListItem = {
   id: string;
   entity_type: "account" | "campaign" | string;

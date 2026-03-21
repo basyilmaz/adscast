@@ -9,6 +9,7 @@ export const QUERY_TTLS = {
   adAccounts: 5 * 60 * 1000,
   adAccountDetail: 60 * 1000,
   reports: 60 * 1000,
+  recipientGroupSuggestions: 60 * 1000,
   accountReport: 60 * 1000,
   campaignReport: 60 * 1000,
   reportSnapshotDetail: 60 * 1000,

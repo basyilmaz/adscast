@@ -214,6 +214,7 @@ Amac: Musteri raporlarini yalnizca uretmek degil, dogru kisilere, dogru ritimde 
 9. Contact segmentlerini kaydedilmis alici grubu sablonlarina tasiyip schedule ve hizli teslimde grup secimini ana akisa cevir.
 10. Alici grubu katalogu olusturup hesap/kampanya baglamina gore onerilen gruplari detail ekranlarina tasimak.
 11. Kisi havuzundaki marka / sirket alanindan akilli alici gruplari uretip katalog ve entity onerilerine tasimak.
+12. Quick delivery ve schedule formlarinda onerilen alici gruplarini ana secim akisina tasiyip manuel override alanlarini ikinci plana indirmek.
 
 ### Kabul Kriterleri
 
@@ -268,3 +269,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 30. Kayitli alici presetlerini segment destekli alici grubu sablonlarina donusturup quick delivery ve schedule formlarinda grup secimini ana akis haline getirmek
 31. Alici grubu katalogu ve entity bazli onerilen alici gruplari ile profile yonetimini tek tikla hizlandirmak
 32. Kisi havuzundaki sirket/marka alanindan akilli alici gruplari uretip katalog ve entity onerilerine tasimak
+33. Quick delivery ve schedule formlarinda onerilen alici gruplarini ana secim akisi yapip manuel alici/etiket ayarlarini ileri seviye override'a tasimak

@@ -194,7 +194,7 @@ export default function ReportsPage() {
         <Card>
           <CardTitle>Musteri Rapor Teslimi Kur</CardTitle>
           <p className="mt-2 text-sm muted-text">
-            Kampanya veya reklam hesabi secin, musteri alicilarini girin ve teslim sikligini belirleyin. Sistem uygun sablonu kullanarak schedule olusturur.
+            Kampanya veya reklam hesabi secin, once onerilen alici gruplarindan ilerleyin, gerekiyorsa manuel override ekleyin. Sistem uygun sablonu kullanarak schedule olusturur.
           </p>
           <div className="mt-4">
             <ReportDeliverySetupForm
@@ -211,7 +211,7 @@ export default function ReportsPage() {
         <Card>
           <CardTitle>Mevcut Sablondan Schedule Kur</CardTitle>
           <p className="mt-2 text-sm muted-text">
-            Daha ileri seviye kullanim icin, daha once olusturulmus bir rapor sablonundan yeni schedule acabilirsiniz.
+            Mevcut bir rapor sablonu icin onerilen alici gruplariyla hizli bir schedule acin. Manuel alici ve etiket ayarlari ileri seviye override olarak kalir.
           </p>
           <div className="mt-4">
             <ReportScheduleForm

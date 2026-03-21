@@ -1,9 +1,18 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { ReportRecipientGroupCatalog } from "@/components/reports/report-recipient-group-catalog";
+import { useApiQuery } from "@/hooks/use-api-query";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
-import { ReportContactListItem, ReportDeliveryProfileListItem, ReportIndexResponse } from "@/lib/types";
+import { QUERY_TTLS } from "@/lib/api-query-config";
+import {
+  RecipientGroupCatalogItem,
+  RecipientGroupSuggestionsResponse,
+  ReportContactListItem,
+  ReportDeliveryProfileListItem,
+  ReportIndexResponse,
+} from "@/lib/types";
 
 type Props = {
   builders: ReportIndexResponse["data"]["builders"];
@@ -49,6 +58,7 @@ export function ReportDeliverySetupForm({
   const [timezone, setTimezone] = useState("Europe/Istanbul");
   const [recipients, setRecipients] = useState("");
   const [contactTags, setContactTags] = useState<string[]>([]);
+  const [selectedRecipientGroupId, setSelectedRecipientGroupId] = useState("");
   const [autoShareEnabled, setAutoShareEnabled] = useState(true);
   const [shareLabelTemplate, setShareLabelTemplate] = useState("{template_name} / {end_date}");
   const [shareExpiresInDays, setShareExpiresInDays] = useState("7");
@@ -99,6 +109,32 @@ export function ReportDeliverySetupForm({
     () => deliveryProfiles.find((item) => item.entity_type === entityType && item.entity_id === entityId) ?? null,
     [deliveryProfiles, entityId, entityType],
   );
+  const recipientSuggestionPath = useMemo(() => {
+    if (!entityId) {
+      return null;
+    }
+
+    return `/reports/recipient-group-suggestions?entity_type=${entityType}&entity_id=${entityId}&limit=4`;
+  }, [entityId, entityType]);
+  const { data: suggestionData, isLoading: isSuggestionsLoading } = useApiQuery<
+    RecipientGroupSuggestionsResponse,
+    RecipientGroupSuggestionsResponse["data"]
+  >(recipientSuggestionPath ?? "/reports/recipient-group-suggestions", {
+    enabled: recipientSuggestionPath !== null,
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.recipientGroupSuggestions,
+    select: (response) => response.data,
+  });
+  const suggestedGroups = useMemo(
+    () => suggestionData?.suggested_groups ?? [],
+    [suggestionData?.suggested_groups],
+  );
+  const selectedSuggestedGroup = useMemo(
+    () => suggestedGroups.find((item) => item.id === selectedRecipientGroupId) ?? null,
+    [selectedRecipientGroupId, suggestedGroups],
+  );
   const mergedContactTags = useMemo(
     () => Array.from(new Set([...(selectedPreset?.contact_tags ?? []), ...contactTags])),
     [contactTags, selectedPreset?.contact_tags],
@@ -127,8 +163,15 @@ export function ReportDeliverySetupForm({
   );
   const isDisabled = entityOptions.length === 0 || isSubmitting;
 
-  const resetProfileDefaults = useCallback(() => {
+  const resetRecipientSelection = useCallback(() => {
+    setSelectedRecipientGroupId("");
     setRecipientPresetId("");
+    setRecipients("");
+    setContactTags([]);
+  }, []);
+
+  const resetProfileDefaults = useCallback(() => {
+    resetRecipientSelection();
     setDefaultRangeDays("7");
     setDeliveryChannel(deliveryCapabilities?.real_email_available ? "email" : "email_stub");
     setCadence("weekly");
@@ -136,16 +179,15 @@ export function ReportDeliverySetupForm({
     setMonthDay("1");
     setSendTime("09:00");
     setTimezone("Europe/Istanbul");
-    setRecipients("");
-    setContactTags([]);
     setAutoShareEnabled(true);
     setShareLabelTemplate("{template_name} / {end_date}");
     setShareExpiresInDays("7");
     setShareAllowCsvDownload(false);
     setSaveAsDefaultProfile(true);
-  }, [deliveryCapabilities?.real_email_available]);
+  }, [deliveryCapabilities?.real_email_available, resetRecipientSelection]);
 
   const applyProfile = useCallback((profile: ReportDeliveryProfileListItem) => {
+    setSelectedRecipientGroupId("");
     setDefaultRangeDays(String(profile.default_range_days));
     setDeliveryChannel(
       profile.delivery_channel === "email" && !deliveryCapabilities?.real_email_available
@@ -168,6 +210,24 @@ export function ReportDeliverySetupForm({
     setLoadedProfileId(profile.id);
   }, [deliveryCapabilities?.real_email_available]);
 
+  const applyRecipientGroup = useCallback((group: RecipientGroupCatalogItem) => {
+    setSelectedRecipientGroupId(group.id);
+    setError(null);
+    setMessage(null);
+
+    if (group.source_type === "preset" && group.recipient_preset_id) {
+      setRecipientPresetId(group.recipient_preset_id);
+      setRecipients("");
+      setContactTags([]);
+
+      return;
+    }
+
+    setRecipientPresetId("");
+    setRecipients(group.recipients.join(", "));
+    setContactTags(group.contact_tags);
+  }, []);
+
   useEffect(() => {
     if (!selectedProfile) {
       if (loadedProfileId !== null) {
@@ -183,6 +243,36 @@ export function ReportDeliverySetupForm({
 
     applyProfile(selectedProfile);
   }, [applyProfile, loadedProfileId, resetProfileDefaults, selectedProfile]);
+
+  useEffect(() => {
+    if (!entityId) {
+      return;
+    }
+
+    resetRecipientSelection();
+    setLoadedProfileId(null);
+  }, [entityId, entityType, resetRecipientSelection]);
+
+  useEffect(() => {
+    if (!entityId || selectedProfile || suggestedGroups.length === 0) {
+      return;
+    }
+
+    if (selectedRecipientGroupId || recipientPresetId || recipients.trim() !== "" || contactTags.length > 0) {
+      return;
+    }
+
+    applyRecipientGroup(suggestedGroups[0]);
+  }, [
+    applyRecipientGroup,
+    contactTags.length,
+    entityId,
+    recipientPresetId,
+    recipients,
+    selectedProfile,
+    selectedRecipientGroupId,
+    suggestedGroups,
+  ]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -262,7 +352,11 @@ export function ReportDeliverySetupForm({
           <select
             className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
             value={entityId}
-            onChange={(event) => setEntityId(event.target.value)}
+            onChange={(event) => {
+              setEntityId(event.target.value);
+              setLoadedProfileId(null);
+              resetRecipientSelection();
+            }}
             disabled={entityOptions.length === 0}
           >
             {entityOptions.length === 0 ? <option value="">Kayit bulunmuyor</option> : null}
@@ -278,7 +372,12 @@ export function ReportDeliverySetupForm({
           <select
             className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
             value={recipientPresetId}
-            onChange={(event) => setRecipientPresetId(event.target.value)}
+            onChange={(event) => {
+              setSelectedRecipientGroupId("");
+              setRecipientPresetId(event.target.value);
+              setRecipients("");
+              setContactTags([]);
+            }}
           >
             <option value="">Ozel Alici Girisi</option>
             {recipientPresets
@@ -385,14 +484,30 @@ export function ReportDeliverySetupForm({
         </Field>
       </div>
 
-      <Field label="Ek Manuel Alicilar">
-        <textarea
-          className="min-h-[96px] w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
-          value={recipients}
-          onChange={(event) => setRecipients(event.target.value)}
-          placeholder="musteri@ornek.com, ekip@ornek.com"
-        />
-      </Field>
+      <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+        <p className="font-semibold">Ana Alici Secimi</p>
+        <p className="mt-1 muted-text">
+          Once sistemin entity baglamina gore onerdiği gruplardan secin. Manuel alici ve etiket girisi sadece override gerektiginde kullanilmali.
+        </p>
+        <div className="mt-3">
+          <ReportRecipientGroupCatalog
+            items={suggestedGroups}
+            emptyText={
+              isSuggestionsLoading
+                ? "Onerilen alici gruplari hazirlaniyor."
+                : "Bu kapsam icin onerilen alici grubu bulunamadi."
+            }
+            onApply={applyRecipientGroup}
+          />
+        </div>
+        {selectedSuggestedGroup ? (
+          <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+            <p className="font-semibold">Secili Grup</p>
+            <p className="mt-1 muted-text">{selectedSuggestedGroup.name}</p>
+            <p className="mt-1 text-xs muted-text">{selectedSuggestedGroup.recipient_group_summary.label}</p>
+          </div>
+        ) : null}
+      </div>
 
       {selectedPreset ? (
         <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
@@ -407,43 +522,65 @@ export function ReportDeliverySetupForm({
         </div>
       ) : null}
 
-      {availableContactTags.length > 0 ? (
-        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
-          <p className="font-semibold">Ek Kisi Segmentleri</p>
-          <p className="mt-1 muted-text">
-            Secilen etiketler, varsa kayitli grup etiketleriyle birlesip aktif kisi havuzundan dinamik alici cozer.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {availableContactTags.map((tag) => {
-              const isSelected = contactTags.includes(tag);
+      <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+        <p className="font-semibold">Ileri Seviye Alici Ayarlari</p>
+        <p className="mt-1 muted-text">
+          Onerilen grup yeterli degilse burada kayitli grup secimini degistirebilir, ek etiket veya manuel alici girebilirsiniz.
+        </p>
 
-              return (
-                <button
-                  key={tag}
-                  type="button"
-                  className={`rounded-full border px-3 py-1 text-xs font-medium ${
-                    isSelected
-                      ? "border-[var(--accent)] bg-[var(--surface-2)] text-[var(--accent)]"
-                      : "border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                  }`}
-                  onClick={() =>
-                    setContactTags((current) =>
-                      current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag],
-                    )
-                  }
-                >
-                  {tag}
-                </button>
-              );
-            })}
-          </div>
-          {mergedContactTags.length > 0 ? (
-            <p className="mt-2 text-xs muted-text">
-              Eslesen kisi: {taggedContacts.length} / Toplam cozumlenen alici: {resolvedRecipientPreview.length}
-            </p>
+        <div className="mt-3 space-y-3">
+          <Field label="Ek Manuel Alicilar">
+            <textarea
+              className="min-h-[96px] w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+              value={recipients}
+              onChange={(event) => {
+                setSelectedRecipientGroupId("");
+                setRecipients(event.target.value);
+              }}
+              placeholder="musteri@ornek.com, ekip@ornek.com"
+            />
+          </Field>
+
+          {availableContactTags.length > 0 ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide muted-text">Ek Kisi Segmentleri</p>
+              <p className="mt-1 muted-text">
+                Secilen etiketler, varsa kayitli grup etiketleriyle birlesip aktif kisi havuzundan dinamik alici cozer.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {availableContactTags.map((tag) => {
+                  const isSelected = contactTags.includes(tag);
+
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                        isSelected
+                          ? "border-[var(--accent)] bg-[var(--surface-2)] text-[var(--accent)]"
+                          : "border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                      }`}
+                      onClick={() => {
+                        setSelectedRecipientGroupId("");
+                        setContactTags((current) =>
+                          current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag],
+                        );
+                      }}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+              {mergedContactTags.length > 0 ? (
+                <p className="mt-2 text-xs muted-text">
+                  Eslesen kisi: {taggedContacts.length} / Toplam cozumlenen alici: {resolvedRecipientPreview.length}
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
-      ) : null}
+      </div>
 
       {contacts.filter((item) => item.is_active).length > 0 ? (
         <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
@@ -458,6 +595,7 @@ export function ReportDeliverySetupForm({
                   type="button"
                   className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-medium hover:border-[var(--accent)] hover:text-[var(--accent)]"
                   onClick={() => {
+                    setSelectedRecipientGroupId("");
                     const existing = recipients
                       .split(/[\n,;]+/)
                       .map((item) => item.trim().toLowerCase())

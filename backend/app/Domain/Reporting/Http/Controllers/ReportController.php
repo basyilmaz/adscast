@@ -7,6 +7,7 @@ use App\Domain\Reporting\Http\Requests\StoreReportContactRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliverySetupRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportRecipientPresetRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliveryScheduleRequest;
+use App\Domain\Reporting\Http\Requests\ResolveReportRecipientGroupSuggestionsRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportShareLinkRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportTemplateRequest;
 use App\Domain\Reporting\Http\Requests\ToggleReportDeliveryProfileRequest;
@@ -82,6 +83,35 @@ class ReportController
                     'share_summary' => $shareSummary,
                 ],
             ),
+        ]);
+    }
+
+    public function recipientGroupSuggestions(ResolveReportRecipientGroupSuggestionsRequest $request): JsonResponse
+    {
+        $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
+        $entityType = $request->string('entity_type')->toString();
+        $entityId = $request->string('entity_id')->toString();
+        $limit = (int) ($request->integer('limit') ?: 4);
+        $profile = $this->reportDeliveryProfileService->findByEntity($workspaceId, $entityType, $entityId);
+        $suggestedGroups = $this->reportRecipientGroupAdvisorService->suggestForEntity(
+            workspaceId: $workspaceId,
+            entityType: $entityType,
+            entityId: $entityId,
+            currentProfile: $profile,
+            limit: $limit,
+        );
+
+        return new JsonResponse([
+            'data' => [
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+                'summary' => [
+                    'total_suggestions' => count($suggestedGroups),
+                    'top_source_type' => $suggestedGroups[0]['source_type'] ?? null,
+                    'top_source_subtype' => $suggestedGroups[0]['source_subtype'] ?? null,
+                ],
+                'suggested_groups' => $suggestedGroups,
+            ],
         ]);
     }
 

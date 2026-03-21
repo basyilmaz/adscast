@@ -584,6 +584,59 @@ class ReportDeliveryFoundationTest extends TestCase
             ]);
     }
 
+    public function test_recipient_group_suggestions_endpoint_returns_entity_scoped_suggestions(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Account Client Lead',
+            'email' => 'account.client.lead@castintech.com',
+            'company_name' => $account->name,
+            'tags' => ['delivery-account-core'],
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Account Client Ops',
+            'email' => 'account.client.ops@castintech.com',
+            'company_name' => $account->name,
+            'tags' => ['delivery-account-core'],
+            'is_primary' => false,
+            'is_active' => true,
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/recipient-presets', [
+                'name' => 'Delivery Account Core Group',
+                'recipients' => ['ops@castintech.com'],
+                'contact_tags' => ['delivery-account-core'],
+            ])
+            ->assertCreated();
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson(sprintf(
+                '/api/v1/reports/recipient-group-suggestions?entity_type=account&entity_id=%s&limit=4',
+                $account->id,
+            ));
+
+        $response->assertOk()
+            ->assertJsonPath('data.entity_type', 'account')
+            ->assertJsonPath('data.entity_id', $account->id)
+            ->assertJsonPath('data.summary.total_suggestions', 4)
+            ->assertJsonPath('data.summary.top_source_type', 'preset')
+            ->assertJsonFragment([
+                'source_type' => 'smart',
+                'source_subtype' => 'company',
+                'name' => sprintf('%s Musteri Grubu', $account->name),
+                'resolved_recipients_count' => 2,
+            ]);
+    }
+
     public function test_delivery_profile_can_be_managed_from_entity_endpoints(): void
     {
         [$workspace, $token, $account, $campaign] = $this->seedReportFixture('agency.admin@adscast.test');

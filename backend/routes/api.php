@@ -57,6 +57,8 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('workspace.permission:reporting.view');
             Route::get('/reports', [ReportController::class, 'index'])
                 ->middleware('workspace.permission:reporting.view');
+            Route::get('/reports/recipient-group-suggestions', [ReportController::class, 'recipientGroupSuggestions'])
+                ->middleware('workspace.permission:reporting.view');
             Route::get('/reports/account/{adAccountId}', [ReportController::class, 'account'])
                 ->middleware('workspace.permission:reporting.view');
             Route::get('/reports/campaign/{campaignId}', [ReportController::class, 'campaign'])

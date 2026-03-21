@@ -28,6 +28,9 @@ Base path: `/api/v1`
   - `recipient_group_catalog_summary` ve `recipient_group_catalog[]` ile kayitli grup + segment + primary/sirket bazli akilli grup katalogunu doner
   - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner
   - `delivery_profiles[].recipient_group_summary` ile varsayilan alici grubunun kaynagini ozetler
+- `GET /reports/recipient-group-suggestions`
+  - `entity_type` + `entity_id` icin operator akislarinda kullanilacak onerilen alici gruplarini doner
+  - quick delivery, schedule ve detail delivery profile editor'u bu endpoint'i ana secim akisi olarak kullanir
 - `GET /reports/account/{adAccountId}`
 - `GET /reports/campaign/{campaignId}`
 - `POST /reports/snapshots`
