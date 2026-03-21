@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ReportDeliverySetupForm } from "@/components/reports/report-delivery-setup-form";
+import { ReportRecipientPresetForm } from "@/components/reports/report-recipient-preset-form";
 import { ReportScheduleForm } from "@/components/reports/report-schedule-form";
 import { ReportTemplateForm } from "@/components/reports/report-template-form";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,9 @@ import { apiRequest } from "@/lib/api";
 import { buildHrefWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
 import {
   ReportDeliveryScheduleListItem,
+  ReportDeliveryProfileListItem,
   ReportIndexResponse,
+  ReportRecipientPresetListItem,
   ReportSnapshotListItem,
   ReportTemplateListItem,
 } from "@/lib/types";
@@ -131,11 +134,13 @@ export default function ReportsPage() {
         <PageLoadingState title="Raporlar yukleniyor" detail="Builder listesi, sablonlar ve schedule durumu hazirlaniyor." />
       ) : null}
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-4 xl:grid-cols-8">
         <MetricCard label="Toplam Snapshot" value={data?.summary.total_snapshots ?? 0} />
         <MetricCard label="Account Snapshot" value={data?.summary.account_snapshots ?? 0} />
         <MetricCard label="Campaign Snapshot" value={data?.summary.campaign_snapshots ?? 0} />
         <MetricCard label="Kayitli Sablon" value={data?.template_summary.total_templates ?? 0} />
+        <MetricCard label="Alici Preseti" value={data?.recipient_preset_summary.total_presets ?? 0} />
+        <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
         <MetricCard label="Aktif Schedule" value={data?.delivery_summary.active_schedules ?? 0} />
         <MetricCard label="Aktif Paylasim" value={data?.share_summary.active_links ?? 0} />
       </section>
@@ -150,6 +155,8 @@ export default function ReportsPage() {
             <ReportDeliverySetupForm
               builders={data?.builders ?? { accounts: [], campaigns: [] }}
               deliveryCapabilities={data?.delivery_capabilities ?? null}
+              recipientPresets={data?.recipient_presets ?? []}
+              deliveryProfiles={data?.delivery_profiles ?? []}
               onCreated={reload}
             />
           </div>
@@ -166,6 +173,71 @@ export default function ReportsPage() {
               deliveryCapabilities={data?.delivery_capabilities ?? null}
               onCreated={reload}
             />
+          </div>
+        </Card>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
+        <Card>
+          <CardTitle>Kayitli Alici Listeleri</CardTitle>
+          <p className="mt-2 text-sm muted-text">
+            Sik kullanilan musteri ve ekip alicilarini bir kez kaydedin. Hizli teslim formunda tekrar secerek kullanin.
+          </p>
+          <div className="mt-4">
+            <ReportRecipientPresetForm onCreated={reload} />
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {(data?.recipient_presets ?? []).map((preset: ReportRecipientPresetListItem) => (
+              <div key={preset.id} className="rounded-lg border border-[var(--border)] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge label={preset.is_active ? "active" : "inactive"} variant={preset.is_active ? "success" : "warning"} />
+                  <Badge label={`${preset.recipients_count} alici`} variant="neutral" />
+                </div>
+                <p className="mt-2 font-semibold">{preset.name}</p>
+                <p className="mt-1 text-sm muted-text">{preset.recipients.join(", ")}</p>
+                {preset.notes ? <p className="mt-2 text-xs muted-text">{preset.notes}</p> : null}
+              </div>
+            ))}
+            {(data?.recipient_presets ?? []).length === 0 ? <p className="text-sm muted-text">Henuz kayitli alici listesi yok.</p> : null}
+          </div>
+        </Card>
+
+        <Card>
+          <CardTitle>Varsayilan Teslim Profilleri</CardTitle>
+          <p className="mt-2 text-sm muted-text">
+            Kampanya veya hesap secildiginde hizli teslim formunu otomatik dolduran varsayilan cadence ve alici profilleri.
+          </p>
+          <div className="mt-4 space-y-3">
+            {(data?.delivery_profiles ?? []).map((profile: ReportDeliveryProfileListItem) => (
+              <div key={profile.id} className="rounded-lg border border-[var(--border)] p-3">
+                <div className="flex flex-wrap gap-2">
+                  <Badge label={profile.entity_type} variant="neutral" />
+                  <Badge label={profile.cadence_label} variant="neutral" />
+                  <Badge label={profile.delivery_channel_label} variant="neutral" />
+                  {profile.share_delivery.enabled ? <Badge label="Auto Share" variant="success" /> : null}
+                </div>
+                <p className="mt-2 font-semibold">{profile.entity_label ?? "Varlik"}</p>
+                <p className="mt-1 text-xs muted-text">
+                  {profile.context_label ? `${profile.context_label} / ` : ""}
+                  {profile.recipients_count} alici / {profile.default_range_days} gun / {profile.timezone}
+                </p>
+                <p className="mt-2 text-sm muted-text">
+                  {profile.recipient_preset_name
+                    ? `Preset: ${profile.recipient_preset_name}`
+                    : profile.recipients.join(", ")}
+                </p>
+                {profile.report_url ? (
+                  <Link
+                    href={buildHrefWithFilters(profile.report_url, searchParams, GLOBAL_DATE_FILTER_KEYS)}
+                    className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
+                  >
+                    Ilgili raporu ac
+                  </Link>
+                ) : null}
+              </div>
+            ))}
+            {(data?.delivery_profiles ?? []).length === 0 ? <p className="text-sm muted-text">Henuz kayitli varsayilan teslim profili yok.</p> : null}
           </div>
         </Card>
       </section>

@@ -4,12 +4,15 @@ namespace App\Domain\Reporting\Http\Controllers;
 
 use App\Domain\Reporting\Http\Requests\StoreReportSnapshotRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliverySetupRequest;
+use App\Domain\Reporting\Http\Requests\StoreReportRecipientPresetRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliveryScheduleRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportShareLinkRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportTemplateRequest;
 use App\Domain\Reporting\Services\ReportBuilderService;
+use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
 use App\Domain\Reporting\Services\ReportDeliverySetupService;
+use App\Domain\Reporting\Services\ReportDeliveryProfileService;
 use App\Domain\Reporting\Services\ReportShareLinkService;
 use App\Domain\Reporting\Services\ReportSnapshotService;
 use App\Domain\Reporting\Services\ReportTemplateService;
@@ -28,6 +31,8 @@ class ReportController
         private readonly ReportBuilderService $reportBuilderService,
         private readonly ReportSnapshotService $reportSnapshotService,
         private readonly ReportTemplateService $reportTemplateService,
+        private readonly ReportRecipientPresetService $reportRecipientPresetService,
+        private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
         private readonly ReportDeliveryScheduleService $reportDeliveryScheduleService,
         private readonly ReportDeliverySetupService $reportDeliverySetupService,
         private readonly ReportShareLinkService $reportShareLinkService,
@@ -39,6 +44,8 @@ class ReportController
         $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
         $snapshotIndex = $this->reportSnapshotService->index($workspaceId);
         $templateIndex = $this->reportTemplateService->index($workspaceId);
+        $presetIndex = $this->reportRecipientPresetService->index($workspaceId);
+        $profileIndex = $this->reportDeliveryProfileService->index($workspaceId);
         $deliveryIndex = $this->reportDeliveryScheduleService->index($workspaceId);
         $shareSummary = $this->reportShareLinkService->summary($workspaceId);
 
@@ -48,6 +55,10 @@ class ReportController
                 [
                     'template_summary' => $templateIndex['summary'],
                     'templates' => $templateIndex['items'],
+                    'recipient_preset_summary' => $presetIndex['summary'],
+                    'recipient_presets' => $presetIndex['items'],
+                    'delivery_profile_summary' => $profileIndex['summary'],
+                    'delivery_profiles' => $profileIndex['items'],
                     'delivery_summary' => $deliveryIndex['summary'],
                     'delivery_capabilities' => $deliveryIndex['delivery_capabilities'],
                     'delivery_schedules' => $deliveryIndex['items'],
@@ -55,6 +66,23 @@ class ReportController
                 ],
             ),
         ]);
+    }
+
+    public function storeRecipientPreset(StoreReportRecipientPresetRequest $request): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $preset = $this->reportRecipientPresetService->store(
+            workspace: $workspace,
+            payload: $request->validated(),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Kayitli alici listesi olusturuldu.',
+            'data' => $preset,
+        ], 201);
     }
 
     public function account(Request $request, string $adAccountId): JsonResponse

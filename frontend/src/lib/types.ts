@@ -792,6 +792,49 @@ export type ReportDeliveryScheduleListItem = {
   recent_runs: ReportDeliveryRunListItem[];
 };
 
+export type ReportRecipientPresetListItem = {
+  id: string;
+  name: string;
+  recipients: string[];
+  recipients_count: number;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type ReportDeliveryProfileListItem = {
+  id: string;
+  entity_type: "account" | "campaign" | string;
+  entity_id: string;
+  entity_label: string | null;
+  context_label: string | null;
+  report_url: string | null;
+  recipient_preset_id: string | null;
+  recipient_preset_name: string | null;
+  delivery_channel: string;
+  delivery_channel_label: string;
+  cadence: string;
+  cadence_label: string;
+  send_time: string;
+  timezone: string;
+  weekday: number | null;
+  month_day: number | null;
+  default_range_days: number;
+  layout_preset: string;
+  recipients: string[];
+  recipients_count: number;
+  share_delivery: {
+    enabled: boolean;
+    label_template: string | null;
+    expires_in_days: number | null;
+    allow_csv_download: boolean;
+  };
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type ClientReportPayload = {
   range: {
     start_date: string;
@@ -899,6 +942,15 @@ export type ReportIndexResponse = {
       active_templates: number;
       templates_with_schedules: number;
     };
+    recipient_preset_summary: {
+      total_presets: number;
+      active_presets: number;
+      total_recipients: number;
+    };
+    delivery_profile_summary: {
+      total_profiles: number;
+      active_profiles: number;
+    };
     delivery_summary: {
       total_schedules: number;
       active_schedules: number;
@@ -919,6 +971,8 @@ export type ReportIndexResponse = {
     };
     items: ReportSnapshotListItem[];
     templates: ReportTemplateListItem[];
+    recipient_presets: ReportRecipientPresetListItem[];
+    delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_schedules: ReportDeliveryScheduleListItem[];
     builders: {
       accounts: Array<{

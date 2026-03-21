@@ -1,13 +1,15 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
-import { ReportIndexResponse } from "@/lib/types";
+import { ReportDeliveryProfileListItem, ReportIndexResponse } from "@/lib/types";
 
 type Props = {
   builders: ReportIndexResponse["data"]["builders"];
   deliveryCapabilities: ReportIndexResponse["data"]["delivery_capabilities"] | null;
+  recipientPresets: ReportIndexResponse["data"]["recipient_presets"];
+  deliveryProfiles: ReportIndexResponse["data"]["delivery_profiles"];
   onCreated?: () => Promise<void> | void;
 };
 
@@ -21,11 +23,18 @@ const WEEKDAY_OPTIONS = [
   { value: "7", label: "Pazar" },
 ];
 
-export function ReportDeliverySetupForm({ builders, deliveryCapabilities, onCreated }: Props) {
+export function ReportDeliverySetupForm({
+  builders,
+  deliveryCapabilities,
+  recipientPresets,
+  deliveryProfiles,
+  onCreated,
+}: Props) {
   const [entityType, setEntityType] = useState<"account" | "campaign">(
     builders.campaigns.length > 0 ? "campaign" : "account",
   );
   const [entityId, setEntityId] = useState("");
+  const [recipientPresetId, setRecipientPresetId] = useState("");
   const [templateName, setTemplateName] = useState("");
   const [defaultRangeDays, setDefaultRangeDays] = useState("7");
   const [deliveryChannel, setDeliveryChannel] = useState<"email_stub" | "email">(
@@ -41,6 +50,8 @@ export function ReportDeliverySetupForm({ builders, deliveryCapabilities, onCrea
   const [shareLabelTemplate, setShareLabelTemplate] = useState("{template_name} / {end_date}");
   const [shareExpiresInDays, setShareExpiresInDays] = useState("7");
   const [shareAllowCsvDownload, setShareAllowCsvDownload] = useState(false);
+  const [saveAsDefaultProfile, setSaveAsDefaultProfile] = useState(true);
+  const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,12 +79,80 @@ export function ReportDeliverySetupForm({ builders, deliveryCapabilities, onCrea
     .filter(Boolean);
 
   const selectedEntity = entityOptions.find((item) => item.id === entityId) ?? null;
+  const selectedPreset = recipientPresets.find((item) => item.id === recipientPresetId) ?? null;
+  const selectedProfile = useMemo(
+    () => deliveryProfiles.find((item) => item.entity_type === entityType && item.entity_id === entityId) ?? null,
+    [deliveryProfiles, entityId, entityType],
+  );
   const isDisabled = entityOptions.length === 0 || isSubmitting;
+
+  const resetProfileDefaults = useCallback(() => {
+    setRecipientPresetId("");
+    setDefaultRangeDays("7");
+    setDeliveryChannel(deliveryCapabilities?.real_email_available ? "email" : "email_stub");
+    setCadence("weekly");
+    setWeekday("1");
+    setMonthDay("1");
+    setSendTime("09:00");
+    setTimezone("Europe/Istanbul");
+    setRecipients("musteri@ornek.com");
+    setAutoShareEnabled(true);
+    setShareLabelTemplate("{template_name} / {end_date}");
+    setShareExpiresInDays("7");
+    setShareAllowCsvDownload(false);
+    setSaveAsDefaultProfile(true);
+  }, [deliveryCapabilities?.real_email_available]);
+
+  const applyProfile = useCallback((profile: ReportDeliveryProfileListItem) => {
+    setDefaultRangeDays(String(profile.default_range_days));
+    setDeliveryChannel(
+      profile.delivery_channel === "email" && !deliveryCapabilities?.real_email_available
+        ? "email_stub"
+        : (profile.delivery_channel as "email_stub" | "email"),
+    );
+    setCadence(profile.cadence as "daily" | "weekly" | "monthly");
+    setWeekday(String(profile.weekday ?? 1));
+    setMonthDay(String(profile.month_day ?? 1));
+    setSendTime(profile.send_time);
+    setTimezone(profile.timezone);
+    setRecipientPresetId(profile.recipient_preset_id ?? "");
+    setRecipients(profile.recipients.join(", "));
+    setAutoShareEnabled(profile.share_delivery.enabled);
+    setShareLabelTemplate(profile.share_delivery.label_template ?? "{template_name} / {end_date}");
+    setShareExpiresInDays(String(profile.share_delivery.expires_in_days ?? 7));
+    setShareAllowCsvDownload(profile.share_delivery.allow_csv_download);
+    setSaveAsDefaultProfile(true);
+    setLoadedProfileId(profile.id);
+  }, [deliveryCapabilities?.real_email_available]);
+
+  useEffect(() => {
+    if (!selectedProfile) {
+      if (loadedProfileId !== null) {
+        resetProfileDefaults();
+      }
+      setLoadedProfileId(null);
+      return;
+    }
+
+    if (selectedProfile.id === loadedProfileId) {
+      return;
+    }
+
+    applyProfile(selectedProfile);
+  }, [applyProfile, loadedProfileId, resetProfileDefaults, selectedProfile]);
+
+  useEffect(() => {
+    if (!selectedPreset) {
+      return;
+    }
+
+    setRecipients(selectedPreset.recipients.join(", "));
+  }, [selectedPreset]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!entityId || parsedRecipients.length === 0) {
+    if (!entityId || (!recipientPresetId && parsedRecipients.length === 0)) {
       setError("Hedef kayit ve en az bir alici zorunlu.");
       return;
     }
@@ -88,6 +167,7 @@ export function ReportDeliverySetupForm({ builders, deliveryCapabilities, onCrea
           template_created: boolean;
           template_name: string;
           schedule_id: string;
+          profile_saved: boolean;
         };
       }>("/reports/delivery-setups", {
         method: "POST",
@@ -95,6 +175,7 @@ export function ReportDeliverySetupForm({ builders, deliveryCapabilities, onCrea
         body: {
           entity_type: entityType,
           entity_id: entityId,
+          recipient_preset_id: recipientPresetId || null,
           template_name: templateName.trim() || null,
           default_range_days: Number(defaultRangeDays),
           layout_preset: "client_digest",
@@ -104,7 +185,8 @@ export function ReportDeliverySetupForm({ builders, deliveryCapabilities, onCrea
           month_day: cadence === "monthly" ? Number(monthDay) : null,
           send_time: sendTime,
           timezone,
-          recipients: parsedRecipients,
+          recipients: parsedRecipients.length > 0 ? parsedRecipients : null,
+          save_as_default_profile: saveAsDefaultProfile,
           auto_share_enabled: autoShareEnabled,
           share_label_template: autoShareEnabled ? shareLabelTemplate.trim() || null : null,
           share_expires_in_days: autoShareEnabled ? Number(shareExpiresInDays) : null,
@@ -114,8 +196,8 @@ export function ReportDeliverySetupForm({ builders, deliveryCapabilities, onCrea
 
       setMessage(
         response.data.template_created
-          ? `Yeni sablon ve schedule olusturuldu: ${response.data.template_name}`
-          : `Mevcut sablon kullanilarak schedule olusturuldu: ${response.data.template_name}`,
+          ? `Yeni sablon ve schedule olusturuldu: ${response.data.template_name}${response.data.profile_saved ? " / varsayilan profil de kaydedildi." : ""}`
+          : `Mevcut sablon kullanilarak schedule olusturuldu: ${response.data.template_name}${response.data.profile_saved ? " / varsayilan profil guncellendi." : ""}`,
       );
 
       await onCreated?.();
@@ -153,6 +235,23 @@ export function ReportDeliverySetupForm({ builders, deliveryCapabilities, onCrea
                 {item.name}
               </option>
             ))}
+          </select>
+        </Field>
+
+        <Field label="Kayitli Alici Listesi">
+          <select
+            className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+            value={recipientPresetId}
+            onChange={(event) => setRecipientPresetId(event.target.value)}
+          >
+            <option value="">Ozel Alici Girisi</option>
+            {recipientPresets
+              .filter((item) => item.is_active)
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} ({item.recipients_count})
+                </option>
+              ))}
           </select>
         </Field>
 
@@ -259,6 +358,15 @@ export function ReportDeliverySetupForm({ builders, deliveryCapabilities, onCrea
         />
       </Field>
 
+      {selectedProfile ? (
+        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+          <p className="font-semibold">Varsayilan Profil Yuklendi</p>
+          <p className="mt-1 muted-text">
+            {selectedProfile.entity_label ?? "Varlik"} icin kayitli profil bulundu. Form alanlari bu profile gore dolduruldu.
+          </p>
+        </div>
+      ) : null}
+
       <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
         <p className="font-semibold">Mail Delivery Durumu</p>
         <p className="mt-1 muted-text">
@@ -266,6 +374,17 @@ export function ReportDeliverySetupForm({ builders, deliveryCapabilities, onCrea
           {deliveryCapabilities?.from_address ? ` / From: ${deliveryCapabilities.from_address}` : ""}
         </p>
         <p className="mt-1 muted-text">{deliveryCapabilities?.note ?? "Mailer durumu okunamadi."}</p>
+      </div>
+
+      <div className="rounded-lg border border-[var(--border)] p-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={saveAsDefaultProfile}
+            onChange={(event) => setSaveAsDefaultProfile(event.target.checked)}
+          />
+          {selectedProfile ? "Bu kapsam icin varsayilan teslim profilini guncelle" : "Bu kapsam icin varsayilan teslim profili olarak kaydet"}
+        </label>
       </div>
 
       <div className="rounded-lg border border-[var(--border)] p-3">

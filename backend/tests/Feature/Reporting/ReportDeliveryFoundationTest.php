@@ -327,6 +327,66 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.delivery_schedules.0.share_delivery.enabled', true);
     }
 
+    public function test_recipient_preset_can_drive_default_delivery_profile_creation(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $presetResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/recipient-presets', [
+                'name' => 'Merva Musteri Dagitimi',
+                'recipients' => ['merva@castintech.com', 'owner@castintech.com'],
+                'notes' => 'Haftalik account ozeti',
+            ]);
+
+        $presetId = $presetResponse->json('data.id');
+
+        $presetResponse->assertCreated()
+            ->assertJsonPath('data.name', 'Merva Musteri Dagitimi')
+            ->assertJsonPath('data.recipients_count', 2);
+
+        $setupResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/delivery-setups', [
+                'entity_type' => 'account',
+                'entity_id' => $account->id,
+                'recipient_preset_id' => $presetId,
+                'default_range_days' => 14,
+                'layout_preset' => 'client_digest',
+                'delivery_channel' => 'email_stub',
+                'cadence' => 'weekly',
+                'weekday' => 4,
+                'send_time' => '11:30',
+                'timezone' => 'Europe/Istanbul',
+                'save_as_default_profile' => true,
+                'auto_share_enabled' => true,
+                'share_label_template' => '{template_name} / {end_date}',
+                'share_expires_in_days' => 7,
+                'share_allow_csv_download' => false,
+            ]);
+
+        $setupResponse->assertCreated()
+            ->assertJsonPath('data.entity_type', 'account')
+            ->assertJsonPath('data.recipient_preset_id', $presetId)
+            ->assertJsonPath('data.profile_saved', true);
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.recipient_preset_summary.total_presets', 1)
+            ->assertJsonPath('data.recipient_presets.0.name', 'Merva Musteri Dagitimi')
+            ->assertJsonPath('data.delivery_profile_summary.total_profiles', 1)
+            ->assertJsonPath('data.delivery_profiles.0.entity_type', 'account')
+            ->assertJsonPath('data.delivery_profiles.0.entity_id', $account->id)
+            ->assertJsonPath('data.delivery_profiles.0.recipient_preset_id', $presetId)
+            ->assertJsonPath('data.delivery_profiles.0.recipient_preset_name', 'Merva Musteri Dagitimi')
+            ->assertJsonPath('data.delivery_profiles.0.recipients_count', 2)
+            ->assertJsonPath('data.delivery_profiles.0.cadence', 'weekly')
+            ->assertJsonPath('data.delivery_profiles.0.weekday', 4);
+    }
+
     /**
      * @return array{0: Workspace, 1: string, 2: MetaAdAccount, 3: Campaign}
      */

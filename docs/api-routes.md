@@ -28,6 +28,7 @@ Base path: `/api/v1`
 - `POST /reports/snapshots`
 - `POST /reports/snapshots/{snapshotId}/share-links` (`settings.manage`)
 - `POST /reports/templates` (`settings.manage`)
+- `POST /reports/recipient-presets` (`settings.manage`)
 - `POST /reports/delivery-setups` (`settings.manage`)
 - `POST /reports/delivery-schedules` (`settings.manage`)
 - `POST /reports/delivery-schedules/{scheduleId}/toggle` (`settings.manage`)

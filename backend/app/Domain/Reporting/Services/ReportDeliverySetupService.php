@@ -14,6 +14,8 @@ class ReportDeliverySetupService
     public function __construct(
         private readonly ReportTemplateService $reportTemplateService,
         private readonly ReportDeliveryScheduleService $reportDeliveryScheduleService,
+        private readonly ReportRecipientPresetService $reportRecipientPresetService,
+        private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
     ) {
     }
 
@@ -32,6 +34,29 @@ class ReportDeliverySetupService
         $layoutPreset = (string) ($payload['layout_preset'] ?? 'client_digest');
         $defaultRangeDays = (int) ($payload['default_range_days'] ?? 7);
         $templateName = trim((string) ($payload['template_name'] ?? ''));
+        $preset = null;
+
+        if (isset($payload['recipient_preset_id']) && $payload['recipient_preset_id'] !== '') {
+            $preset = $this->reportRecipientPresetService->find($workspace->id, (string) $payload['recipient_preset_id']);
+
+            if (! $preset || ! ($preset['is_active'] ?? true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'recipient_preset_id' => 'Secilen alici listesi bulunamadi veya aktif degil.',
+                ]);
+            }
+        }
+
+        $resolvedRecipients = $this->reportRecipientPresetService->normalizeRecipients(
+            is_array($payload['recipients'] ?? null) && count($payload['recipients']) > 0
+                ? $payload['recipients']
+                : ($preset['recipients'] ?? []),
+        );
+
+        if ($resolvedRecipients === []) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'recipients' => 'Teslim icin en az bir alici gereklidir.',
+            ]);
+        }
 
         $template = ReportTemplate::query()
             ->where('workspace_id', $workspace->id)
@@ -72,10 +97,26 @@ class ReportDeliverySetupService
             workspace: $workspace,
             payload: array_merge($payload, [
                 'report_template_id' => $template->id,
+                'recipients' => $resolvedRecipients,
+                'configuration' => [
+                    'recipient_preset_id' => $preset['id'] ?? null,
+                ],
             ]),
             actor: $actor,
             request: $request,
         );
+
+        $profile = null;
+
+        if ((bool) ($payload['save_as_default_profile'] ?? false)) {
+            $profile = $this->reportDeliveryProfileService->upsertFromSetup(
+                workspace: $workspace,
+                payload: $payload,
+                resolvedRecipients: $resolvedRecipients,
+                actor: $actor,
+                request: $request,
+            );
+        }
 
         return [
             'template_id' => $template->id,
@@ -85,6 +126,10 @@ class ReportDeliverySetupService
             'next_run_at' => $schedule->next_run_at?->toDateTimeString(),
             'entity_type' => $entityType,
             'entity_id' => $entityId,
+            'recipient_preset_id' => $preset['id'] ?? null,
+            'recipient_preset_name' => $preset['name'] ?? null,
+            'profile_saved' => $profile !== null,
+            'profile_id' => $profile['id'] ?? null,
         ];
     }
 
