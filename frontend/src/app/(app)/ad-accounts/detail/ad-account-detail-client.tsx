@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardTitle, CardValue } from "@/components/ui/card";
 import { PageErrorState, PageLoadingState } from "@/components/ui/page-state";
 import { NextBestActionsPanel } from "@/components/operations/next-best-actions-panel";
+import { ReportDeliveryProfileManager } from "@/components/reports/report-delivery-profile-manager";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
 import { buildApiPathWithFilters, buildHrefWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
@@ -247,37 +248,13 @@ export function AdAccountDetailClient() {
 
             <Card>
               <CardTitle>Varsayilan Rapor Teslim Profili</CardTitle>
-              {data.delivery_profile ? (
-                <div className="mt-3 space-y-3 text-sm">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge label={data.delivery_profile.cadence_label} variant="neutral" />
-                    <Badge label={data.delivery_profile.delivery_channel_label} variant="neutral" />
-                    {data.delivery_profile.share_delivery.enabled ? <Badge label="Auto Share" variant="success" /> : null}
-                  </div>
-                  <p className="muted-text">
-                    Alicilar: {data.delivery_profile.recipient_preset_name ?? data.delivery_profile.recipients.join(", ")}
-                  </p>
-                  <p className="muted-text">
-                    {data.delivery_profile.default_range_days} gun / {data.delivery_profile.timezone}
-                  </p>
-                  <Link
-                    href={buildHrefWithFilters("/reports", searchParams, GLOBAL_DATE_FILTER_KEYS)}
-                    className="inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
-                  >
-                    Rapor merkezinde yonet
-                  </Link>
-                </div>
-              ) : (
-                <div className="mt-3 space-y-2 text-sm">
-                  <p className="muted-text">Bu hesap icin kayitli varsayilan teslim profili yok.</p>
-                  <Link
-                    href={buildHrefWithFilters("/reports", searchParams, GLOBAL_DATE_FILTER_KEYS)}
-                    className="inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
-                  >
-                    Profil olustur
-                  </Link>
-                </div>
-              )}
+              <ReportDeliveryProfileManager
+                entityType="account"
+                entityId={data.ad_account.id}
+                currentProfile={data.delivery_profile}
+                reportCenterHref={buildHrefWithFilters("/reports", searchParams, GLOBAL_DATE_FILTER_KEYS)}
+                onChanged={reload}
+              />
             </Card>
           </div>
         </section>
@@ -451,6 +428,10 @@ export function AdAccountDetailClient() {
               <p className="text-sm font-semibold">Teslim Profili</p>
               {data.delivery_profile ? (
                 <>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge label={data.delivery_profile.is_active ? "active" : "inactive"} variant={data.delivery_profile.is_active ? "success" : "warning"} />
+                    <Badge label={data.delivery_profile.cadence_label} variant="neutral" />
+                  </div>
                   <p className="mt-2 text-sm">
                     {data.delivery_profile.cadence_label} / {data.delivery_profile.delivery_channel_label}
                   </p>

@@ -433,6 +433,110 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.recipient_presets', []);
     }
 
+    public function test_delivery_profile_can_be_managed_from_entity_endpoints(): void
+    {
+        [$workspace, $token, $account, $campaign] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $presetResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/recipient-presets', [
+                'name' => 'Detail Yonetim Preseti',
+                'recipients' => ['client@castintech.com', 'ops@castintech.com'],
+            ]);
+
+        $presetId = $presetResponse->json('data.id');
+
+        $accountProfileResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->putJson("/api/v1/reports/delivery-profiles/account/{$account->id}", [
+                'recipient_preset_id' => $presetId,
+                'delivery_channel' => 'email_stub',
+                'cadence' => 'weekly',
+                'weekday' => 3,
+                'send_time' => '09:30',
+                'timezone' => 'Europe/Istanbul',
+                'default_range_days' => 14,
+                'layout_preset' => 'client_digest',
+                'auto_share_enabled' => true,
+                'share_label_template' => '{template_name} / {end_date}',
+                'share_expires_in_days' => 7,
+                'share_allow_csv_download' => false,
+            ]);
+
+        $accountProfileResponse->assertOk()
+            ->assertJsonPath('data.entity_type', 'account')
+            ->assertJsonPath('data.entity_id', $account->id)
+            ->assertJsonPath('data.recipient_preset_id', $presetId)
+            ->assertJsonPath('data.recipients_count', 2);
+
+        $campaignProfileResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->putJson("/api/v1/reports/delivery-profiles/campaign/{$campaign->id}", [
+                'delivery_channel' => 'email_stub',
+                'cadence' => 'monthly',
+                'month_day' => 5,
+                'send_time' => '08:45',
+                'timezone' => 'Europe/Istanbul',
+                'default_range_days' => 7,
+                'layout_preset' => 'client_digest',
+                'recipients' => ['owner@castintech.com'],
+                'auto_share_enabled' => true,
+                'share_label_template' => '{template_name} / {end_date}',
+                'share_expires_in_days' => 14,
+                'share_allow_csv_download' => true,
+            ]);
+
+        $campaignProfileResponse->assertOk()
+            ->assertJsonPath('data.entity_type', 'campaign')
+            ->assertJsonPath('data.entity_id', $campaign->id)
+            ->assertJsonPath('data.recipients_count', 1)
+            ->assertJsonPath('data.share_delivery.allow_csv_download', true);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/delivery-profiles/account/{$account->id}/toggle", [
+                'is_active' => false,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.is_active', false);
+
+        $accountDetailResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson("/api/v1/meta/ad-accounts/{$account->id}?start_date=2026-03-10&end_date=2026-03-16");
+
+        $accountDetailResponse->assertOk()
+            ->assertJsonPath('data.delivery_profile.entity_type', 'account')
+            ->assertJsonPath('data.delivery_profile.is_active', false)
+            ->assertJsonPath('data.delivery_profile.recipient_preset_name', 'Detail Yonetim Preseti');
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->deleteJson("/api/v1/reports/delivery-profiles/campaign/{$campaign->id}")
+            ->assertOk();
+
+        $campaignDetailResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson("/api/v1/campaigns/{$campaign->id}?start_date=2026-03-10&end_date=2026-03-16");
+
+        $campaignDetailResponse->assertOk()
+            ->assertJsonPath('data.delivery_profile', null);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'workspace_id' => $workspace->id,
+            'action' => 'report_delivery_profile_upserted',
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'workspace_id' => $workspace->id,
+            'action' => 'report_delivery_profile_toggled',
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'workspace_id' => $workspace->id,
+            'action' => 'report_delivery_profile_deleted',
+        ]);
+    }
+
     /**
      * @return array{0: Workspace, 1: string, 2: MetaAdAccount, 3: Campaign}
      */

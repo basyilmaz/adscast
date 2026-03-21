@@ -8,6 +8,8 @@ use App\Domain\Reporting\Http\Requests\StoreReportRecipientPresetRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliveryScheduleRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportShareLinkRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportTemplateRequest;
+use App\Domain\Reporting\Http\Requests\ToggleReportDeliveryProfileRequest;
+use App\Domain\Reporting\Http\Requests\UpsertReportDeliveryProfileRequest;
 use App\Domain\Reporting\Services\ReportBuilderService;
 use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
@@ -137,6 +139,68 @@ class ReportController
 
         return new JsonResponse([
             'message' => 'Kayitli alici listesi silindi.',
+        ]);
+    }
+
+    public function upsertDeliveryProfile(
+        UpsertReportDeliveryProfileRequest $request,
+        string $entityType,
+        string $entityId,
+    ): JsonResponse {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $profile = $this->reportDeliveryProfileService->upsert(
+            workspace: $workspace,
+            payload: array_merge($request->validated(), [
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+            ]),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Varsayilan teslim profili kaydedildi.',
+            'data' => $profile,
+        ]);
+    }
+
+    public function toggleDeliveryProfile(
+        ToggleReportDeliveryProfileRequest $request,
+        string $entityType,
+        string $entityId,
+    ): JsonResponse {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $profile = $this->reportDeliveryProfileService->toggleByEntity(
+            workspace: $workspace,
+            entityType: $entityType,
+            entityId: $entityId,
+            isActive: $request->validated('is_active'),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Varsayilan teslim profili durumu guncellendi.',
+            'data' => $profile,
+        ]);
+    }
+
+    public function deleteDeliveryProfile(Request $request, string $entityType, string $entityId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $this->reportDeliveryProfileService->deleteByEntity(
+            workspace: $workspace,
+            entityType: $entityType,
+            entityId: $entityId,
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Varsayilan teslim profili silindi.',
         ]);
     }
 

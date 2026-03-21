@@ -223,3 +223,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 22. Kampanya veya hesap secilerek tek adimda musteri rapor teslimi kurulumunu eklemek
 23. Kayitli alici listeleri ve entity bazli varsayilan teslim profilleri eklemek
 24. Kayitli alici listeleri icin duzenle/pasife al/sil akisini ve detail ekranlarinda teslim profili gorunurlugunu eklemek
+25. Hesap ve kampanya detail ekranlarina inline varsayilan teslim profili yonetimini eklemek

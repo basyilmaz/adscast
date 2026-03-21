@@ -8,6 +8,7 @@ use App\Models\Workspace;
 use App\Support\Operations\EntityContextResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ReportDeliveryProfileService
 {
@@ -81,8 +82,7 @@ class ReportDeliveryProfileService
             ->collection($workspaceId, self::SETTING_KEY)
             ->first(function (array $item) use ($entityType, $entityId): bool {
                 return (string) ($item['entity_type'] ?? '') === $entityType
-                    && (string) ($item['entity_id'] ?? '') === $entityId
-                    && (bool) ($item['is_active'] ?? true);
+                    && (string) ($item['entity_id'] ?? '') === $entityId;
             });
 
         if (! $raw) {
@@ -118,15 +118,134 @@ class ReportDeliveryProfileService
         ?User $actor = null,
         ?Request $request = null,
     ): array {
+        return $this->persist(
+            workspace: $workspace,
+            payload: $payload,
+            resolvedRecipients: $resolvedRecipients,
+            actor: $actor,
+            request: $request,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function upsert(
+        Workspace $workspace,
+        array $payload,
+        ?User $actor = null,
+        ?Request $request = null,
+    ): array {
+        $resolvedRecipients = $this->resolveRecipients($workspace->id, $payload);
+
+        return $this->persist(
+            workspace: $workspace,
+            payload: $payload,
+            resolvedRecipients: $resolvedRecipients,
+            actor: $actor,
+            request: $request,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toggleByEntity(
+        Workspace $workspace,
+        string $entityType,
+        string $entityId,
+        ?bool $isActive,
+        ?User $actor = null,
+        ?Request $request = null,
+    ): array {
+        $items = $this->configStore->collection($workspace->id, self::SETTING_KEY);
+        $recipientPresets = collect($this->recipientPresetService->index($workspace->id)['items'])->keyBy('id');
+        $existingIndex = $this->findIndexByEntity($items->all(), $entityType, $entityId);
+
+        if ($existingIndex === false) {
+            throw ValidationException::withMessages([
+                'entity_id' => 'Durumu guncellenecek teslim profili bulunamadi.',
+            ]);
+        }
+
+        $current = $this->normalizeItem($items->get($existingIndex), $recipientPresets);
+        $current['is_active'] = $isActive ?? ! $current['is_active'];
+        $current['updated_at'] = now()->toDateTimeString();
+
+        $items->put($existingIndex, $current);
+        $this->configStore->put($workspace, self::SETTING_KEY, $items->all(), $actor);
+
+        $this->auditLogService->log(
+            actor: $actor,
+            action: 'report_delivery_profile_toggled',
+            targetType: 'report_delivery_profile',
+            targetId: $current['id'],
+            organizationId: $workspace->organization_id,
+            workspaceId: $workspace->id,
+            metadata: [
+                'entity_type' => $current['entity_type'],
+                'entity_id' => $current['entity_id'],
+                'is_active' => $current['is_active'],
+            ],
+            request: $request,
+        );
+
+        return $current;
+    }
+
+    public function deleteByEntity(
+        Workspace $workspace,
+        string $entityType,
+        string $entityId,
+        ?User $actor = null,
+        ?Request $request = null,
+    ): void {
+        $items = $this->configStore->collection($workspace->id, self::SETTING_KEY);
+        $existingIndex = $this->findIndexByEntity($items->all(), $entityType, $entityId);
+
+        if ($existingIndex === false) {
+            throw ValidationException::withMessages([
+                'entity_id' => 'Silinecek teslim profili bulunamadi.',
+            ]);
+        }
+
+        $current = $this->normalizeItem($items->get($existingIndex));
+
+        $items->forget($existingIndex);
+        $this->configStore->put($workspace, self::SETTING_KEY, $items->values()->all(), $actor);
+
+        $this->auditLogService->log(
+            actor: $actor,
+            action: 'report_delivery_profile_deleted',
+            targetType: 'report_delivery_profile',
+            targetId: $current['id'],
+            organizationId: $workspace->organization_id,
+            workspaceId: $workspace->id,
+            metadata: [
+                'entity_type' => $current['entity_type'],
+                'entity_id' => $current['entity_id'],
+            ],
+            request: $request,
+        );
+    }
+
+    /**
+     * @param  array<int, string>  $resolvedRecipients
+     * @return array<string, mixed>
+     */
+    private function persist(
+        Workspace $workspace,
+        array $payload,
+        array $resolvedRecipients,
+        ?User $actor = null,
+        ?Request $request = null,
+    ): array {
         $items = $this->configStore->collection($workspace->id, self::SETTING_KEY);
         $recipientPresets = collect($this->recipientPresetService->index($workspace->id)['items'])->keyBy('id');
         $entityType = (string) $payload['entity_type'];
         $entityId = (string) $payload['entity_id'];
 
-        $existingIndex = $items->search(function (array $item) use ($entityType, $entityId): bool {
-            return (string) ($item['entity_type'] ?? '') === $entityType
-                && (string) ($item['entity_id'] ?? '') === $entityId;
-        });
+        $existingIndex = $this->findIndexByEntity($items->all(), $entityType, $entityId);
 
         $now = now()->toDateTimeString();
         $raw = [
@@ -190,6 +309,50 @@ class ReportDeliveryProfileService
         );
 
         return $item;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<int, string>
+     */
+    private function resolveRecipients(string $workspaceId, array $payload): array
+    {
+        $preset = null;
+
+        if (isset($payload['recipient_preset_id']) && $payload['recipient_preset_id'] !== '') {
+            $preset = $this->recipientPresetService->find($workspaceId, (string) $payload['recipient_preset_id']);
+
+            if (! $preset || ! ($preset['is_active'] ?? true)) {
+                throw ValidationException::withMessages([
+                    'recipient_preset_id' => 'Secilen alici listesi bulunamadi veya aktif degil.',
+                ]);
+            }
+        }
+
+        $resolvedRecipients = $this->recipientPresetService->normalizeRecipients(
+            is_array($payload['recipients'] ?? null) && count($payload['recipients']) > 0
+                ? $payload['recipients']
+                : ($preset['recipients'] ?? []),
+        );
+
+        if ($resolvedRecipients === []) {
+            throw ValidationException::withMessages([
+                'recipients' => 'Teslim icin en az bir alici gereklidir.',
+            ]);
+        }
+
+        return $resolvedRecipients;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    private function findIndexByEntity(array $items, string $entityType, string $entityId): int|false
+    {
+        return collect($items)->search(function (array $item) use ($entityType, $entityId): bool {
+            return (string) ($item['entity_type'] ?? '') === $entityType
+                && (string) ($item['entity_id'] ?? '') === $entityId;
+        });
     }
 
     /**
