@@ -49,3 +49,43 @@ export async function apiRequest<T>(
 
   return data as T;
 }
+
+export async function downloadApiFile(
+  path: string,
+  fileName: string,
+  options: RequestOptions = {},
+): Promise<void> {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const token = getToken();
+  const workspaceId = getWorkspaceId();
+
+  const headers: HeadersInit = {};
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  if (options.requireWorkspace && workspaceId) {
+    headers["X-Workspace-Id"] = workspaceId;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${normalizedPath}`, {
+    method: options.method ?? "GET",
+    headers,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Dosya indirilemedi.");
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(objectUrl);
+}

@@ -15,6 +15,7 @@ use App\Domain\Reporting\Http\Controllers\AdSetController;
 use App\Domain\Reporting\Http\Controllers\CampaignController;
 use App\Domain\Reporting\Http\Controllers\DashboardController;
 use App\Domain\Reporting\Http\Controllers\ExportController;
+use App\Domain\Reporting\Http\Controllers\ReportController;
 use App\Domain\Rules\Http\Controllers\AlertController;
 use App\Domain\Settings\Http\Controllers\SettingController;
 use App\Domain\Tenants\Http\Controllers\WorkspaceController;
@@ -49,6 +50,22 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/ad-sets/{adSetId}', [AdSetController::class, 'show'])
                 ->middleware('workspace.permission:reporting.view');
             Route::get('/ads/{adId}', [AdController::class, 'show'])
+                ->middleware('workspace.permission:reporting.view');
+            Route::get('/reports', [ReportController::class, 'index'])
+                ->middleware('workspace.permission:reporting.view');
+            Route::get('/reports/account/{adAccountId}', [ReportController::class, 'account'])
+                ->middleware('workspace.permission:reporting.view');
+            Route::get('/reports/campaign/{campaignId}', [ReportController::class, 'campaign'])
+                ->middleware('workspace.permission:reporting.view');
+            Route::post('/reports/snapshots', [ReportController::class, 'storeSnapshot'])
+                ->middleware('workspace.permission:reporting.view');
+            Route::get('/reports/snapshots/{snapshotId}', [ReportController::class, 'showSnapshot'])
+                ->middleware('workspace.permission:reporting.view');
+            Route::get('/reports/account/{adAccountId}/export.csv', [ReportController::class, 'exportAccountCsv'])
+                ->middleware('workspace.permission:reporting.view');
+            Route::get('/reports/campaign/{campaignId}/export.csv', [ReportController::class, 'exportCampaignCsv'])
+                ->middleware('workspace.permission:reporting.view');
+            Route::get('/reports/snapshots/{snapshotId}/export.csv', [ReportController::class, 'exportSnapshotCsv'])
                 ->middleware('workspace.permission:reporting.view');
             Route::get('/exports/campaigns.csv', [ExportController::class, 'campaignsCsv'])
                 ->middleware('workspace.permission:reporting.view');

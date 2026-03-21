@@ -41,6 +41,11 @@ export function AppRoutePrefetcher() {
         { ttlMs: QUERY_TTLS.campaigns },
       );
       void prefetchApiResponse(
+        "/reports",
+        { requireWorkspace: true },
+        { ttlMs: QUERY_TTLS.reports },
+      );
+      void prefetchApiResponse(
         "/meta/ad-accounts",
         { requireWorkspace: true },
         { ttlMs: QUERY_TTLS.adAccounts },

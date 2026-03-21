@@ -476,6 +476,12 @@ export function CampaignDetailClient() {
             <div className="rounded-lg border border-[var(--border)] p-4">
               <p className="text-sm font-semibold">Bir Sonraki Test</p>
               <p className="mt-2 text-sm">{data.report_preview.next_test}</p>
+              <Link
+                href={`/reports/campaign?id=${encodeURIComponent(data.campaign.id)}`}
+                className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
+              >
+                Tam campaign raporunu ac
+              </Link>
             </div>
           </div>
         </Card>

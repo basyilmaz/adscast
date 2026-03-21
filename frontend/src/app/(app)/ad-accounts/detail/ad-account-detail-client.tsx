@@ -392,6 +392,12 @@ export function AdAccountDetailClient() {
               <p className="mt-3 text-xs muted-text">
                 Bu blok account bazli musteri raporlamanin temeli olarak tasarlandi. Ayrintili export ve PDF olusturma bir sonraki fazda eklenecek.
               </p>
+              <Link
+                href={`/reports/account?id=${encodeURIComponent(data.ad_account.id)}`}
+                className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
+              >
+                Tam account raporunu ac
+              </Link>
             </div>
           </div>
         </Card>

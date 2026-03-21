@@ -19,6 +19,16 @@ Base path: `/api/v1`
 - `GET /dashboard/overview`
 - `GET /campaigns`
 - `GET /campaigns/{campaignId}`
+- `GET /ad-sets/{adSetId}`
+- `GET /ads/{adId}`
+- `GET /reports`
+- `GET /reports/account/{adAccountId}`
+- `GET /reports/campaign/{campaignId}`
+- `POST /reports/snapshots`
+- `GET /reports/snapshots/{snapshotId}`
+- `GET /reports/account/{adAccountId}/export.csv`
+- `GET /reports/campaign/{campaignId}/export.csv`
+- `GET /reports/snapshots/{snapshotId}/export.csv`
 - `GET /exports/campaigns.csv`
 
 ## Meta Connector

@@ -677,3 +677,137 @@ export type RecommendationIndexResponse = {
   entity_groups: RecommendationEntityGroup[];
   next_best_actions: NextBestActionItem[];
 };
+
+export type ReportSnapshotListItem = {
+  id: string;
+  title: string;
+  entity_type: "account" | "campaign" | string;
+  entity_id: string | null;
+  entity_label: string | null;
+  context_label: string | null;
+  report_type: string;
+  start_date: string | null;
+  end_date: string | null;
+  created_at: string | null;
+  report_url: string | null;
+  snapshot_url: string;
+  export_csv_url: string;
+};
+
+export type ClientReportPayload = {
+  range: {
+    start_date: string;
+    end_date: string;
+  };
+  entity: {
+    type: "account" | "campaign" | string;
+    id: string;
+    name: string;
+    external_id: string | null;
+    context_label: string | null;
+  };
+  report: {
+    type: string;
+    title: string;
+    headline: string;
+    client_summary: string;
+    operator_summary: string;
+    biggest_risk: string | null;
+    biggest_opportunity: string | null;
+    next_test: string | null;
+    next_step: string | null;
+    generated_at: string;
+  };
+  summary: {
+    spend: number;
+    results: number;
+    cpa_cpl: number | null;
+    ctr?: number | null;
+    cpm?: number | null;
+    frequency?: number | null;
+    active_campaigns?: number;
+    total_campaigns?: number;
+    active_ad_sets?: number;
+    active_ads?: number;
+    open_alerts: number;
+    open_recommendations: number;
+  };
+  trend: Array<{
+    date: string;
+    spend: number;
+    results: number;
+  }>;
+  focus_areas: Array<{
+    label: string;
+    detail: string | null;
+  }>;
+  what_we_tested: Array<{
+    type: string;
+    title: string;
+    subtitle: string;
+    status: string;
+    note: string;
+    route: string | null;
+  }>;
+  risks: AlertFeedItem[];
+  recommendations: RecommendationFeedItem[];
+  next_best_actions: NextBestActionItem[];
+  snapshot_defaults: {
+    report_type: string;
+  };
+  export_options: {
+    live_csv_url?: string;
+    pdf_foundation: {
+      supported: boolean;
+      mode: string;
+      note: string;
+    };
+  };
+  snapshot_history?: Array<{
+    id: string;
+    title: string;
+    start_date: string | null;
+    end_date: string | null;
+    created_at: string | null;
+    snapshot_url: string;
+    export_csv_url: string;
+  }>;
+  snapshot?: {
+    id: string;
+    report_type: string;
+    created_at: string | null;
+    export_csv_url: string;
+  };
+};
+
+export type ReportIndexResponse = {
+  data: {
+    summary: {
+      total_snapshots: number;
+      account_snapshots: number;
+      campaign_snapshots: number;
+    };
+    items: ReportSnapshotListItem[];
+    builders: {
+      accounts: Array<{
+        id: string;
+        name: string;
+        external_id: string | null;
+        status: string;
+        route: string;
+      }>;
+      campaigns: Array<{
+        id: string;
+        name: string;
+        objective: string | null;
+        status: string;
+        context_label: string | null;
+        route: string;
+      }>;
+    };
+  };
+};
+
+export type ClientReportResponse = {
+  data: ClientReportPayload;
+};

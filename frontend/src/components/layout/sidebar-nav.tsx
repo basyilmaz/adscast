@@ -9,6 +9,7 @@ const navItems = [
   { href: "/workspaces", label: "Workspace Switcher" },
   { href: "/ad-accounts", label: "Reklam Hesaplari" },
   { href: "/campaigns", label: "Kampanyalar" },
+  { href: "/reports", label: "Raporlar" },
   { href: "/alerts", label: "Uyarilar" },
   { href: "/recommendations", label: "Oneriler" },
   { href: "/draft-builder", label: "Draft Builder" },

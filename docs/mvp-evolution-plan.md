@@ -8,7 +8,8 @@ Bu plan, AdsCast'i teknik olarak calisan bir MVP'den kullanici tarafinda anlasil
 - Tamamlandi: Faz 2 - Reklam Hesabi Merkezli Yonetim
 - Tamamlandi: Faz 3 - Campaign Drill-Down
 - Tamamlandi: Faz 4 - Alert ve Oneri Deneyimi
-- Siradaki Faz: Faz 5 - Musteri Raporlama
+- Tamamlandi: Faz 5 - Musteri Raporlama
+- Siradaki Faz: Faz 6 - Kullanilabilirlik ve Kurumsallasma
 
 ## Planlama Ilkeleri
 
@@ -207,3 +208,5 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 7. Alert merkezini entity bazli aksiyon paneline donusturmek
 8. Recommendation merkezine operator/client view ayrimi eklemek
 9. Dashboard, account ve campaign detaylarina ortak next best action paneli eklemek
+10. Reports modulu, account/campaign report builder ve snapshot gecmisi eklemek
+11. Authenticated CSV export ve browser-print PDF foundation eklemek
