@@ -4,12 +4,15 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle, CardValue } from "@/components/ui/card";
+import { PageErrorState, PageLoadingState } from "@/components/ui/page-state";
 import { NextBestActionsPanel } from "@/components/operations/next-best-actions-panel";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
+import { buildApiPathWithFilters, buildHrefWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
 import { AdAccountDetailResponse } from "@/lib/types";
 
 const SpendResultChart = dynamic(
@@ -59,7 +62,7 @@ export function AdAccountDetailClient() {
     isRefreshing,
     reload,
   } = useApiQuery<AdAccountDetailResponse, AdAccountDetailResponse["data"]>(
-    `/meta/ad-accounts/${adAccountId ?? ""}`,
+    buildApiPathWithFilters(`/meta/ad-accounts/${adAccountId ?? ""}`, searchParams, GLOBAL_DATE_FILTER_KEYS),
     {
       enabled: hasAdAccountId,
       requestOptions: {
@@ -98,31 +101,33 @@ export function AdAccountDetailClient() {
   }, [data]);
 
   if (!hasAdAccountId) {
-    return <p className="text-sm text-[var(--danger)]">Reklam hesabi id eksik.</p>;
+    return <PageErrorState title="Reklam hesabi acilamadi" detail="Reklam hesabi id eksik." />;
   }
 
   if (error) {
-    return <p className="text-sm text-[var(--danger)]">{error}</p>;
+    return <PageErrorState title="Reklam hesabi acilamadi" detail={error} />;
   }
 
   if (isLoading && !data) {
-    return <p className="text-sm muted-text">Yukleniyor...</p>;
+    return <PageLoadingState title="Reklam hesabi yukleniyor" detail="Hesap, kampanya ve aksiyon baglami hazirlaniyor." />;
   }
 
   if (!data) {
-    return <p className="text-sm text-[var(--danger)]">Reklam hesabi bulunamadi.</p>;
+    return <PageErrorState title="Reklam hesabi bulunamadi" detail="Secili reklam hesabi kaydi artik mevcut degil." />;
   }
 
   return (
     <div className="space-y-4">
+      <PageBreadcrumbs
+        items={[
+          { label: "Workspace", href: "/workspaces" },
+          { label: "Reklam Hesaplari", href: "/ad-accounts" },
+          { label: data.ad_account.name },
+        ]}
+      />
+
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm muted-text">
-            <Link href="/ad-accounts" className="hover:underline">
-              Reklam Hesaplari
-            </Link>{" "}
-            / {data.ad_account.name}
-          </p>
           <h2 className="text-2xl font-bold">{data.ad_account.name}</h2>
           <p className="text-sm muted-text">
             {data.ad_account.account_id}
@@ -263,7 +268,11 @@ export function AdAccountDetailClient() {
                   <tr key={campaign.id} className="border-b border-[var(--border)] align-top">
                     <td className="px-3 py-3">
                       <Link
-                        href={`/campaigns/detail?id=${encodeURIComponent(campaign.id)}`}
+                        href={buildHrefWithFilters(
+                          `/campaigns/detail?id=${encodeURIComponent(campaign.id)}`,
+                          searchParams,
+                          GLOBAL_DATE_FILTER_KEYS,
+                        )}
                         className="font-semibold text-[var(--accent)] hover:underline"
                       >
                         {campaign.name}
@@ -393,7 +402,11 @@ export function AdAccountDetailClient() {
                 Bu blok account bazli musteri raporlamanin temeli olarak tasarlandi. Ayrintili export ve PDF olusturma bir sonraki fazda eklenecek.
               </p>
               <Link
-                href={`/reports/account?id=${encodeURIComponent(data.ad_account.id)}`}
+                href={buildHrefWithFilters(
+                  `/reports/account?id=${encodeURIComponent(data.ad_account.id)}`,
+                  searchParams,
+                  GLOBAL_DATE_FILTER_KEYS,
+                )}
                 className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
               >
                 Tam account raporunu ac

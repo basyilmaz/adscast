@@ -25,14 +25,26 @@ class CampaignQueryService
     /**
      * @return array<string, mixed>
      */
-    public function list(string $workspaceId, CarbonInterface $startDate, CarbonInterface $endDate): array
+    public function list(
+        string $workspaceId,
+        CarbonInterface $startDate,
+        CarbonInterface $endDate,
+        ?string $adAccountId = null,
+        ?string $objective = null,
+        ?string $status = null,
+    ): array
     {
         $campaigns = Campaign::query()
             ->where('workspace_id', $workspaceId)
+            ->when(filled($adAccountId), fn ($query) => $query->where('meta_ad_account_id', $adAccountId))
+            ->when(filled($objective), fn ($query) => $query->where('objective', $objective))
+            ->when(filled($status), fn ($query) => $query->where('status', $status))
+            ->with('adAccount:id,account_id,name')
             ->orderByDesc('updated_at')
             ->get([
                 'id',
                 'meta_campaign_id',
+                'meta_ad_account_id',
                 'name',
                 'objective',
                 'status',
@@ -57,6 +69,9 @@ class CampaignQueryService
                     'name' => $campaign->name,
                     'objective' => $campaign->objective,
                     'status' => $campaign->status,
+                    'ad_account_id' => $campaign->adAccount?->id,
+                    'ad_account_name' => $campaign->adAccount?->name,
+                    'ad_account_external_id' => $campaign->adAccount?->account_id,
                     'spend' => $metric['spend'] ?? 0,
                     'results' => $metric['results'] ?? 0,
                     'cpa_cpl' => $metric['cpa_cpl'],

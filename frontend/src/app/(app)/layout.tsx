@@ -27,6 +27,11 @@ const titleMap: Array<{ startsWith: string; title: string; subtitle: string }> =
     subtitle: "Kampanya listesi, detay metrikleri ve optimizasyon sinyalleri.",
   },
   {
+    startsWith: "/reports",
+    title: "Rapor Merkezi",
+    subtitle: "Musteri dostu account ve campaign raporlarini olusturun, kaydedin ve paylasima hazirlayin.",
+  },
+  {
     startsWith: "/alerts",
     title: "Uyarilar Merkezi",
     subtitle: "Deterministic rules engine ile uretile n risk/firsat sinyalleri.",

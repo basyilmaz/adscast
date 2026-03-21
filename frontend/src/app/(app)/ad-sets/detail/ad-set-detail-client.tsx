@@ -3,11 +3,14 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
+import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle, CardValue } from "@/components/ui/card";
+import { PageErrorState, PageLoadingState } from "@/components/ui/page-state";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
+import { buildApiPathWithFilters, buildHrefWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
 import { AdSetDetailResponse } from "@/lib/types";
 
 const SpendResultChart = dynamic(
@@ -40,7 +43,7 @@ export function AdSetDetailClient() {
   const adSetId = searchParams.get("id");
   const hasAdSetId = Boolean(adSetId);
   const { data, error, isLoading, isRefreshing, reload } = useApiQuery<AdSetDetailResponse, AdSetDetailResponse["data"]>(
-    `/ad-sets/${adSetId ?? ""}`,
+    buildApiPathWithFilters(`/ad-sets/${adSetId ?? ""}`, searchParams, GLOBAL_DATE_FILTER_KEYS),
     {
       enabled: hasAdSetId,
       requestOptions: {
@@ -51,27 +54,42 @@ export function AdSetDetailClient() {
     },
   );
 
-  if (!hasAdSetId) return <p className="text-sm text-[var(--danger)]">Ad set id eksik.</p>;
-  if (error) return <p className="text-sm text-[var(--danger)]">{error}</p>;
-  if (isLoading && !data) return <p className="text-sm muted-text">Yukleniyor...</p>;
-  if (!data) return <p className="text-sm text-[var(--danger)]">Ad set bulunamadi.</p>;
+  if (!hasAdSetId) return <PageErrorState title="Ad set acilamadi" detail="Ad set id eksik." />;
+  if (error) return <PageErrorState title="Ad set acilamadi" detail={error} />;
+  if (isLoading && !data) return <PageLoadingState title="Ad set yukleniyor" detail="Sibling ve reklam baglami hazirlaniyor." />;
+  if (!data) return <PageErrorState title="Ad set bulunamadi" detail="Secili ad set kaydi artik mevcut degil." />;
 
   const targeting = data.targeting_summary;
   const locationLine = targeting.countries.join(", ") || targeting.cities.join(", ") || "Lokasyon yok";
 
   return (
     <div className="space-y-4">
+      <PageBreadcrumbs
+        items={[
+          { label: "Workspace", href: "/workspaces" },
+          { label: "Reklam Hesaplari", href: "/ad-accounts" },
+          {
+            label: data.ad_set.ad_account.name ?? "Hesap",
+            href: buildHrefWithFilters(
+              `/ad-accounts/detail?id=${encodeURIComponent(data.ad_set.ad_account.id ?? "")}`,
+              searchParams,
+              GLOBAL_DATE_FILTER_KEYS,
+            ),
+          },
+          {
+            label: data.ad_set.campaign.name ?? "Kampanya",
+            href: buildHrefWithFilters(
+              `/campaigns/detail?id=${encodeURIComponent(data.ad_set.campaign.id ?? "")}`,
+              searchParams,
+              GLOBAL_DATE_FILTER_KEYS,
+            ),
+          },
+          { label: data.ad_set.name },
+        ]}
+      />
+
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm muted-text">
-            <Link href="/ad-accounts" className="hover:underline">Reklam Hesaplari</Link> /{" "}
-            <Link href={`/ad-accounts/detail?id=${encodeURIComponent(data.ad_set.ad_account.id ?? "")}`} className="hover:underline">
-              {data.ad_set.ad_account.name ?? "Hesap"}
-            </Link> /{" "}
-            <Link href={`/campaigns/detail?id=${encodeURIComponent(data.ad_set.campaign.id ?? "")}`} className="hover:underline">
-              {data.ad_set.campaign.name ?? "Kampanya"}
-            </Link> / {data.ad_set.name}
-          </p>
           <h2 className="text-2xl font-bold">{data.ad_set.name}</h2>
           <p className="text-sm muted-text">{data.ad_set.optimization_goal ?? "Optimization goal yok"}</p>
         </div>
@@ -187,7 +205,14 @@ export function AdSetDetailClient() {
               {data.ads.map((item) => (
                 <tr key={item.id} className="border-b border-[var(--border)] align-top">
                   <td className="px-3 py-3">
-                    <Link href={`/ads/detail?id=${encodeURIComponent(item.id)}`} className="font-semibold text-[var(--accent)] hover:underline">
+                    <Link
+                      href={buildHrefWithFilters(
+                        `/ads/detail?id=${encodeURIComponent(item.id)}`,
+                        searchParams,
+                        GLOBAL_DATE_FILTER_KEYS,
+                      )}
+                      className="font-semibold text-[var(--accent)] hover:underline"
+                    >
                       {item.name}
                     </Link>
                   </td>

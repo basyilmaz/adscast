@@ -1,9 +1,10 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { SidebarNav } from "./sidebar-nav";
 import { AppRoutePrefetcher } from "./app-route-prefetcher";
+import { AppGlobalFilters } from "./app-global-filters";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { Button } from "@/components/ui/button";
 import { clearSession } from "@/lib/session";
@@ -43,6 +44,9 @@ export function AppShell({
             </Button>
           </div>
         </header>
+        <Suspense fallback={null}>
+          <AppGlobalFilters />
+        </Suspense>
         {children}
       </div>
     </div>

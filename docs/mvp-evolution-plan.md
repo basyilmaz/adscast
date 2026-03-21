@@ -9,7 +9,7 @@ Bu plan, AdsCast'i teknik olarak calisan bir MVP'den kullanici tarafinda anlasil
 - Tamamlandi: Faz 3 - Campaign Drill-Down
 - Tamamlandi: Faz 4 - Alert ve Oneri Deneyimi
 - Tamamlandi: Faz 5 - Musteri Raporlama
-- Siradaki Faz: Faz 6 - Kullanilabilirlik ve Kurumsallasma
+- Devam Ediyor: Faz 6 - Kullanilabilirlik ve Kurumsallasma
 
 ## Planlama Ilkeleri
 
@@ -210,3 +210,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 9. Dashboard, account ve campaign detaylarina ortak next best action paneli eklemek
 10. Reports modulu, account/campaign report builder ve snapshot gecmisi eklemek
 11. Authenticated CSV export ve browser-print PDF foundation eklemek
+12. Faz 6 icin ortak global filtre bar temelini eklemek
+13. Kampanya listesine additive account/objective/status filtreleri eklemek
+14. Breadcrumb ve state gorunumlerini dashboard, account, campaign ve report akislarinda standardize etmek

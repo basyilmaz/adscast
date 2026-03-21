@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ClientReportCanvas } from "@/components/reports/client-report-canvas";
+import { PageErrorState, PageLoadingState } from "@/components/ui/page-state";
 import { apiRequest, downloadApiFile } from "@/lib/api";
 import { invalidateApiCache } from "@/lib/api-cache";
 import { QUERY_TTLS } from "@/lib/api-query-config";
+import { buildApiPathWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { ClientReportResponse } from "@/lib/types";
 
@@ -15,7 +18,7 @@ export function AccountReportClient() {
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [snapshotMessage, setSnapshotMessage] = useState<string | null>(null);
   const { data, error, isLoading, reload } = useApiQuery<ClientReportResponse, ClientReportResponse["data"]>(
-    `/reports/account/${accountId ?? ""}`,
+    buildApiPathWithFilters(`/reports/account/${accountId ?? ""}`, searchParams, GLOBAL_DATE_FILTER_KEYS),
     {
       enabled: Boolean(accountId),
       requestOptions: {
@@ -62,28 +65,37 @@ export function AccountReportClient() {
   };
 
   if (!accountId) {
-    return <p className="text-sm text-[var(--danger)]">Account id eksik.</p>;
+    return <PageErrorState title="Account raporu acilamadi" detail="Account id eksik." />;
   }
 
   if (error) {
-    return <p className="text-sm text-[var(--danger)]">{error}</p>;
+    return <PageErrorState title="Account raporu acilamadi" detail={error} />;
   }
 
   if (isLoading && !data) {
-    return <p className="text-sm muted-text">Rapor yukleniyor...</p>;
+    return <PageLoadingState title="Account raporu yukleniyor" detail="Rapor bloklari ve snapshot gecmisi hazirlaniyor." />;
   }
 
   if (!data) {
-    return <p className="text-sm text-[var(--danger)]">Rapor bulunamadi.</p>;
+    return <PageErrorState title="Account raporu bulunamadi" detail="Secili account icin rapor olusturulamadi." />;
   }
 
   return (
-    <ClientReportCanvas
-      data={data}
-      onSaveSnapshot={saveSnapshot}
-      onDownloadCsv={() => void downloadCsv()}
-      snapshotLoading={snapshotLoading}
-      snapshotMessage={snapshotMessage}
-    />
+    <div className="space-y-4">
+      <PageBreadcrumbs
+        items={[
+          { label: "Workspace", href: "/workspaces" },
+          { label: "Raporlar", href: "/reports" },
+          { label: "Account Raporu" },
+        ]}
+      />
+      <ClientReportCanvas
+        data={data}
+        onSaveSnapshot={saveSnapshot}
+        onDownloadCsv={() => void downloadCsv()}
+        snapshotLoading={snapshotLoading}
+        snapshotMessage={snapshotMessage}
+      />
+    </div>
   );
 }

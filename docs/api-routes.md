@@ -18,6 +18,7 @@ Base path: `/api/v1`
 
 - `GET /dashboard/overview`
 - `GET /campaigns`
+  - desteklenen query parametreleri: `start_date`, `end_date`, `ad_account_id`, `objective`, `status`
 - `GET /campaigns/{campaignId}`
 - `GET /ad-sets/{adSetId}`
 - `GET /ads/{adId}`

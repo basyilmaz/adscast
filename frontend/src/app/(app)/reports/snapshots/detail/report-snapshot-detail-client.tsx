@@ -1,7 +1,9 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ClientReportCanvas } from "@/components/reports/client-report-canvas";
+import { PageErrorState, PageLoadingState } from "@/components/ui/page-state";
 import { downloadApiFile } from "@/lib/api";
 import { QUERY_TTLS } from "@/lib/api-query-config";
 import { useApiQuery } from "@/hooks/use-api-query";
@@ -32,20 +34,31 @@ export function ReportSnapshotDetailClient() {
   };
 
   if (!snapshotId) {
-    return <p className="text-sm text-[var(--danger)]">Snapshot id eksik.</p>;
+    return <PageErrorState title="Snapshot acilamadi" detail="Snapshot id eksik." />;
   }
 
   if (error) {
-    return <p className="text-sm text-[var(--danger)]">{error}</p>;
+    return <PageErrorState title="Snapshot acilamadi" detail={error} />;
   }
 
   if (isLoading && !data) {
-    return <p className="text-sm muted-text">Snapshot yukleniyor...</p>;
+    return <PageLoadingState title="Snapshot yukleniyor" detail="Kaydedilmis rapor gorunumu hazirlaniyor." />;
   }
 
   if (!data) {
-    return <p className="text-sm text-[var(--danger)]">Snapshot bulunamadi.</p>;
+    return <PageErrorState title="Snapshot bulunamadi" detail="Secili snapshot artik mevcut degil." />;
   }
 
-  return <ClientReportCanvas data={data} onDownloadCsv={() => void downloadCsv()} snapshotActionLabel="Snapshot" />;
+  return (
+    <div className="space-y-4">
+      <PageBreadcrumbs
+        items={[
+          { label: "Workspace", href: "/workspaces" },
+          { label: "Raporlar", href: "/reports" },
+          { label: "Snapshot" },
+        ]}
+      />
+      <ClientReportCanvas data={data} onDownloadCsv={() => void downloadCsv()} snapshotActionLabel="Snapshot" />
+    </div>
+  );
 }

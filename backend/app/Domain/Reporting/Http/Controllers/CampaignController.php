@@ -21,6 +21,9 @@ class CampaignController
         $validated = $request->validate([
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'status' => ['nullable', 'string', 'max:80'],
+            'objective' => ['nullable', 'string', 'max:120'],
+            'ad_account_id' => ['nullable', 'uuid'],
         ]);
 
         $startDate = isset($validated['start_date'])
@@ -33,7 +36,14 @@ class CampaignController
         $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
 
         return new JsonResponse([
-            'data' => $this->campaignQueryService->list($workspaceId, $startDate, $endDate),
+            'data' => $this->campaignQueryService->list(
+                workspaceId: $workspaceId,
+                startDate: $startDate,
+                endDate: $endDate,
+                adAccountId: $validated['ad_account_id'] ?? null,
+                objective: $validated['objective'] ?? null,
+                status: $validated['status'] ?? null,
+            ),
         ]);
     }
 

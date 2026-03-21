@@ -65,6 +65,36 @@ class CampaignDrillDownTest extends TestCase
             ]);
     }
 
+    public function test_campaign_list_supports_account_and_status_filters(): void
+    {
+        [$workspace, $token, $campaign] = $this->seedDrillDownFixture();
+
+        Campaign::factory()->create([
+            'workspace_id' => $workspace->id,
+            'meta_ad_account_id' => $campaign->meta_ad_account_id,
+            'meta_campaign_id' => 'cmp_paused_extra',
+            'name' => 'Paused Retention Campaign',
+            'objective' => 'MESSAGES',
+            'status' => 'paused',
+            'is_active' => false,
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson(sprintf(
+                '/api/v1/campaigns?start_date=2026-03-10&end_date=2026-03-16&ad_account_id=%s&objective=LEADS&status=active',
+                $campaign->meta_ad_account_id,
+            ));
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data.items')
+            ->assertJsonPath('data.items.0.name', 'Lead Engine Campaign')
+            ->assertJsonPath('data.items.0.ad_account_name', 'Castintech Growth Account')
+            ->assertJsonPath('data.items.0.ad_account_external_id', 'act_555')
+            ->assertJsonPath('data.items.0.objective', 'LEADS')
+            ->assertJsonPath('data.items.0.status', 'active');
+    }
+
     public function test_ad_set_and_ad_detail_return_scoped_context(): void
     {
         [$workspace, $token, $campaign, $adSet, $ad] = $this->seedDrillDownFixture();

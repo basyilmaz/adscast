@@ -4,12 +4,15 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle, CardValue } from "@/components/ui/card";
+import { PageErrorState, PageLoadingState } from "@/components/ui/page-state";
 import { NextBestActionsPanel } from "@/components/operations/next-best-actions-panel";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
+import { buildApiPathWithFilters, buildHrefWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
 import { CampaignDetailResponse } from "@/lib/types";
 
 const SpendResultChart = dynamic(
@@ -65,7 +68,7 @@ export function CampaignDetailClient() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
   const { data, error, isLoading, isRefreshing, reload } = useApiQuery<CampaignDetailResponse, CampaignDetailResponse["data"]>(
-    `/campaigns/${campaignId ?? ""}`,
+    buildApiPathWithFilters(`/campaigns/${campaignId ?? ""}`, searchParams, GLOBAL_DATE_FILTER_KEYS),
     {
       enabled: hasCampaignId,
       requestOptions: {
@@ -104,38 +107,42 @@ export function CampaignDetailClient() {
   }, [data]);
 
   if (!hasCampaignId) {
-    return <p className="text-sm text-[var(--danger)]">Kampanya id eksik.</p>;
+    return <PageErrorState title="Kampanya acilamadi" detail="Kampanya id eksik." />;
   }
 
   if (error) {
-    return <p className="text-sm text-[var(--danger)]">{error}</p>;
+    return <PageErrorState title="Kampanya acilamadi" detail={error} />;
   }
 
   if (isLoading && !data) {
-    return <p className="text-sm muted-text">Yukleniyor...</p>;
+    return <PageLoadingState title="Kampanya yukleniyor" detail="Kampanya, ad set ve reklam baglami hazirlaniyor." />;
   }
 
   if (!data) {
-    return <p className="text-sm text-[var(--danger)]">Kampanya bulunamadi.</p>;
+    return <PageErrorState title="Kampanya bulunamadi" detail="Secili kampanya kaydi artik mevcut degil." />;
   }
 
   return (
     <div className="space-y-4">
+      <PageBreadcrumbs
+        items={[
+          { label: "Workspace", href: "/workspaces" },
+          { label: "Reklam Hesaplari", href: "/ad-accounts" },
+          {
+            label: data.campaign.ad_account.name ?? "Hesap",
+            href: buildHrefWithFilters(
+              `/ad-accounts/detail?id=${encodeURIComponent(data.campaign.ad_account.id ?? "")}`,
+              searchParams,
+              GLOBAL_DATE_FILTER_KEYS,
+            ),
+          },
+          { label: "Kampanya", href: "/campaigns" },
+          { label: data.campaign.name },
+        ]}
+      />
+
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm muted-text">
-            <Link href="/ad-accounts" className="hover:underline">
-              Reklam Hesaplari
-            </Link>{" "}
-            /{" "}
-            <Link
-              href={`/ad-accounts/detail?id=${encodeURIComponent(data.campaign.ad_account.id ?? "")}`}
-              className="hover:underline"
-            >
-              {data.campaign.ad_account.name ?? "Hesap"}
-            </Link>{" "}
-            / {data.campaign.name}
-          </p>
           <h2 className="text-2xl font-bold">{data.campaign.name}</h2>
           <p className="text-sm muted-text">
             {data.campaign.objective ?? "Objective yok"}
@@ -293,7 +300,11 @@ export function CampaignDetailClient() {
                   <tr key={item.id} className="border-b border-[var(--border)] align-top">
                     <td className="px-3 py-3">
                       <Link
-                        href={`/ad-sets/detail?id=${encodeURIComponent(item.id)}`}
+                        href={buildHrefWithFilters(
+                          `/ad-sets/detail?id=${encodeURIComponent(item.id)}`,
+                          searchParams,
+                          GLOBAL_DATE_FILTER_KEYS,
+                        )}
                         className="font-semibold text-[var(--accent)] hover:underline"
                       >
                         {item.name}
@@ -348,7 +359,11 @@ export function CampaignDetailClient() {
                   <tr key={item.id} className="border-b border-[var(--border)] align-top">
                     <td className="px-3 py-3">
                       <Link
-                        href={`/ads/detail?id=${encodeURIComponent(item.id)}`}
+                        href={buildHrefWithFilters(
+                          `/ads/detail?id=${encodeURIComponent(item.id)}`,
+                          searchParams,
+                          GLOBAL_DATE_FILTER_KEYS,
+                        )}
                         className="font-semibold text-[var(--accent)] hover:underline"
                       >
                         {item.name}
@@ -477,7 +492,11 @@ export function CampaignDetailClient() {
               <p className="text-sm font-semibold">Bir Sonraki Test</p>
               <p className="mt-2 text-sm">{data.report_preview.next_test}</p>
               <Link
-                href={`/reports/campaign?id=${encodeURIComponent(data.campaign.id)}`}
+                href={buildHrefWithFilters(
+                  `/reports/campaign?id=${encodeURIComponent(data.campaign.id)}`,
+                  searchParams,
+                  GLOBAL_DATE_FILTER_KEYS,
+                )}
                 className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline"
               >
                 Tam campaign raporunu ac
