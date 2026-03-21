@@ -731,6 +731,25 @@ export type ReportDeliveryRunListItem = {
   tagged_contacts_count: number;
   resolved_recipients: string[];
   resolved_recipients_count: number;
+  recipient_group_selection: {
+    id: string;
+    source_type: string;
+    source_subtype: string | null;
+    source_id: string | null;
+    name: string;
+  } | null;
+  recipient_group_summary: {
+    mode: string;
+    label: string;
+    preset_name: string | null;
+    contact_tags: string[];
+    static_recipients_count: number;
+    manual_recipients_count: number;
+    preset_recipients_count: number;
+    dynamic_contacts_count: number;
+    resolved_recipients_count: number;
+    sample_contact_names: string[];
+  } | null;
   share_link: {
     id: string;
     label: string | null;
@@ -802,6 +821,13 @@ export type ReportDeliveryScheduleListItem = {
   tagged_contacts_count: number;
   resolved_recipients: string[];
   resolved_recipients_count: number;
+  recipient_group_selection: {
+    id: string;
+    source_type: string;
+    source_subtype: string | null;
+    source_id: string | null;
+    name: string;
+  } | null;
   recipient_group_summary: {
     mode: string;
     label: string;
@@ -995,6 +1021,48 @@ export type ReportDeliveryProfileListItem = {
   updated_at: string | null;
 };
 
+export type ReportRecipientGroupAnalyticsSummary = {
+  total_groups: number;
+  groups_with_failures: number;
+  preset_groups: number;
+  segment_groups: number;
+  smart_groups: number;
+  manual_groups: number;
+  active_schedule_groups: number;
+  tracked_run_groups: number;
+  most_used_group_label: string | null;
+  highest_failure_group_label: string | null;
+  window_days: number;
+};
+
+export type ReportRecipientGroupAnalyticsItem = {
+  key: string;
+  label: string;
+  source_type: string;
+  source_subtype: string | null;
+  source_id: string | null;
+  configured_schedules_count: number;
+  active_schedules_count: number;
+  run_uses_count: number;
+  successful_runs: number;
+  failed_runs: number;
+  retry_runs: number;
+  success_rate: number | null;
+  last_used_at: string | null;
+  last_failure_at: string | null;
+  health_status: "healthy" | "warning" | "critical" | "idle" | string;
+  health_summary: string;
+  unique_entities_count: number;
+  sample_recipients: string[];
+  entities: Array<{
+    entity_type: string;
+    entity_id: string;
+    label: string | null;
+    context_label: string | null;
+    uses_count: number;
+  }>;
+};
+
 export type ClientReportPayload = {
   range: {
     start_date: string;
@@ -1119,6 +1187,7 @@ export type ReportIndexResponse = {
       segment_groups: number;
       smart_groups: number;
     };
+    recipient_group_analytics_summary: ReportRecipientGroupAnalyticsSummary;
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1159,6 +1228,7 @@ export type ReportIndexResponse = {
     contacts: ReportContactListItem[];
     contact_segments: ReportContactSegmentListItem[];
     recipient_group_catalog: RecipientGroupCatalogItem[];
+    recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];

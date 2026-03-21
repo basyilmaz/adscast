@@ -24,6 +24,7 @@ class ReportDeliveryScheduleService
     public function __construct(
         private readonly EntityContextResolver $entityContextResolver,
         private readonly ReportContactService $reportContactService,
+        private readonly ReportRecipientGroupSelectionService $reportRecipientGroupSelectionService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportSnapshotService $reportSnapshotService,
         private readonly ReportShareLinkService $reportShareLinkService,
@@ -93,6 +94,10 @@ class ReportDeliveryScheduleService
             'items' => $schedules->map(function (ReportDeliverySchedule $schedule) use ($contexts, $recentRuns): array {
                 $template = $schedule->template;
                 $recipientResolution = $this->resolveScheduleRecipients($schedule->workspace_id, $schedule);
+                $recipientGroupSelection = $this->reportRecipientGroupSelectionService->fromSchedule(
+                    $schedule,
+                    $recipientResolution['recipient_group_summary'],
+                );
                 $context = $template
                     ? ($contexts[$this->entityContextResolver->key($template->entity_type, $template->entity_id)] ?? [
                         'entity_label' => 'Bilinmeyen varlik',
@@ -122,6 +127,7 @@ class ReportDeliveryScheduleService
                     'tagged_contacts_count' => count($recipientResolution['tagged_contacts']),
                     'resolved_recipients' => $recipientResolution['resolved_recipients'],
                     'resolved_recipients_count' => count($recipientResolution['resolved_recipients']),
+                    'recipient_group_selection' => $recipientGroupSelection,
                     'recipient_group_summary' => $recipientResolution['recipient_group_summary'],
                     'share_delivery' => $this->shareDeliveryConfiguration($schedule),
                     'is_active' => $schedule->is_active,
@@ -262,6 +268,13 @@ class ReportDeliveryScheduleService
             }
         }
 
+        $recipientGroup = $this->reportRecipientPresetService->resolveRecipientGroup(
+            workspaceId: $workspace->id,
+            preset: $preset,
+            manualRecipients: is_array($payload['recipients'] ?? null) ? $payload['recipients'] : [],
+            manualContactTags: is_array($payload['contact_tags'] ?? null) ? $payload['contact_tags'] : [],
+        );
+
         $schedule = ReportDeliverySchedule::query()->create([
             'workspace_id' => $workspace->id,
             'report_template_id' => $template->id,
@@ -271,8 +284,8 @@ class ReportDeliveryScheduleService
             'month_day' => $payload['month_day'] ?? null,
             'send_time' => (string) $payload['send_time'],
             'timezone' => (string) ($payload['timezone'] ?? $workspace->timezone),
-            'recipients' => $this->normalizeRecipients($payload['recipients'] ?? []),
-            'configuration' => $this->buildScheduleConfiguration($payload),
+            'recipients' => $recipientGroup['manual_recipients'],
+            'configuration' => $this->buildScheduleConfiguration($payload, $preset, $recipientGroup),
             'is_active' => (bool) ($payload['is_active'] ?? true),
             'next_run_at' => $this->calculateNextRunAt(
                 cadence: (string) $payload['cadence'],
@@ -300,6 +313,7 @@ class ReportDeliveryScheduleService
                 'recipients_count' => count($schedule->recipients ?? []),
                 'recipient_preset_id' => $preset['id'] ?? data_get($schedule->configuration, 'recipient_preset_id'),
                 'contact_tags' => $this->contactTagsFromSchedule($schedule),
+                'recipient_group_selection' => data_get($schedule->configuration, 'recipient_group_selection'),
                 'auto_share_enabled' => $this->shareDeliveryConfiguration($schedule)['enabled'],
             ],
             request: $request,
@@ -462,6 +476,10 @@ class ReportDeliveryScheduleService
 
         [$startDate, $endDate] = $this->resolveDateRange($template, $schedule->timezone);
         $recipientResolution = $this->resolveScheduleRecipients($workspace->id, $schedule);
+        $recipientGroupSelection = $this->reportRecipientGroupSelectionService->fromSchedule(
+            $schedule,
+            $recipientResolution['recipient_group_summary'],
+        );
 
         $run = ReportDeliveryRun::query()->create([
             'workspace_id' => $workspace->id,
@@ -480,6 +498,8 @@ class ReportDeliveryScheduleService
                 'recipient_preset_name' => $recipientResolution['recipient_preset_name'],
                 'contact_tags' => $recipientResolution['contact_tags'],
                 'tagged_contacts' => $recipientResolution['tagged_contacts'],
+                'recipient_group_summary' => $recipientResolution['recipient_group_summary'],
+                'recipient_group_selection' => $recipientGroupSelection,
                 'range' => [
                     'start_date' => $startDate->toDateString(),
                     'end_date' => $endDate->toDateString(),
@@ -553,6 +573,7 @@ class ReportDeliveryScheduleService
                     'snapshot_id' => $snapshot->id,
                     'trigger_mode' => $triggerMode,
                     'delivery_channel' => $schedule->delivery_channel,
+                    'recipient_group_selection' => $recipientGroupSelection,
                     'share_link_id' => data_get($shareLink, 'id'),
                     'delivery_status' => $delivery['status'],
                 ],
@@ -869,6 +890,12 @@ class ReportDeliveryScheduleService
             'tagged_contacts_count' => count($recipientResolution['tagged_contacts']),
             'resolved_recipients' => $recipientResolution['resolved_recipients'],
             'resolved_recipients_count' => count($recipientResolution['resolved_recipients']),
+            'recipient_group_selection' => $this->reportRecipientGroupSelectionService->fromRun($run, $schedule),
+            'recipient_group_summary' => $schedule
+                ? $recipientResolution['recipient_group_summary']
+                : (is_array(data_get($run->metadata, 'recipient_group_summary'))
+                    ? data_get($run->metadata, 'recipient_group_summary')
+                    : null),
             'schedule' => $schedule ? [
                 'id' => $schedule->id,
                 'cadence' => $schedule->cadence,
@@ -937,7 +964,11 @@ class ReportDeliveryScheduleService
     /**
      * @return array<string, mixed>
      */
-    private function buildScheduleConfiguration(array $payload): array
+    private function buildScheduleConfiguration(
+        array $payload,
+        ?array $preset = null,
+        ?array $recipientGroup = null,
+    ): array
     {
         $configuration = $payload['configuration'] ?? [];
 
@@ -962,6 +993,19 @@ class ReportDeliveryScheduleService
             : (is_string(data_get($configuration, 'recipient_preset_id')) && data_get($configuration, 'recipient_preset_id') !== ''
                 ? (string) data_get($configuration, 'recipient_preset_id')
                 : null);
+        $resolvedRecipientGroup = is_array($recipientGroup) ? $recipientGroup : [
+            'recipient_group_summary' => is_array(data_get($configuration, 'recipient_group_summary'))
+                ? data_get($configuration, 'recipient_group_summary')
+                : [],
+        ];
+        $configuration['recipient_group_summary'] = is_array($resolvedRecipientGroup['recipient_group_summary'] ?? null)
+            ? $resolvedRecipientGroup['recipient_group_summary']
+            : [];
+        $configuration['recipient_group_selection'] = $this->reportRecipientGroupSelectionService->fromPayload(
+            payload: $payload,
+            recipientGroupSummary: $configuration['recipient_group_summary'],
+            preset: $preset,
+        );
 
         return $configuration;
     }

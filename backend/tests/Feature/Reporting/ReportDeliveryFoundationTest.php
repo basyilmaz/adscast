@@ -897,6 +897,122 @@ class ReportDeliveryFoundationTest extends TestCase
         ]);
     }
 
+    public function test_reports_index_includes_recipient_group_analytics(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Recipient Group Analytics Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 14,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $selectionPayload = [
+            'id' => 'smart:company:castintech',
+            'source_type' => 'smart',
+            'source_subtype' => 'company',
+            'source_id' => 'company:castintech',
+            'name' => 'Castintech Musteri Grubu',
+        ];
+
+        $scheduleResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/delivery-schedules', [
+                'report_template_id' => $template->id,
+                'delivery_channel' => 'email_stub',
+                'cadence' => 'weekly',
+                'weekday' => 2,
+                'send_time' => '09:30',
+                'timezone' => 'Europe/Istanbul',
+                'recipients' => ['client@castintech.com', 'ops@castintech.com'],
+                'recipient_group_selection' => $selectionPayload,
+            ]);
+
+        $scheduleId = $scheduleResponse->json('data.id');
+
+        $scheduleResponse->assertCreated()
+            ->assertJsonPath('data.id', $scheduleId);
+
+        $schedule = ReportDeliverySchedule::query()->findOrFail($scheduleId);
+
+        $this->assertSame('smart', data_get($schedule->configuration, 'recipient_group_selection.source_type'));
+        $this->assertSame('Castintech Musteri Grubu', data_get($schedule->configuration, 'recipient_group_selection.name'));
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/delivery-schedules/{$scheduleId}/run-now")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'delivered_stub');
+
+        $deliveredRun = ReportDeliveryRun::query()
+            ->where('report_delivery_schedule_id', $scheduleId)
+            ->latest('prepared_at')
+            ->firstOrFail();
+
+        $this->assertSame('smart', data_get($deliveredRun->metadata, 'recipient_group_selection.source_type'));
+        $this->assertSame('Castintech Musteri Grubu', data_get($deliveredRun->metadata, 'recipient_group_selection.name'));
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $scheduleId,
+            'delivery_channel' => 'email',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com', 'ops@castintech.com'],
+            'prepared_at' => now()->subMinutes(5),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'SMTP timeout',
+            'metadata' => [
+                'recipient_group_selection' => $selectionPayload,
+                'recipient_group_summary' => [
+                    'mode' => 'manual',
+                    'label' => 'Castintech Musteri Grubu',
+                    'preset_name' => null,
+                    'contact_tags' => [],
+                    'static_recipients_count' => 2,
+                    'manual_recipients_count' => 2,
+                    'preset_recipients_count' => 0,
+                    'dynamic_contacts_count' => 0,
+                    'resolved_recipients_count' => 2,
+                    'sample_contact_names' => [],
+                ],
+                'delivery' => [
+                    'channel' => 'email',
+                    'channel_label' => 'Gercek Email',
+                    'mailer' => 'smtp',
+                    'recipients' => ['client@castintech.com', 'ops@castintech.com'],
+                    'recipients_count' => 2,
+                    'share_link_used' => false,
+                    'outbound' => true,
+                ],
+            ],
+        ]);
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.recipient_group_analytics_summary.total_groups', 1)
+            ->assertJsonPath('data.recipient_group_analytics_summary.smart_groups', 1)
+            ->assertJsonPath('data.recipient_group_analytics_summary.groups_with_failures', 1)
+            ->assertJsonPath('data.recipient_group_analytics_summary.most_used_group_label', 'Castintech Musteri Grubu')
+            ->assertJsonPath('data.recipient_group_analytics_summary.highest_failure_group_label', 'Castintech Musteri Grubu')
+            ->assertJsonPath('data.recipient_group_analytics.0.source_type', 'smart')
+            ->assertJsonPath('data.recipient_group_analytics.0.source_subtype', 'company')
+            ->assertJsonPath('data.recipient_group_analytics.0.configured_schedules_count', 1)
+            ->assertJsonPath('data.recipient_group_analytics.0.run_uses_count', 2)
+            ->assertJsonPath('data.recipient_group_analytics.0.successful_runs', 1)
+            ->assertJsonPath('data.recipient_group_analytics.0.failed_runs', 1)
+            ->assertJsonPath('data.recipient_group_analytics.0.unique_entities_count', 1)
+            ->assertJsonPath('data.recipient_group_analytics.0.entities.0.entity_type', 'account')
+            ->assertJsonPath('data.recipient_group_analytics.0.sample_recipients.0', 'client@castintech.com');
+    }
+
     public function test_only_failed_delivery_runs_can_be_retried(): void
     {
         [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');

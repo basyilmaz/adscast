@@ -7,6 +7,7 @@ import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ReportContactForm } from "@/components/reports/report-contact-form";
 import { ReportContactManager } from "@/components/reports/report-contact-manager";
 import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery-history-panel";
+import { ReportRecipientGroupAnalyticsPanel } from "@/components/reports/report-recipient-group-analytics-panel";
 import { ReportRecipientGroupCatalog } from "@/components/reports/report-recipient-group-catalog";
 import { ReportDeliverySetupForm } from "@/components/reports/report-delivery-setup-form";
 import { ReportRecipientPresetManager } from "@/components/reports/report-recipient-preset-manager";
@@ -183,6 +184,7 @@ export default function ReportsPage() {
         <MetricCard label="Kisi Havuzu" value={data?.contact_summary.total_contacts ?? 0} />
         <MetricCard label="Kisi Segmenti" value={data?.contact_segment_summary.total_segments ?? 0} />
         <MetricCard label="Grup Katalogu" value={data?.recipient_group_catalog_summary.total_groups ?? 0} />
+        <MetricCard label="Izlenen Grup" value={data?.recipient_group_analytics_summary.total_groups ?? 0} />
         <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
         <MetricCard label="Aktif Schedule" value={data?.delivery_summary.active_schedules ?? 0} />
@@ -303,6 +305,24 @@ export default function ReportsPage() {
           <ReportRecipientGroupCatalog
             items={data?.recipient_group_catalog ?? []}
             emptyText="Katalogda henuz gosterilecek alici grubu yok."
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Alici Grubu Analytics</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Hangi alici grubunun ne kadar kullanildigini, nerede hata urettigini ve hangi entity&apos;lere yayildigini tek panelde izleyin.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
+          <span>Pencere: {data?.recipient_group_analytics_summary.window_days ?? 0} gun</span>
+          <span>En cok kullanilan: {data?.recipient_group_analytics_summary.most_used_group_label ?? "-"}</span>
+          <span>En riskli: {data?.recipient_group_analytics_summary.highest_failure_group_label ?? "-"}</span>
+        </div>
+        <div className="mt-4">
+          <ReportRecipientGroupAnalyticsPanel
+            summary={data?.recipient_group_analytics_summary ?? null}
+            items={data?.recipient_group_analytics ?? []}
           />
         </div>
       </Card>

@@ -6,6 +6,7 @@ import { useApiQuery } from "@/hooks/use-api-query";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
 import { QUERY_TTLS } from "@/lib/api-query-config";
+import { buildRecipientGroupSelectionPayload } from "@/lib/report-recipient-group-selection";
 import {
   RecipientGroupCatalogItem,
   RecipientGroupSuggestionsResponse,
@@ -210,6 +211,13 @@ export function ReportScheduleForm({ templates, contacts, recipientPresets, deli
     setMessage(null);
 
     try {
+      const recipientGroupSelection = buildRecipientGroupSelectionPayload({
+        selectedSuggestedGroup,
+        selectedPreset,
+        parsedRecipients,
+        contactTags,
+      });
+
       await apiRequest("/reports/delivery-schedules", {
         method: "POST",
         requireWorkspace: true,
@@ -223,6 +231,7 @@ export function ReportScheduleForm({ templates, contacts, recipientPresets, deli
           recipient_preset_id: recipientPresetId || null,
           recipients: parsedRecipients.length > 0 ? parsedRecipients : null,
           contact_tags: contactTags.length > 0 ? contactTags : null,
+          recipient_group_selection: recipientGroupSelection,
           delivery_channel: deliveryChannel,
           auto_share_enabled: autoShareEnabled,
           share_label_template: autoShareEnabled ? shareLabelTemplate.trim() || null : null,
