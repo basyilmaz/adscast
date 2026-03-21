@@ -502,6 +502,8 @@ export function CampaignDetailClient() {
             analyticsItems={data.recipient_group_analytics}
             alignmentSummary={data.recipient_group_alignment_summary}
             alignmentItems={data.recipient_group_alignment}
+            failureReasonSummary={data.recipient_group_failure_reason_summary}
+            failureReasonItems={data.recipient_group_failure_reasons}
             entityLabel={data.campaign.name}
           />
 

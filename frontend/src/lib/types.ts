@@ -193,6 +193,8 @@ export type AdAccountDetailResponse = {
     recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
     recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
     recipient_group_alignment: ReportRecipientGroupAlignmentItem[];
+    recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
+    recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
     suggested_recipient_groups: RecipientGroupCatalogItem[];
     next_best_actions: NextBestActionItem[];
     report_preview: {
@@ -332,6 +334,8 @@ export type CampaignDetailResponse = {
     recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
     recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
     recipient_group_alignment: ReportRecipientGroupAlignmentItem[];
+    recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
+    recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
     suggested_recipient_groups: RecipientGroupCatalogItem[];
     next_best_actions: NextBestActionItem[];
     analysis: {
@@ -789,6 +793,15 @@ export type ReportDeliveryRunListItem = {
     share_link_used: boolean;
     outbound: boolean;
   } | null;
+  failure_reason: {
+    code: string;
+    label: string;
+    severity: string;
+    summary: string;
+    suggested_action: string;
+    sample_error_message: string | null;
+    is_unknown: boolean;
+  } | null;
   schedule: {
     id: string;
     cadence: string;
@@ -1239,6 +1252,48 @@ export type ReportRecipientGroupCorrelationItem = {
   correlation_summary: string;
 };
 
+export type ReportRecipientGroupFailureReasonSummary = {
+  total_reason_types: number;
+  total_failed_runs: number;
+  classified_failed_runs: number;
+  unknown_failed_runs: number;
+  affected_groups_count: number;
+  top_reason_label: string | null;
+  top_reason_count: number;
+  window_days: number;
+};
+
+export type ReportRecipientGroupFailureReasonItem = {
+  reason_code: string;
+  label: string;
+  severity: string;
+  summary: string;
+  suggested_action: string;
+  failed_runs: number;
+  last_seen_at: string | null;
+  sample_error_message: string | null;
+  is_unknown: boolean;
+  affected_groups_count: number;
+  affected_entities_count: number;
+  top_group_label: string | null;
+  top_entity_label: string | null;
+  groups: Array<{
+    key: string;
+    label: string;
+    source_type: string;
+    source_subtype: string | null;
+    failed_runs: number;
+    last_seen_at: string | null;
+  }>;
+  entities: Array<{
+    entity_type: string;
+    entity_id: string;
+    label: string | null;
+    context_label: string | null;
+    failed_runs: number;
+  }>;
+};
+
 export type ReportDeliveryProfileSuggestion = {
   status: string;
   status_label: string;
@@ -1451,6 +1506,7 @@ export type ReportIndexResponse = {
     recipient_group_analytics_summary: ReportRecipientGroupAnalyticsSummary;
     recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
     recipient_group_correlation_summary: ReportRecipientGroupCorrelationSummary;
+    recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1496,6 +1552,7 @@ export type ReportIndexResponse = {
     recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
     recipient_group_alignment: ReportRecipientGroupAlignmentItem[];
     recipient_group_correlation: ReportRecipientGroupCorrelationItem[];
+    recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];

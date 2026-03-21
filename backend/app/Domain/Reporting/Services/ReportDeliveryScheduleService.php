@@ -24,6 +24,7 @@ class ReportDeliveryScheduleService
     public function __construct(
         private readonly EntityContextResolver $entityContextResolver,
         private readonly ReportContactService $reportContactService,
+        private readonly ReportDeliveryFailureReasonClassifier $reportDeliveryFailureReasonClassifier,
         private readonly ReportRecipientGroupSelectionService $reportRecipientGroupSelectionService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportSnapshotService $reportSnapshotService,
@@ -886,6 +887,13 @@ class ReportDeliveryScheduleService
                 : null,
             'share_link' => data_get($run->metadata, 'share_link'),
             'delivery' => data_get($run->metadata, 'delivery'),
+            'failure_reason' => $run->status === 'failed' || filled($run->error_message)
+                ? $this->reportDeliveryFailureReasonClassifier->classify(
+                    $run->error_message,
+                    is_array($run->metadata ?? null) ? $run->metadata : [],
+                    $run->delivery_channel,
+                )
+                : null,
             'error_message' => $run->error_message,
             'can_retry' => $run->status === 'failed'
                 && ! data_get($retryMetadata, 'next_run_id')

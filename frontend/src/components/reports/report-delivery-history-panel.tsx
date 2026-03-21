@@ -50,6 +50,25 @@ export function ReportDeliveryHistoryPanel({
                   {run.delivery.channel_label} / {run.delivery.mailer ?? "-"} / {run.delivery.recipients_count} alici
                 </p>
               ) : null}
+              {run.failure_reason ? (
+                <div className="space-y-1">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge
+                      label={run.failure_reason.label}
+                      variant={
+                        run.failure_reason.severity === "critical"
+                          ? "danger"
+                          : run.failure_reason.severity === "warning"
+                            ? "warning"
+                            : "neutral"
+                      }
+                    />
+                    {run.failure_reason.is_unknown ? <Badge label="Siniflandirilamadi" variant="neutral" /> : null}
+                  </div>
+                  <p className="text-sm muted-text">{run.failure_reason.summary}</p>
+                  <p className="text-xs muted-text">Oneri: {run.failure_reason.suggested_action}</p>
+                </div>
+              ) : null}
               {run.error_message ? <p className="text-sm text-[var(--danger)]">{run.error_message}</p> : null}
               {run.retried_by_run_id ? (
                 <p className="text-xs muted-text">Bu kayit icin retry run olusturuldu.</p>

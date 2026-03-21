@@ -10,6 +10,7 @@ import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery
 import { ReportRecipientGroupAnalyticsPanel } from "@/components/reports/report-recipient-group-analytics-panel";
 import { ReportRecipientGroupAlignmentPanel } from "@/components/reports/report-recipient-group-alignment-panel";
 import { ReportRecipientGroupCorrelationPanel } from "@/components/reports/report-recipient-group-correlation-panel";
+import { ReportRecipientGroupFailureReasonsPanel } from "@/components/reports/report-recipient-group-failure-reasons-panel";
 import { ReportRecipientGroupCatalog } from "@/components/reports/report-recipient-group-catalog";
 import { ReportDeliverySetupForm } from "@/components/reports/report-delivery-setup-form";
 import { ReportRecipientPresetManager } from "@/components/reports/report-recipient-preset-manager";
@@ -189,6 +190,7 @@ export default function ReportsPage() {
         <MetricCard label="Izlenen Grup" value={data?.recipient_group_analytics_summary.total_groups ?? 0} />
         <MetricCard label="Override Karar" value={data?.recipient_group_alignment_summary.overridden_decisions ?? 0} />
         <MetricCard label="Korelasyon Run" value={data?.recipient_group_correlation_summary.tracked_runs ?? 0} />
+        <MetricCard label="Hata Tipi" value={data?.recipient_group_failure_reason_summary.total_reason_types ?? 0} />
         <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Sablon Kurali" value={data?.recipient_preset_summary.managed_templates ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
@@ -346,6 +348,24 @@ export default function ReportsPage() {
           <ReportRecipientGroupAlignmentPanel
             summary={data?.recipient_group_alignment_summary ?? null}
             items={data?.recipient_group_alignment ?? []}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Teslim Hata Nedenleri</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Alici grubu kararlarinda hangi hata tiplerinin biriktigini, en cok hangi gruplari etkiledigini ve hangi aksiyonun alinmasi gerektigini izleyin.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
+          <span>Toplam fail: {data?.recipient_group_failure_reason_summary.total_failed_runs ?? 0}</span>
+          <span>En baskin neden: {data?.recipient_group_failure_reason_summary.top_reason_label ?? "-"}</span>
+          <span>Bilinmeyen: {data?.recipient_group_failure_reason_summary.unknown_failed_runs ?? 0}</span>
+        </div>
+        <div className="mt-4">
+          <ReportRecipientGroupFailureReasonsPanel
+            summary={data?.recipient_group_failure_reason_summary ?? null}
+            items={data?.recipient_group_failure_reasons ?? []}
           />
         </div>
       </Card>

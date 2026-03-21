@@ -1137,6 +1137,103 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.recipient_group_alignment.0.entity_type', 'account');
     }
 
+    public function test_reports_index_includes_recipient_group_failure_reason_summary(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Recipient Group Failure Reason Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 7,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $selection = [
+            'id' => 'smart:company:castintech',
+            'source_type' => 'smart',
+            'source_subtype' => 'company',
+            'source_id' => 'company:castintech',
+            'name' => 'Castintech Musteri Grubu',
+        ];
+
+        $schedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $template->id,
+            'delivery_channel' => 'email',
+            'cadence' => 'weekly',
+            'weekday' => 2,
+            'send_time' => '09:45',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['client@castintech.com'],
+            'configuration' => [
+                'recipient_group_selection' => $selection,
+            ],
+            'is_active' => true,
+            'next_run_at' => now()->addDay(),
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(20),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'SMTP timeout while connecting to smtp.hostinger.com',
+            'metadata' => [
+                'recipient_group_selection' => $selection,
+            ],
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(10),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'SMTP timeout after 30 seconds',
+            'metadata' => [
+                'recipient_group_selection' => $selection,
+            ],
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(5),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'Authentication failed 535 invalid credentials',
+            'metadata' => [
+                'recipient_group_selection' => $selection,
+            ],
+        ]);
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.recipient_group_failure_reason_summary.total_reason_types', 2)
+            ->assertJsonPath('data.recipient_group_failure_reason_summary.total_failed_runs', 3)
+            ->assertJsonPath('data.recipient_group_failure_reason_summary.classified_failed_runs', 3)
+            ->assertJsonPath('data.recipient_group_failure_reason_summary.top_reason_label', 'SMTP Timeout')
+            ->assertJsonPath('data.recipient_group_failure_reason_summary.top_reason_count', 2)
+            ->assertJsonPath('data.recipient_group_failure_reasons.0.reason_code', 'smtp_timeout')
+            ->assertJsonPath('data.recipient_group_failure_reasons.0.failed_runs', 2)
+            ->assertJsonPath('data.recipient_group_failure_reasons.0.top_group_label', 'Castintech Musteri Grubu')
+            ->assertJsonPath('data.recipient_group_failure_reasons.1.reason_code', 'smtp_auth');
+    }
+
     public function test_reports_index_includes_recipient_group_correlation_summary(): void
     {
         [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');

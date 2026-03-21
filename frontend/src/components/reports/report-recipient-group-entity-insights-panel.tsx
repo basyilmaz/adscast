@@ -7,6 +7,8 @@ import {
   ReportRecipientGroupAlignmentSummary,
   ReportRecipientGroupAnalyticsItem,
   ReportRecipientGroupAnalyticsSummary,
+  ReportRecipientGroupFailureReasonItem,
+  ReportRecipientGroupFailureReasonSummary,
 } from "@/lib/types";
 
 type Props = {
@@ -14,6 +16,8 @@ type Props = {
   analyticsItems: ReportRecipientGroupAnalyticsItem[];
   alignmentSummary: ReportRecipientGroupAlignmentSummary;
   alignmentItems: ReportRecipientGroupAlignmentItem[];
+  failureReasonSummary: ReportRecipientGroupFailureReasonSummary;
+  failureReasonItems: ReportRecipientGroupFailureReasonItem[];
   entityLabel: string;
 };
 
@@ -22,6 +26,8 @@ export function ReportRecipientGroupEntityInsightsPanel({
   analyticsItems,
   alignmentSummary,
   alignmentItems,
+  failureReasonSummary,
+  failureReasonItems,
   entityLabel,
 }: Props) {
   return (
@@ -36,9 +42,10 @@ export function ReportRecipientGroupEntityInsightsPanel({
         <Metric label="Fail Ureten Grup" value={analyticsSummary.groups_with_failures} />
         <Metric label="Izlenen Karar" value={alignmentSummary.tracked_decisions} />
         <Metric label="Override" value={alignmentSummary.overridden_decisions} />
+        <Metric label="Hata Tipi" value={failureReasonSummary.total_reason_types} />
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+      <div className="mt-4 grid gap-4 xl:grid-cols-3">
         <div className="rounded-lg border border-[var(--border)] p-4">
           <p className="text-sm font-semibold">En Cok Kullanilan Gruplar</p>
           <div className="mt-3 space-y-3">
@@ -75,6 +82,29 @@ export function ReportRecipientGroupEntityInsightsPanel({
               </div>
             ))}
             {alignmentItems.length === 0 ? <p className="text-sm muted-text">Bu kayit icin alignment karari yok.</p> : null}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-[var(--border)] p-4">
+          <p className="text-sm font-semibold">Basarisizlik Nedenleri</p>
+          <div className="mt-3 space-y-3">
+            {failureReasonItems.slice(0, 3).map((item) => (
+              <div key={item.reason_code} className="rounded-md border border-[var(--border)] p-3">
+                <div className="flex flex-wrap gap-2">
+                  <Badge
+                    label={item.label}
+                    variant={item.severity === "critical" ? "danger" : item.severity === "warning" ? "warning" : "neutral"}
+                  />
+                  <Badge label={`${item.failed_runs} fail`} variant="neutral" />
+                </div>
+                <p className="mt-2 text-sm muted-text">{item.summary}</p>
+                <p className="mt-2 text-xs muted-text">
+                  En etkilenen grup: {item.top_group_label ?? "-"} / En son: {item.last_seen_at ?? "-"}
+                </p>
+                <p className="mt-2 text-xs muted-text">Oneri: {item.suggested_action}</p>
+              </div>
+            ))}
+            {failureReasonItems.length === 0 ? <p className="text-sm muted-text">Bu kayit icin siniflanmis teslim hatasi yok.</p> : null}
           </div>
         </div>
       </div>

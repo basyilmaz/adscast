@@ -22,6 +22,7 @@ Base path: `/api/v1`
 - `GET /campaigns/{campaignId}`
   - `suggested_recipient_groups[]` ile kampanya baglamina uygun onerilen alici gruplarini doner; sirket/marka eslesmesi olan akilli gruplar dahil edilir
   - `suggested_delivery_profile` ile rule-managed template kaynakli varsayilan teslim profili onerisi doner
+  - `recipient_group_failure_reason_summary` ve `recipient_group_failure_reasons[]` ile kampanya scope'unda teslim hata siniflarini doner
 - `GET /ad-sets/{adSetId}`
 - `GET /ads/{adId}`
 - `GET /reports`
@@ -30,6 +31,7 @@ Base path: `/api/v1`
   - `recipient_group_analytics_summary` ve `recipient_group_analytics[]` ile alici grubu kullanim, teslim basarisi ve entity yayilimini doner
   - `recipient_group_alignment_summary` ve `recipient_group_alignment[]` ile onerilen grup ile operator secimi arasindaki sapmayi doner
   - `recipient_group_correlation_summary` ve `recipient_group_correlation[]` ile onerilen grup uyumu ile gercek teslim basarisi arasindaki korelasyonu doner
+  - `recipient_group_failure_reason_summary` ve `recipient_group_failure_reasons[]` ile recipient group bazli teslim hata tiplerini, etkiledigi grup/entity yayilimini ve onerilen aksiyonu doner
   - `recipient_preset_summary.managed_templates` ve `recipient_preset_summary.recommended_default_presets` ile kural yonetilen grup sablonlarini ozetler
   - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner
   - `recipient_presets[].template_profile` ve `template_rule_summary` ile grup sablon kurallarini doner
@@ -85,6 +87,7 @@ Base path: `/api/v1`
 - `GET /meta/ad-accounts/{adAccountId}`
   - `suggested_recipient_groups[]` ile hesap baglamina uygun onerilen alici gruplarini doner; sirket/marka eslesmesi olan akilli gruplar dahil edilir
   - `suggested_delivery_profile` ile rule-managed template kaynakli varsayilan teslim profili onerisi doner
+  - `recipient_group_failure_reason_summary` ve `recipient_group_failure_reasons[]` ile hesap scope'unda teslim hata siniflarini doner
 - `POST /meta/connections/{connectionId}/sync-assets`
 - `POST /meta/connections/{connectionId}/sync-insights`
 

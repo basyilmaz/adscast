@@ -21,6 +21,7 @@ use App\Domain\Reporting\Services\ReportDeliverySetupService;
 use App\Domain\Reporting\Services\ReportRecipientGroupAlignmentAnalyticsService;
 use App\Domain\Reporting\Services\ReportRecipientGroupAnalyticsService;
 use App\Domain\Reporting\Services\ReportRecipientGroupCorrelationAnalyticsService;
+use App\Domain\Reporting\Services\ReportRecipientGroupFailureReasonAnalyticsService;
 use App\Domain\Reporting\Services\ReportDeliveryProfileService;
 use App\Domain\Reporting\Services\ReportShareLinkService;
 use App\Domain\Reporting\Services\ReportSnapshotService;
@@ -49,6 +50,7 @@ class ReportController
         private readonly ReportRecipientGroupAnalyticsService $reportRecipientGroupAnalyticsService,
         private readonly ReportRecipientGroupAlignmentAnalyticsService $reportRecipientGroupAlignmentAnalyticsService,
         private readonly ReportRecipientGroupCorrelationAnalyticsService $reportRecipientGroupCorrelationAnalyticsService,
+        private readonly ReportRecipientGroupFailureReasonAnalyticsService $reportRecipientGroupFailureReasonAnalyticsService,
         private readonly ReportShareLinkService $reportShareLinkService,
     ) {
     }
@@ -66,6 +68,7 @@ class ReportController
         $recipientGroupAnalytics = $this->reportRecipientGroupAnalyticsService->index($workspaceId);
         $recipientGroupAlignment = $this->reportRecipientGroupAlignmentAnalyticsService->index($workspaceId);
         $recipientGroupCorrelation = $this->reportRecipientGroupCorrelationAnalyticsService->index($workspaceId);
+        $recipientGroupFailureReasons = $this->reportRecipientGroupFailureReasonAnalyticsService->index($workspaceId);
         $shareSummary = $this->reportShareLinkService->summary($workspaceId);
 
         return new JsonResponse([
@@ -88,6 +91,8 @@ class ReportController
                     'recipient_group_alignment' => $recipientGroupAlignment['items'],
                     'recipient_group_correlation_summary' => $recipientGroupCorrelation['summary'],
                     'recipient_group_correlation' => $recipientGroupCorrelation['items'],
+                    'recipient_group_failure_reason_summary' => $recipientGroupFailureReasons['summary'],
+                    'recipient_group_failure_reasons' => $recipientGroupFailureReasons['items'],
                     'delivery_profile_summary' => $profileIndex['summary'],
                     'delivery_profiles' => $profileIndex['items'],
                     'delivery_summary' => $deliveryIndex['summary'],
