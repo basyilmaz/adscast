@@ -10,6 +10,7 @@ import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery
 import { ReportRecipientGroupAnalyticsPanel } from "@/components/reports/report-recipient-group-analytics-panel";
 import { ReportRecipientGroupAlignmentPanel } from "@/components/reports/report-recipient-group-alignment-panel";
 import { ReportRecipientGroupCorrelationPanel } from "@/components/reports/report-recipient-group-correlation-panel";
+import { ReportRecipientGroupFailureAlignmentPanel } from "@/components/reports/report-recipient-group-failure-alignment-panel";
 import { ReportRecipientGroupFailureReasonsPanel } from "@/components/reports/report-recipient-group-failure-reasons-panel";
 import { ReportRecipientGroupCatalog } from "@/components/reports/report-recipient-group-catalog";
 import { ReportDeliverySetupForm } from "@/components/reports/report-delivery-setup-form";
@@ -190,6 +191,7 @@ export default function ReportsPage() {
         <MetricCard label="Izlenen Grup" value={data?.recipient_group_analytics_summary.total_groups ?? 0} />
         <MetricCard label="Override Karar" value={data?.recipient_group_alignment_summary.overridden_decisions ?? 0} />
         <MetricCard label="Korelasyon Run" value={data?.recipient_group_correlation_summary.tracked_runs ?? 0} />
+        <MetricCard label="Override Fail Tipi" value={data?.recipient_group_failure_alignment_summary.override_dominant_reasons ?? 0} />
         <MetricCard label="Hata Tipi" value={data?.recipient_group_failure_reason_summary.total_reason_types ?? 0} />
         <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Sablon Kurali" value={data?.recipient_preset_summary.managed_templates ?? 0} />
@@ -366,6 +368,24 @@ export default function ReportsPage() {
           <ReportRecipientGroupFailureReasonsPanel
             summary={data?.recipient_group_failure_reason_summary ?? null}
             items={data?.recipient_group_failure_reasons ?? []}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Hata Nedeni - Secim Korelasyonu</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Belirli teslim hatalari daha cok onerilen gruba uyulurken mi, yoksa operator override karari sonrasinda mi birikiyor; bunu secim kalitesiyle birlikte izleyin.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
+          <span>Override fail: {data?.recipient_group_failure_alignment_summary.overridden_failed_runs ?? 0}</span>
+          <span>Aligned fail: {data?.recipient_group_failure_alignment_summary.aligned_failed_runs ?? 0}</span>
+          <span>En cok override kaynakli: {data?.recipient_group_failure_alignment_summary.top_override_reason_label ?? "-"}</span>
+        </div>
+        <div className="mt-4">
+          <ReportRecipientGroupFailureAlignmentPanel
+            summary={data?.recipient_group_failure_alignment_summary ?? null}
+            items={data?.recipient_group_failure_alignment ?? []}
           />
         </div>
       </Card>

@@ -1252,6 +1252,39 @@ export type ReportRecipientGroupCorrelationItem = {
   correlation_summary: string;
 };
 
+export type ReportRecipientGroupFailureAlignmentSummary = {
+  tracked_failed_runs: number;
+  aligned_failed_runs: number;
+  overridden_failed_runs: number;
+  no_recommendation_failed_runs: number;
+  unknown_failed_runs: number;
+  override_dominant_reasons: number;
+  recommendation_dominant_reasons: number;
+  top_override_reason_label: string | null;
+  top_aligned_reason_label: string | null;
+  window_days: number;
+};
+
+export type ReportRecipientGroupFailureAlignmentItem = {
+  reason_code: string;
+  label: string;
+  severity: string;
+  summary: string;
+  suggested_action: string;
+  sample_error_message: string | null;
+  tracked_failed_runs: number;
+  aligned_failed_runs: number;
+  overridden_failed_runs: number;
+  no_recommendation_failed_runs: number;
+  unknown_failed_runs: number;
+  override_rate: number | null;
+  last_seen_at: string | null;
+  dominant_alignment_status: string;
+  dominant_alignment_label: string;
+  top_recommended_group_label: string | null;
+  top_selected_override_group_label: string | null;
+};
+
 export type ReportRecipientGroupFailureReasonSummary = {
   total_reason_types: number;
   total_failed_runs: number;
@@ -1506,6 +1539,7 @@ export type ReportIndexResponse = {
     recipient_group_analytics_summary: ReportRecipientGroupAnalyticsSummary;
     recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
     recipient_group_correlation_summary: ReportRecipientGroupCorrelationSummary;
+    recipient_group_failure_alignment_summary: ReportRecipientGroupFailureAlignmentSummary;
     recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
     recipient_preset_summary: {
       total_presets: number;
@@ -1552,6 +1586,7 @@ export type ReportIndexResponse = {
     recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
     recipient_group_alignment: ReportRecipientGroupAlignmentItem[];
     recipient_group_correlation: ReportRecipientGroupCorrelationItem[];
+    recipient_group_failure_alignment: ReportRecipientGroupFailureAlignmentItem[];
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];

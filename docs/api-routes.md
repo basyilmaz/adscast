@@ -30,6 +30,7 @@ Base path: `/api/v1`
   - `recipient_group_catalog_summary` ve `recipient_group_catalog[]` ile kayitli grup + segment + primary/sirket bazli akilli grup katalogunu doner
   - `recipient_group_analytics_summary` ve `recipient_group_analytics[]` ile alici grubu kullanim, teslim basarisi ve entity yayilimini doner
   - `recipient_group_alignment_summary` ve `recipient_group_alignment[]` ile onerilen grup ile operator secimi arasindaki sapmayi doner
+  - `recipient_group_failure_alignment_summary` ve `recipient_group_failure_alignment[]` ile failure reason dagiliminin onerilen grup mu yoksa override secimi mi tarafinda biriktigini doner
   - `recipient_group_correlation_summary` ve `recipient_group_correlation[]` ile onerilen grup uyumu ile gercek teslim basarisi arasindaki korelasyonu doner
   - `recipient_group_failure_reason_summary` ve `recipient_group_failure_reasons[]` ile recipient group bazli teslim hata tiplerini, etkiledigi grup/entity yayilimini ve onerilen aksiyonu doner
   - `recipient_preset_summary.managed_templates` ve `recipient_preset_summary.recommended_default_presets` ile kural yonetilen grup sablonlarini ozetler

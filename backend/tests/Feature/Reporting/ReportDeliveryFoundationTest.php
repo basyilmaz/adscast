@@ -1234,6 +1234,116 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.recipient_group_failure_reasons.1.reason_code', 'smtp_auth');
     }
 
+    public function test_reports_index_includes_recipient_group_failure_alignment_summary(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Recipient Group Failure Alignment Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 7,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $recommended = [
+            'id' => 'smart:company:castintech',
+            'source_type' => 'smart',
+            'source_subtype' => 'company',
+            'source_id' => 'company:castintech',
+            'name' => 'Castintech Onerilen Grup',
+        ];
+        $override = [
+            'id' => 'manual:override-group',
+            'source_type' => 'manual',
+            'source_subtype' => null,
+            'source_id' => 'custom:override-group',
+            'name' => 'Operator Override Grubu',
+        ];
+
+        $schedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $template->id,
+            'delivery_channel' => 'email',
+            'cadence' => 'weekly',
+            'weekday' => 2,
+            'send_time' => '10:00',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['client@castintech.com'],
+            'configuration' => [
+                'recipient_group_selection' => $override,
+                'recommended_recipient_group' => $recommended,
+            ],
+            'is_active' => true,
+            'next_run_at' => now()->addDay(),
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(15),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'SMTP timeout',
+            'metadata' => [
+                'recipient_group_selection' => $recommended,
+                'recommended_recipient_group' => $recommended,
+            ],
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(10),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'Recipient address rejected 550 mailbox unavailable',
+            'metadata' => [
+                'recipient_group_selection' => $override,
+                'recommended_recipient_group' => $recommended,
+            ],
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(5),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'Recipient address rejected 550 mailbox unavailable',
+            'metadata' => [
+                'recipient_group_selection' => $override,
+                'recommended_recipient_group' => $recommended,
+            ],
+        ]);
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.recipient_group_failure_alignment_summary.tracked_failed_runs', 3)
+            ->assertJsonPath('data.recipient_group_failure_alignment_summary.aligned_failed_runs', 1)
+            ->assertJsonPath('data.recipient_group_failure_alignment_summary.overridden_failed_runs', 2)
+            ->assertJsonPath('data.recipient_group_failure_alignment_summary.override_dominant_reasons', 1)
+            ->assertJsonPath('data.recipient_group_failure_alignment_summary.top_override_reason_label', 'Alici Reddi')
+            ->assertJsonPath('data.recipient_group_failure_alignment_summary.top_aligned_reason_label', 'SMTP Timeout')
+            ->assertJsonPath('data.recipient_group_failure_alignment.0.reason_code', 'recipient_rejected')
+            ->assertJsonPath('data.recipient_group_failure_alignment.0.dominant_alignment_status', 'override_driven')
+            ->assertJsonPath('data.recipient_group_failure_alignment.0.top_selected_override_group_label', 'Operator Override Grubu')
+            ->assertJsonPath('data.recipient_group_failure_alignment.1.reason_code', 'smtp_timeout')
+            ->assertJsonPath('data.recipient_group_failure_alignment.1.dominant_alignment_status', 'recommendation_driven');
+    }
+
     public function test_reports_index_includes_recipient_group_correlation_summary(): void
     {
         [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
