@@ -15,6 +15,20 @@ type RecipientGroupSelectionPayload = {
   name: string;
 };
 
+export function selectionPayloadFromCatalogItem(group: RecipientGroupCatalogItem | null): RecipientGroupSelectionPayload | null {
+  if (!group) {
+    return null;
+  }
+
+  return {
+    id: group.id,
+    source_type: normalizeSourceType(group.source_type),
+    source_subtype: group.source_subtype ?? null,
+    source_id: group.source_id,
+    name: group.name,
+  };
+}
+
 export function buildRecipientGroupSelectionPayload({
   selectedSuggestedGroup,
   selectedPreset,
@@ -22,13 +36,7 @@ export function buildRecipientGroupSelectionPayload({
   contactTags,
 }: Params): RecipientGroupSelectionPayload | null {
   if (selectedSuggestedGroup) {
-    return {
-      id: selectedSuggestedGroup.id,
-      source_type: normalizeSourceType(selectedSuggestedGroup.source_type),
-      source_subtype: selectedSuggestedGroup.source_subtype ?? null,
-      source_id: selectedSuggestedGroup.source_id,
-      name: selectedSuggestedGroup.name,
-    };
+    return selectionPayloadFromCatalogItem(selectedSuggestedGroup);
   }
 
   if (selectedPreset) {

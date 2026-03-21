@@ -18,6 +18,7 @@ use App\Domain\Reporting\Services\ReportRecipientGroupAdvisorService;
 use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
 use App\Domain\Reporting\Services\ReportDeliverySetupService;
+use App\Domain\Reporting\Services\ReportRecipientGroupAlignmentAnalyticsService;
 use App\Domain\Reporting\Services\ReportRecipientGroupAnalyticsService;
 use App\Domain\Reporting\Services\ReportDeliveryProfileService;
 use App\Domain\Reporting\Services\ReportShareLinkService;
@@ -45,6 +46,7 @@ class ReportController
         private readonly ReportDeliveryScheduleService $reportDeliveryScheduleService,
         private readonly ReportDeliverySetupService $reportDeliverySetupService,
         private readonly ReportRecipientGroupAnalyticsService $reportRecipientGroupAnalyticsService,
+        private readonly ReportRecipientGroupAlignmentAnalyticsService $reportRecipientGroupAlignmentAnalyticsService,
         private readonly ReportShareLinkService $reportShareLinkService,
     ) {
     }
@@ -60,6 +62,7 @@ class ReportController
         $profileIndex = $this->reportDeliveryProfileService->index($workspaceId);
         $deliveryIndex = $this->reportDeliveryScheduleService->index($workspaceId);
         $recipientGroupAnalytics = $this->reportRecipientGroupAnalyticsService->index($workspaceId);
+        $recipientGroupAlignment = $this->reportRecipientGroupAlignmentAnalyticsService->index($workspaceId);
         $shareSummary = $this->reportShareLinkService->summary($workspaceId);
 
         return new JsonResponse([
@@ -78,6 +81,8 @@ class ReportController
                     'recipient_presets' => $presetIndex['items'],
                     'recipient_group_analytics_summary' => $recipientGroupAnalytics['summary'],
                     'recipient_group_analytics' => $recipientGroupAnalytics['items'],
+                    'recipient_group_alignment_summary' => $recipientGroupAlignment['summary'],
+                    'recipient_group_alignment' => $recipientGroupAlignment['items'],
                     'delivery_profile_summary' => $profileIndex['summary'],
                     'delivery_profiles' => $profileIndex['items'],
                     'delivery_summary' => $deliveryIndex['summary'],

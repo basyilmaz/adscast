@@ -27,6 +27,7 @@ Base path: `/api/v1`
   - `contact_segment_summary` ve `contact_segments[]` ile kisi etiket segmentlerini doner
   - `recipient_group_catalog_summary` ve `recipient_group_catalog[]` ile kayitli grup + segment + primary/sirket bazli akilli grup katalogunu doner
   - `recipient_group_analytics_summary` ve `recipient_group_analytics[]` ile alici grubu kullanim, teslim basarisi ve entity yayilimini doner
+  - `recipient_group_alignment_summary` ve `recipient_group_alignment[]` ile onerilen grup ile operator secimi arasindaki sapmayi doner
   - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner
   - `delivery_profiles[].recipient_group_summary` ile varsayilan alici grubunun kaynagini ozetler
 - `GET /reports/recipient-group-suggestions`
@@ -51,9 +52,9 @@ Base path: `/api/v1`
 - `POST /reports/delivery-profiles/{entityType}/{entityId}/toggle` (`settings.manage`)
 - `DELETE /reports/delivery-profiles/{entityType}/{entityId}` (`settings.manage`)
 - `POST /reports/delivery-setups` (`settings.manage`)
-  - `recipient_preset_id`, `recipients`, `contact_tags[]` ve `recipient_group_selection` ile alici ve secilen grup metadata'si tanimlanabilir
+  - `recipient_preset_id`, `recipients`, `contact_tags[]`, `recipient_group_selection` ve `recommended_recipient_group` ile alici ve karar metadata'si tanimlanabilir
 - `POST /reports/delivery-schedules` (`settings.manage`)
-  - `recipient_preset_id`, `recipients`, `contact_tags[]` ve `recipient_group_selection` ile teslim alicilari ve secilen grup metadata'si tanimlanabilir
+  - `recipient_preset_id`, `recipients`, `contact_tags[]`, `recipient_group_selection` ve `recommended_recipient_group` ile teslim alicilari ve karar metadata'si tanimlanabilir
 - `POST /reports/delivery-schedules/{scheduleId}/toggle` (`settings.manage`)
 - `POST /reports/delivery-schedules/{scheduleId}/run-now` (`settings.manage`)
 - `POST /reports/delivery-runs/{runId}/retry` (`settings.manage`)

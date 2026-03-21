@@ -8,6 +8,7 @@ import { ReportContactForm } from "@/components/reports/report-contact-form";
 import { ReportContactManager } from "@/components/reports/report-contact-manager";
 import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery-history-panel";
 import { ReportRecipientGroupAnalyticsPanel } from "@/components/reports/report-recipient-group-analytics-panel";
+import { ReportRecipientGroupAlignmentPanel } from "@/components/reports/report-recipient-group-alignment-panel";
 import { ReportRecipientGroupCatalog } from "@/components/reports/report-recipient-group-catalog";
 import { ReportDeliverySetupForm } from "@/components/reports/report-delivery-setup-form";
 import { ReportRecipientPresetManager } from "@/components/reports/report-recipient-preset-manager";
@@ -185,6 +186,7 @@ export default function ReportsPage() {
         <MetricCard label="Kisi Segmenti" value={data?.contact_segment_summary.total_segments ?? 0} />
         <MetricCard label="Grup Katalogu" value={data?.recipient_group_catalog_summary.total_groups ?? 0} />
         <MetricCard label="Izlenen Grup" value={data?.recipient_group_analytics_summary.total_groups ?? 0} />
+        <MetricCard label="Override Karar" value={data?.recipient_group_alignment_summary.overridden_decisions ?? 0} />
         <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
         <MetricCard label="Aktif Schedule" value={data?.delivery_summary.active_schedules ?? 0} />
@@ -323,6 +325,24 @@ export default function ReportsPage() {
           <ReportRecipientGroupAnalyticsPanel
             summary={data?.recipient_group_analytics_summary ?? null}
             items={data?.recipient_group_analytics ?? []}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Oneri - Secim Sapmasi</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Operatorun sistemin onerdigi grupla mi ilerledigini, nerede override yaptigini ve override egiliminin hangi gruplarda toplandigini izleyin.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
+          <span>Override orani: {data?.recipient_group_alignment_summary.override_rate ?? 0}%</span>
+          <span>En cok asilan oneri: {data?.recipient_group_alignment_summary.top_overridden_recommended_group_label ?? "-"}</span>
+          <span>En cok secilen override grubu: {data?.recipient_group_alignment_summary.top_selected_override_group_label ?? "-"}</span>
+        </div>
+        <div className="mt-4">
+          <ReportRecipientGroupAlignmentPanel
+            summary={data?.recipient_group_alignment_summary ?? null}
+            items={data?.recipient_group_alignment ?? []}
           />
         </div>
       </Card>

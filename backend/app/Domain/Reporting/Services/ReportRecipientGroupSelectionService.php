@@ -9,6 +9,15 @@ use Illuminate\Support\Str;
 class ReportRecipientGroupSelectionService
 {
     /**
+     * @param  array<string, mixed>|null  $selection
+     * @return array<string, mixed>|null
+     */
+    public function fromArray(?array $selection): ?array
+    {
+        return $this->normalizeSelection($selection, null);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $recipientGroupSummary
      * @param  array<string, mixed>|null  $preset
@@ -107,6 +116,48 @@ class ReportRecipientGroupSelectionService
         $sourceId = trim((string) ($selection['source_id'] ?? 'custom'));
 
         return sprintf('%s:%s', $sourceType, $sourceId);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $selected
+     * @param  array<string, mixed>|null  $recommended
+     * @return array<string, mixed>
+     */
+    public function alignment(?array $selected, ?array $recommended): array
+    {
+        if ($selected === null && $recommended === null) {
+            return [
+                'status' => 'unknown',
+                'is_aligned' => null,
+                'reason' => 'Secilen veya onerilen grup izi bulunmuyor.',
+            ];
+        }
+
+        if ($recommended === null) {
+            return [
+                'status' => 'no_recommendation',
+                'is_aligned' => null,
+                'reason' => 'Bu karar aninda kayitli bir onerilen grup izi bulunmuyor.',
+            ];
+        }
+
+        if ($selected === null) {
+            return [
+                'status' => 'missing_selection',
+                'is_aligned' => false,
+                'reason' => 'Onerilen grup kayitli ancak secilen grup izi eksik.',
+            ];
+        }
+
+        $isAligned = $this->selectionKey($selected) === $this->selectionKey($recommended);
+
+        return [
+            'status' => $isAligned ? 'aligned' : 'override',
+            'is_aligned' => $isAligned,
+            'reason' => $isAligned
+                ? 'Operator onerilen grubu kullanmis.'
+                : 'Operator onerilen grup yerine farkli bir alici grubu secmis.',
+        ];
     }
 
     /**

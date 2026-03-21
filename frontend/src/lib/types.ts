@@ -738,6 +738,18 @@ export type ReportDeliveryRunListItem = {
     source_id: string | null;
     name: string;
   } | null;
+  recommended_recipient_group: {
+    id: string;
+    source_type: string;
+    source_subtype: string | null;
+    source_id: string | null;
+    name: string;
+  } | null;
+  selection_alignment: {
+    status: string;
+    is_aligned: boolean | null;
+    reason: string;
+  } | null;
   recipient_group_summary: {
     mode: string;
     label: string;
@@ -827,6 +839,18 @@ export type ReportDeliveryScheduleListItem = {
     source_subtype: string | null;
     source_id: string | null;
     name: string;
+  } | null;
+  recommended_recipient_group: {
+    id: string;
+    source_type: string;
+    source_subtype: string | null;
+    source_id: string | null;
+    name: string;
+  } | null;
+  selection_alignment: {
+    status: string;
+    is_aligned: boolean | null;
+    reason: string;
   } | null;
   recipient_group_summary: {
     mode: string;
@@ -1063,6 +1087,51 @@ export type ReportRecipientGroupAnalyticsItem = {
   }>;
 };
 
+export type ReportRecipientGroupAlignmentSummary = {
+  tracked_decisions: number;
+  aligned_decisions: number;
+  overridden_decisions: number;
+  no_recommendation_decisions: number;
+  unknown_decisions: number;
+  override_rate: number | null;
+  top_overridden_recommended_group_label: string | null;
+  top_selected_override_group_label: string | null;
+};
+
+export type ReportRecipientGroupAlignmentItem = {
+  schedule_id: string;
+  template_name: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  entity_label: string | null;
+  context_label: string | null;
+  cadence: string;
+  cadence_label: string;
+  is_active: boolean;
+  next_run_at: string | null;
+  last_status: string | null;
+  created_at: string | null;
+  selected_group: {
+    id: string;
+    source_type: string;
+    source_subtype: string | null;
+    source_id: string | null;
+    name: string;
+  } | null;
+  recommended_group: {
+    id: string;
+    source_type: string;
+    source_subtype: string | null;
+    source_id: string | null;
+    name: string;
+  } | null;
+  alignment: {
+    status: string;
+    is_aligned: boolean | null;
+    reason: string;
+  };
+};
+
 export type ClientReportPayload = {
   range: {
     start_date: string;
@@ -1188,6 +1257,7 @@ export type ReportIndexResponse = {
       smart_groups: number;
     };
     recipient_group_analytics_summary: ReportRecipientGroupAnalyticsSummary;
+    recipient_group_alignment_summary: ReportRecipientGroupAlignmentSummary;
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1229,6 +1299,7 @@ export type ReportIndexResponse = {
     contact_segments: ReportContactSegmentListItem[];
     recipient_group_catalog: RecipientGroupCatalogItem[];
     recipient_group_analytics: ReportRecipientGroupAnalyticsItem[];
+    recipient_group_alignment: ReportRecipientGroupAlignmentItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];

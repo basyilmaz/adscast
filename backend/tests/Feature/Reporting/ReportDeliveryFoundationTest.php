@@ -1013,6 +1013,65 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.recipient_group_analytics.0.sample_recipients.0', 'client@castintech.com');
     }
 
+    public function test_reports_index_includes_recipient_group_alignment_summary(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Recipient Group Alignment Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 7,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/delivery-schedules', [
+                'report_template_id' => $template->id,
+                'delivery_channel' => 'email_stub',
+                'cadence' => 'weekly',
+                'weekday' => 4,
+                'send_time' => '10:15',
+                'timezone' => 'Europe/Istanbul',
+                'recipients' => ['override@castintech.com'],
+                'recipient_group_selection' => [
+                    'id' => 'manual:override-group',
+                    'source_type' => 'manual',
+                    'source_subtype' => null,
+                    'source_id' => 'custom:override-group',
+                    'name' => 'Operator Override Grubu',
+                ],
+                'recommended_recipient_group' => [
+                    'id' => 'smart:company:castintech',
+                    'source_type' => 'smart',
+                    'source_subtype' => 'company',
+                    'source_id' => 'company:castintech',
+                    'name' => 'Castintech Onerilen Grup',
+                ],
+            ]);
+
+        $response->assertCreated();
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.recipient_group_alignment_summary.tracked_decisions', 1)
+            ->assertJsonPath('data.recipient_group_alignment_summary.aligned_decisions', 0)
+            ->assertJsonPath('data.recipient_group_alignment_summary.overridden_decisions', 1)
+            ->assertJsonPath('data.recipient_group_alignment_summary.top_overridden_recommended_group_label', 'Castintech Onerilen Grup')
+            ->assertJsonPath('data.recipient_group_alignment_summary.top_selected_override_group_label', 'Operator Override Grubu')
+            ->assertJsonPath('data.recipient_group_alignment.0.alignment.status', 'override')
+            ->assertJsonPath('data.recipient_group_alignment.0.selected_group.name', 'Operator Override Grubu')
+            ->assertJsonPath('data.recipient_group_alignment.0.recommended_group.name', 'Castintech Onerilen Grup')
+            ->assertJsonPath('data.recipient_group_alignment.0.entity_type', 'account');
+    }
+
     public function test_only_failed_delivery_runs_can_be_retried(): void
     {
         [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');

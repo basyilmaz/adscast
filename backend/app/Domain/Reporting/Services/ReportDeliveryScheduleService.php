@@ -98,6 +98,11 @@ class ReportDeliveryScheduleService
                     $schedule,
                     $recipientResolution['recipient_group_summary'],
                 );
+                $recommendedRecipientGroup = $this->recommendedRecipientGroupFromSchedule($schedule);
+                $selectionAlignment = $this->reportRecipientGroupSelectionService->alignment(
+                    $recipientGroupSelection,
+                    $recommendedRecipientGroup,
+                );
                 $context = $template
                     ? ($contexts[$this->entityContextResolver->key($template->entity_type, $template->entity_id)] ?? [
                         'entity_label' => 'Bilinmeyen varlik',
@@ -128,6 +133,8 @@ class ReportDeliveryScheduleService
                     'resolved_recipients' => $recipientResolution['resolved_recipients'],
                     'resolved_recipients_count' => count($recipientResolution['resolved_recipients']),
                     'recipient_group_selection' => $recipientGroupSelection,
+                    'recommended_recipient_group' => $recommendedRecipientGroup,
+                    'selection_alignment' => $selectionAlignment,
                     'recipient_group_summary' => $recipientResolution['recipient_group_summary'],
                     'share_delivery' => $this->shareDeliveryConfiguration($schedule),
                     'is_active' => $schedule->is_active,
@@ -480,6 +487,7 @@ class ReportDeliveryScheduleService
             $schedule,
             $recipientResolution['recipient_group_summary'],
         );
+        $recommendedRecipientGroup = $this->recommendedRecipientGroupFromSchedule($schedule);
 
         $run = ReportDeliveryRun::query()->create([
             'workspace_id' => $workspace->id,
@@ -500,6 +508,7 @@ class ReportDeliveryScheduleService
                 'tagged_contacts' => $recipientResolution['tagged_contacts'],
                 'recipient_group_summary' => $recipientResolution['recipient_group_summary'],
                 'recipient_group_selection' => $recipientGroupSelection,
+                'recommended_recipient_group' => $recommendedRecipientGroup,
                 'range' => [
                     'start_date' => $startDate->toDateString(),
                     'end_date' => $endDate->toDateString(),
@@ -891,6 +900,15 @@ class ReportDeliveryScheduleService
             'resolved_recipients' => $recipientResolution['resolved_recipients'],
             'resolved_recipients_count' => count($recipientResolution['resolved_recipients']),
             'recipient_group_selection' => $this->reportRecipientGroupSelectionService->fromRun($run, $schedule),
+            'recommended_recipient_group' => is_array(data_get($run->metadata, 'recommended_recipient_group'))
+                ? $this->reportRecipientGroupSelectionService->fromArray(data_get($run->metadata, 'recommended_recipient_group'))
+                : ($schedule ? $this->recommendedRecipientGroupFromSchedule($schedule) : null),
+            'selection_alignment' => $this->reportRecipientGroupSelectionService->alignment(
+                $this->reportRecipientGroupSelectionService->fromRun($run, $schedule),
+                is_array(data_get($run->metadata, 'recommended_recipient_group'))
+                    ? $this->reportRecipientGroupSelectionService->fromArray(data_get($run->metadata, 'recommended_recipient_group'))
+                    : ($schedule ? $this->recommendedRecipientGroupFromSchedule($schedule) : null),
+            ),
             'recipient_group_summary' => $schedule
                 ? $recipientResolution['recipient_group_summary']
                 : (is_array(data_get($run->metadata, 'recipient_group_summary'))
@@ -1005,6 +1023,9 @@ class ReportDeliveryScheduleService
             payload: $payload,
             recipientGroupSummary: $configuration['recipient_group_summary'],
             preset: $preset,
+        );
+        $configuration['recommended_recipient_group'] = $this->reportRecipientGroupSelectionService->fromArray(
+            is_array($payload['recommended_recipient_group'] ?? null) ? $payload['recommended_recipient_group'] : null,
         );
 
         return $configuration;
@@ -1235,6 +1256,18 @@ class ReportDeliveryScheduleService
         $presetId = data_get($configuration, 'recipient_preset_id');
 
         return is_string($presetId) && $presetId !== '' ? $presetId : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function recommendedRecipientGroupFromSchedule(ReportDeliverySchedule $schedule): ?array
+    {
+        $configuration = is_array($schedule->configuration ?? null) ? $schedule->configuration : [];
+
+        return $this->reportRecipientGroupSelectionService->fromArray(
+            is_array($configuration['recommended_recipient_group'] ?? null) ? $configuration['recommended_recipient_group'] : null,
+        );
     }
 
     /**

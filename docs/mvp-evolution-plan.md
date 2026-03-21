@@ -271,3 +271,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 32. Kisi havuzundaki sirket/marka alanindan akilli alici gruplari uretip katalog ve entity onerilerine tasimak
 33. Quick delivery ve schedule formlarinda onerilen alici gruplarini ana secim akisi yapip manuel alici/etiket ayarlarini ileri seviye override'a tasimak
 34. Alici gruplarinin kullanim, teslim basarisi ve entity yayilimini gosteren recipient group analytics katmanini eklemek
+35. Onerilen alici grubu ile operator secimi arasindaki sapmayi schedule kararlarinda izleyip alignment analytics paneline tasimak
