@@ -719,6 +719,14 @@ export type ReportDeliveryRunListItem = {
   delivered_at: string | null;
   snapshot_title: string | null;
   snapshot_url: string | null;
+  share_link: {
+    id: string;
+    label: string | null;
+    status: "active" | "revoked" | "expired" | string;
+    expires_at: string | null;
+    share_url: string | null;
+    export_csv_url: string | null;
+  } | null;
   error_message: string | null;
 };
 
@@ -748,6 +756,12 @@ export type ReportDeliveryScheduleListItem = {
   month_day: number | null;
   recipients: string[];
   recipients_count: number;
+  share_delivery: {
+    enabled: boolean;
+    label_template: string | null;
+    expires_in_days: number | null;
+    allow_csv_download: boolean;
+  };
   is_active: boolean;
   next_run_at: string | null;
   last_run_at: string | null;

@@ -13,6 +13,8 @@ class StoreReportDeliveryScheduleRequest extends FormRequest
 
     public function rules(): array
     {
+        $maxShareExpiryDays = max((int) config('services.reports.share.max_expiry_days', 30), 1);
+
         return [
             'report_template_id' => ['required', 'uuid', 'exists:report_templates,id'],
             'delivery_channel' => ['nullable', 'string', 'in:email_stub'],
@@ -25,6 +27,10 @@ class StoreReportDeliveryScheduleRequest extends FormRequest
             'recipients.*' => ['required', 'email:rfc'],
             'configuration' => ['nullable', 'array'],
             'is_active' => ['nullable', 'boolean'],
+            'auto_share_enabled' => ['nullable', 'boolean'],
+            'share_label_template' => ['nullable', 'string', 'max:160'],
+            'share_expires_in_days' => ['nullable', 'integer', 'min:1', "max:{$maxShareExpiryDays}"],
+            'share_allow_csv_download' => ['nullable', 'boolean'],
         ];
     }
 

@@ -74,6 +74,9 @@ export default function ReportsPage() {
         data: {
           snapshot_id: string | null;
           snapshot_url: string | null;
+          share_link?: {
+            share_url: string | null;
+          } | null;
         };
       }>(`/reports/delivery-schedules/${schedule.id}/run-now`, {
         method: "POST",
@@ -82,7 +85,9 @@ export default function ReportsPage() {
 
       setActionMessage(
         response.data.snapshot_id
-          ? "Manual run tamamlandi ve yeni snapshot hazirlandi."
+          ? response.data.share_link?.share_url
+            ? "Manual run tamamlandi, snapshot ve musteri paylasim linki hazirlandi."
+            : "Manual run tamamlandi ve yeni snapshot hazirlandi."
           : "Manual run tamamlandi.",
       );
       await reload();
@@ -256,6 +261,7 @@ export default function ReportsPage() {
                     <Badge label={schedule.cadence_label} variant="neutral" />
                     <Badge label={schedule.is_active ? "active" : "inactive"} variant={schedule.is_active ? "success" : "warning"} />
                     <Badge label={schedule.delivery_channel_label} variant="neutral" />
+                    {schedule.share_delivery.enabled ? <Badge label="Auto Share Acik" variant="success" /> : null}
                   </div>
                   <p className="font-semibold">{schedule.template.name ?? "Silinmis sablon"}</p>
                   <p className="text-xs muted-text">
@@ -266,6 +272,12 @@ export default function ReportsPage() {
                     Sonraki calisma: {schedule.next_run_at ?? "-"} / Son durum: {schedule.last_status ?? "-"}
                   </p>
                   <p className="text-sm muted-text">Alicilar: {schedule.recipients.join(", ") || "-"}</p>
+                  {schedule.share_delivery.enabled ? (
+                    <p className="text-sm muted-text">
+                      Paylasim: {schedule.share_delivery.label_template ?? "Snapshot basligi"} / {schedule.share_delivery.expires_in_days ?? 7} gun /{" "}
+                      {schedule.share_delivery.allow_csv_download ? "CSV acik" : "CSV kapali"}
+                    </p>
+                  ) : null}
                   {schedule.last_report_snapshot_url ? (
                     <Link href={schedule.last_report_snapshot_url} className="inline-flex text-sm font-semibold text-[var(--accent)] hover:underline">
                       Son snapshot&apos;i ac
@@ -322,6 +334,28 @@ export default function ReportsPage() {
                             <Link href={run.snapshot_url} className="mt-1 inline-flex text-xs font-semibold text-[var(--accent)] hover:underline">
                               {run.snapshot_title ?? "Snapshot"}
                             </Link>
+                          ) : null}
+                          {run.share_link?.share_url ? (
+                            <div className="mt-1 flex flex-wrap gap-3 text-xs">
+                              <a
+                                href={run.share_link.share_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-semibold text-[var(--accent)] hover:underline"
+                              >
+                                Musteri linkini ac
+                              </a>
+                              {run.share_link.export_csv_url ? (
+                                <a
+                                  href={run.share_link.export_csv_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="font-semibold text-[var(--accent)] hover:underline"
+                                >
+                                  CSV indir
+                                </a>
+                              ) : null}
+                            </div>
                           ) : null}
                           {run.error_message ? <p className="mt-1 text-xs text-[var(--danger)]">{run.error_message}</p> : null}
                         </div>

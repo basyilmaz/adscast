@@ -13,6 +13,7 @@ use App\Models\MetaConnection;
 use App\Models\Recommendation;
 use App\Models\ReportDeliveryRun;
 use App\Models\ReportDeliverySchedule;
+use App\Models\ReportShareLink;
 use App\Models\ReportSnapshot;
 use App\Models\ReportTemplate;
 use App\Models\Workspace;
@@ -56,6 +57,10 @@ class ReportDeliveryFoundationTest extends TestCase
                 'send_time' => '09:15',
                 'timezone' => 'Europe/Istanbul',
                 'recipients' => ['client@castintech.com', 'ops@castintech.com'],
+                'auto_share_enabled' => true,
+                'share_label_template' => '{template_name} / {end_date}',
+                'share_expires_in_days' => 14,
+                'share_allow_csv_download' => true,
             ]);
 
         $scheduleId = $scheduleResponse->json('data.id');
@@ -79,9 +84,12 @@ class ReportDeliveryFoundationTest extends TestCase
             ->postJson("/api/v1/reports/delivery-schedules/{$scheduleId}/run-now");
 
         $snapshotId = $runResponse->json('data.snapshot_id');
+        $shareLinkId = $runResponse->json('data.share_link.id');
 
         $runResponse->assertOk()
-            ->assertJsonPath('data.status', 'delivered_stub');
+            ->assertJsonPath('data.status', 'delivered_stub')
+            ->assertJsonPath('data.share_link.id', $shareLinkId)
+            ->assertJsonPath('data.share_link.allow_csv_download', true);
 
         $this->assertDatabaseHas('report_templates', [
             'id' => $templateId,
@@ -103,6 +111,13 @@ class ReportDeliveryFoundationTest extends TestCase
             'trigger_mode' => 'manual',
         ]);
 
+        $this->assertDatabaseHas('report_share_links', [
+            'id' => $shareLinkId,
+            'workspace_id' => $workspace->id,
+            'report_snapshot_id' => $snapshotId,
+            'allow_csv_download' => true,
+        ]);
+
         $this->assertDatabaseHas('audit_logs', [
             'workspace_id' => $workspace->id,
             'action' => 'report_template_created',
@@ -119,6 +134,14 @@ class ReportDeliveryFoundationTest extends TestCase
             'workspace_id' => $workspace->id,
             'action' => 'report_delivery_run_prepared',
         ]);
+
+        $indexAfterRun = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexAfterRun->assertOk()
+            ->assertJsonPath('data.delivery_schedules.0.share_delivery.enabled', true)
+            ->assertJsonPath('data.delivery_schedules.0.recent_runs.0.share_link.id', $shareLinkId);
     }
 
     public function test_report_delivery_command_processes_due_schedules(): void
@@ -144,6 +167,14 @@ class ReportDeliveryFoundationTest extends TestCase
             'send_time' => '08:00',
             'timezone' => 'Europe/Istanbul',
             'recipients' => ['client@castintech.com'],
+            'configuration' => [
+                'auto_share' => [
+                    'enabled' => true,
+                    'label_template' => '{template_name} / {end_date}',
+                    'expires_in_days' => 7,
+                    'allow_csv_download' => false,
+                ],
+            ],
             'is_active' => true,
             'next_run_at' => now()->subMinute(),
         ]);
@@ -158,10 +189,15 @@ class ReportDeliveryFoundationTest extends TestCase
             'status' => 'delivered_stub',
             'trigger_mode' => 'scheduled',
         ]);
+        $this->assertSame(1, ReportShareLink::query()->where('workspace_id', $workspace->id)->count());
 
         $this->assertSame(1, ReportSnapshot::query()->where('workspace_id', $workspace->id)->count());
         $this->assertSame(1, ReportDeliveryRun::query()->where('report_delivery_schedule_id', $schedule->id)->count());
         $this->assertGreaterThan(0, AuditLog::query()->where('workspace_id', $workspace->id)->where('action', 'report_delivery_run_prepared')->count());
+
+        $run = ReportDeliveryRun::query()->where('report_delivery_schedule_id', $schedule->id)->firstOrFail();
+        $this->assertNotNull(data_get($run->metadata, 'share_link.id'));
+        $this->assertStringContainsString('Komutla Calisan Rapor', (string) data_get($run->metadata, 'share_link.label'));
 
         $schedule->refresh();
         $this->assertNotNull($schedule->next_run_at);

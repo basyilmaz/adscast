@@ -33,6 +33,10 @@ export function ReportScheduleForm({ templates, onCreated }: Props) {
   const [sendTime, setSendTime] = useState("09:00");
   const [timezone, setTimezone] = useState("Europe/Istanbul");
   const [recipients, setRecipients] = useState("client@castintech.com");
+  const [autoShareEnabled, setAutoShareEnabled] = useState(true);
+  const [shareLabelTemplate, setShareLabelTemplate] = useState("{template_name} / {end_date}");
+  const [shareExpiresInDays, setShareExpiresInDays] = useState("7");
+  const [shareAllowCsvDownload, setShareAllowCsvDownload] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +81,10 @@ export function ReportScheduleForm({ templates, onCreated }: Props) {
           timezone,
           recipients: parsedRecipients,
           delivery_channel: "email_stub",
+          auto_share_enabled: autoShareEnabled,
+          share_label_template: autoShareEnabled ? shareLabelTemplate.trim() || null : null,
+          share_expires_in_days: autoShareEnabled ? Number(shareExpiresInDays) : null,
+          share_allow_csv_download: autoShareEnabled ? shareAllowCsvDownload : false,
         },
       });
 
@@ -177,6 +185,62 @@ export function ReportScheduleForm({ templates, onCreated }: Props) {
           placeholder="client@castintech.com, ops@castintech.com"
         />
       </Field>
+
+      <div className="rounded-lg border border-[var(--border)] p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide muted-text">Otomatik Musteri Linki</p>
+        <label className="mt-2 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={autoShareEnabled}
+            onChange={(event) => setAutoShareEnabled(event.target.checked)}
+          />
+          Her schedule run tamamlandiginda snapshot icin paylasim linki de olustur
+        </label>
+
+        {autoShareEnabled ? (
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <Field label="Link Etiketi">
+              <input
+                type="text"
+                className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+                value={shareLabelTemplate}
+                onChange={(event) => setShareLabelTemplate(event.target.value)}
+                placeholder="{template_name} / {end_date}"
+              />
+            </Field>
+
+            <Field label="Link Suresi">
+              <select
+                className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+                value={shareExpiresInDays}
+                onChange={(event) => setShareExpiresInDays(event.target.value)}
+              >
+                <option value="3">3 gun</option>
+                <option value="7">7 gun</option>
+                <option value="14">14 gun</option>
+                <option value="30">30 gun</option>
+              </select>
+            </Field>
+
+            <Field label="CSV Indirme">
+              <label className="flex h-10 items-center gap-2 rounded-md border border-[var(--border)] bg-white px-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={shareAllowCsvDownload}
+                  onChange={(event) => setShareAllowCsvDownload(event.target.checked)}
+                />
+                CSV indirilebilsin
+              </label>
+            </Field>
+          </div>
+        ) : null}
+
+        {autoShareEnabled ? (
+          <p className="mt-2 text-xs muted-text">
+            Kullanilabilir degiskenler: {"{template_name}"}, {"{snapshot_title}"}, {"{start_date}"}, {"{end_date}"}.
+          </p>
+        ) : null}
+      </div>
 
       {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
       {message ? <p className="text-sm text-[var(--accent)]">{message}</p> : null}

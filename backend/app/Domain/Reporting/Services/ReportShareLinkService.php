@@ -8,7 +8,6 @@ use App\Models\ReportSnapshot;
 use App\Models\User;
 use App\Models\Workspace;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
@@ -93,40 +92,33 @@ class ReportShareLinkService
             ->where('workspace_id', $workspace->id)
             ->findOrFail($snapshotId);
 
-        $rawToken = Str::random(48);
-        $shareLink = ReportShareLink::query()->create([
-            'workspace_id' => $workspace->id,
-            'report_snapshot_id' => $snapshot->id,
-            'label' => $payload['label'] ?? $snapshot->title,
-            'token_hash' => hash('sha256', $rawToken),
-            'token_encrypted' => Crypt::encryptString($rawToken),
-            'allow_csv_download' => (bool) ($payload['allow_csv_download'] ?? false),
-            'access_count' => 0,
-            'expires_at' => isset($payload['expires_in_days'])
-                ? now()->addDays((int) $payload['expires_in_days'])
-                : now()->addDays((int) config('services.reports.share.default_expiry_days', 7)),
-            'created_by' => $actor?->id,
-            'metadata' => [
-                'created_from' => 'snapshot_detail',
-            ],
-        ]);
-
-        $this->auditLogService->log(
+        return $this->createForSnapshot(
+            workspace: $workspace,
+            snapshot: $snapshot,
+            payload: $payload,
             actor: $actor,
-            action: 'report_share_link_created',
-            targetType: 'report_share_link',
-            targetId: $shareLink->id,
-            organizationId: $workspace->organization_id,
-            workspaceId: $workspace->id,
-            metadata: [
-                'snapshot_id' => $snapshot->id,
-                'allow_csv_download' => $shareLink->allow_csv_download,
-                'expires_at' => $shareLink->expires_at?->toDateTimeString(),
-            ],
             request: $request,
+            source: 'snapshot_detail',
         );
+    }
 
-        return $this->internalItem($shareLink);
+    public function createForDeliveryRun(
+        Workspace $workspace,
+        ReportSnapshot $snapshot,
+        array $payload,
+        array $context = [],
+        ?User $actor = null,
+        ?Request $request = null,
+    ): array {
+        return $this->createForSnapshot(
+            workspace: $workspace,
+            snapshot: $snapshot,
+            payload: $payload,
+            actor: $actor,
+            request: $request,
+            source: 'delivery_schedule',
+            metadata: $context,
+        );
     }
 
     public function revoke(
@@ -253,6 +245,52 @@ class ReportShareLinkService
     private function shareUrl(string $rawToken): string
     {
         return sprintf('%s/shared-report?token=%s', $this->baseUrl(), urlencode($rawToken));
+    }
+
+    private function createForSnapshot(
+        Workspace $workspace,
+        ReportSnapshot $snapshot,
+        array $payload,
+        ?User $actor,
+        ?Request $request,
+        string $source,
+        array $metadata = [],
+    ): array {
+        $rawToken = Str::random(48);
+        $shareLink = ReportShareLink::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_snapshot_id' => $snapshot->id,
+            'label' => $payload['label'] ?? $snapshot->title,
+            'token_hash' => hash('sha256', $rawToken),
+            'token_encrypted' => Crypt::encryptString($rawToken),
+            'allow_csv_download' => (bool) ($payload['allow_csv_download'] ?? false),
+            'access_count' => 0,
+            'expires_at' => isset($payload['expires_in_days'])
+                ? now()->addDays((int) $payload['expires_in_days'])
+                : now()->addDays((int) config('services.reports.share.default_expiry_days', 7)),
+            'created_by' => $actor?->id,
+            'metadata' => array_merge([
+                'created_from' => $source,
+            ], $metadata),
+        ]);
+
+        $this->auditLogService->log(
+            actor: $actor,
+            action: 'report_share_link_created',
+            targetType: 'report_share_link',
+            targetId: $shareLink->id,
+            organizationId: $workspace->organization_id,
+            workspaceId: $workspace->id,
+            metadata: [
+                'snapshot_id' => $snapshot->id,
+                'allow_csv_download' => $shareLink->allow_csv_download,
+                'expires_at' => $shareLink->expires_at?->toDateTimeString(),
+                'created_from' => $source,
+            ] + $metadata,
+            request: $request,
+        );
+
+        return $this->internalItem($shareLink);
     }
 
     private function resolveAccessibleShareLink(string $rawToken): ReportShareLink

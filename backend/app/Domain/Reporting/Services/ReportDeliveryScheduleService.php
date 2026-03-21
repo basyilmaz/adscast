@@ -20,6 +20,7 @@ class ReportDeliveryScheduleService
     public function __construct(
         private readonly EntityContextResolver $entityContextResolver,
         private readonly ReportSnapshotService $reportSnapshotService,
+        private readonly ReportShareLinkService $reportShareLinkService,
         private readonly AuditLogService $auditLogService,
     ) {
     }
@@ -48,6 +49,7 @@ class ReportDeliveryScheduleService
                 'send_time',
                 'timezone',
                 'recipients',
+                'configuration',
                 'is_active',
                 'next_run_at',
                 'last_run_at',
@@ -102,6 +104,7 @@ class ReportDeliveryScheduleService
                     'month_day' => $schedule->month_day,
                     'recipients' => $schedule->recipients ?? [],
                     'recipients_count' => count($schedule->recipients ?? []),
+                    'share_delivery' => $this->shareDeliveryConfiguration($schedule),
                     'is_active' => $schedule->is_active,
                     'next_run_at' => $schedule->next_run_at?->toDateTimeString(),
                     'last_run_at' => $schedule->last_run_at?->toDateTimeString(),
@@ -148,7 +151,7 @@ class ReportDeliveryScheduleService
             'send_time' => (string) $payload['send_time'],
             'timezone' => (string) ($payload['timezone'] ?? $workspace->timezone),
             'recipients' => array_values($payload['recipients'] ?? []),
-            'configuration' => $payload['configuration'] ?? null,
+            'configuration' => $this->buildScheduleConfiguration($payload),
             'is_active' => (bool) ($payload['is_active'] ?? true),
             'next_run_at' => $this->calculateNextRunAt(
                 cadence: (string) $payload['cadence'],
@@ -174,6 +177,7 @@ class ReportDeliveryScheduleService
                 'send_time' => $schedule->send_time,
                 'timezone' => $schedule->timezone,
                 'recipients_count' => count($schedule->recipients ?? []),
+                'auto_share_enabled' => $this->shareDeliveryConfiguration($schedule)['enabled'],
             ],
             request: $request,
         );
@@ -243,6 +247,7 @@ class ReportDeliveryScheduleService
             'snapshot_id' => $snapshot?->id,
             'snapshot_url' => $snapshot ? sprintf('/reports/snapshots/detail?id=%s', $snapshot->id) : null,
             'export_csv_url' => $snapshot ? sprintf('/api/v1/reports/snapshots/%s/export.csv', $snapshot->id) : null,
+            'share_link' => data_get($run->metadata, 'share_link'),
         ];
     }
 
@@ -298,6 +303,7 @@ class ReportDeliveryScheduleService
                     'template_name' => $schedule->template?->name,
                     'status' => $run->status,
                     'snapshot_id' => $run->report_snapshot_id,
+                    'share_link' => data_get($run->metadata, 'share_link'),
                     'next_run_at' => $schedule->fresh()->next_run_at?->toDateTimeString(),
                 ];
             } catch (\Throwable $exception) {
@@ -324,6 +330,7 @@ class ReportDeliveryScheduleService
         $schedule->loadMissing(['template', 'workspace']);
         $template = $schedule->template;
         $workspace = $schedule->workspace;
+        $actor = $triggeredBy ? User::query()->find($triggeredBy) : null;
 
         if (! $template || ! $workspace) {
             throw new \RuntimeException('Rapor schedule baglami eksik.');
@@ -362,6 +369,16 @@ class ReportDeliveryScheduleService
                 reportType: $template->report_type,
             );
 
+            $shareLink = $this->createAutomatedShareLink(
+                workspace: $workspace,
+                snapshot: $snapshot,
+                schedule: $schedule,
+                run: $run,
+                actor: $actor,
+                request: $request,
+                triggerMode: $triggerMode,
+            );
+
             $deliveredAt = now();
 
             $run->forceFill([
@@ -371,6 +388,7 @@ class ReportDeliveryScheduleService
                 'metadata' => array_merge($run->metadata ?? [], [
                     'snapshot_title' => $snapshot->title,
                     'snapshot_url' => sprintf('/reports/snapshots/detail?id=%s', $snapshot->id),
+                    'share_link' => $shareLink,
                 ]),
             ])->save();
 
@@ -384,7 +402,7 @@ class ReportDeliveryScheduleService
             ])->save();
 
             $this->auditLogService->log(
-                actor: $triggeredBy ? User::query()->find($triggeredBy) : null,
+                actor: $actor,
                 action: 'report_delivery_run_prepared',
                 targetType: 'report_delivery_run',
                 targetId: $run->id,
@@ -396,6 +414,7 @@ class ReportDeliveryScheduleService
                     'snapshot_id' => $snapshot->id,
                     'trigger_mode' => $triggerMode,
                     'delivery_channel' => $schedule->delivery_channel,
+                    'share_link_id' => data_get($shareLink, 'id'),
                 ],
                 request: $request,
             );
@@ -421,7 +440,7 @@ class ReportDeliveryScheduleService
             ])->save();
 
             $this->auditLogService->log(
-                actor: $triggeredBy ? User::query()->find($triggeredBy) : null,
+                actor: $actor,
                 action: 'report_delivery_run_failed',
                 targetType: 'report_delivery_run',
                 targetId: $run->id,
@@ -553,6 +572,7 @@ class ReportDeliveryScheduleService
                 'prepared_at',
                 'delivered_at',
                 'error_message',
+                'metadata',
             ])
             ->groupBy('report_delivery_schedule_id')
             ->map(fn (Collection $runs): array => $runs
@@ -568,6 +588,7 @@ class ReportDeliveryScheduleService
                         'snapshot_url' => $run->report_snapshot_id
                             ? sprintf('/reports/snapshots/detail?id=%s', $run->report_snapshot_id)
                             : null,
+                        'share_link' => data_get($run->metadata, 'share_link'),
                         'error_message' => $run->error_message,
                     ];
                 })
@@ -614,5 +635,103 @@ class ReportDeliveryScheduleService
             'campaign' => sprintf('/reports/campaign?id=%s', $entityId),
             default => '/reports',
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildScheduleConfiguration(array $payload): array
+    {
+        $configuration = $payload['configuration'] ?? [];
+
+        if (! is_array($configuration)) {
+            $configuration = [];
+        }
+
+        $configuration['auto_share'] = [
+            'enabled' => (bool) ($payload['auto_share_enabled'] ?? false),
+            'label_template' => $payload['share_label_template'] ?? null,
+            'expires_in_days' => isset($payload['share_expires_in_days'])
+                ? (int) $payload['share_expires_in_days']
+                : null,
+            'allow_csv_download' => (bool) ($payload['share_allow_csv_download'] ?? false),
+        ];
+
+        return $configuration;
+    }
+
+    /**
+     * @return array{enabled: bool, label_template: ?string, expires_in_days: ?int, allow_csv_download: bool}
+     */
+    private function shareDeliveryConfiguration(ReportDeliverySchedule $schedule): array
+    {
+        $configuration = is_array($schedule->configuration) ? $schedule->configuration : [];
+        $config = is_array($configuration['auto_share'] ?? null) ? $configuration['auto_share'] : [];
+
+        return [
+            'enabled' => (bool) ($config['enabled'] ?? false),
+            'label_template' => isset($config['label_template']) && $config['label_template'] !== ''
+                ? (string) $config['label_template']
+                : null,
+            'expires_in_days' => isset($config['expires_in_days']) ? (int) $config['expires_in_days'] : null,
+            'allow_csv_download' => (bool) ($config['allow_csv_download'] ?? false),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function createAutomatedShareLink(
+        Workspace $workspace,
+        \App\Models\ReportSnapshot $snapshot,
+        ReportDeliverySchedule $schedule,
+        ReportDeliveryRun $run,
+        ?User $actor,
+        ?Request $request,
+        string $triggerMode,
+    ): ?array {
+        $shareConfig = $this->shareDeliveryConfiguration($schedule);
+
+        if (! $shareConfig['enabled']) {
+            return null;
+        }
+
+        return $this->reportShareLinkService->createForDeliveryRun(
+            workspace: $workspace,
+            snapshot: $snapshot,
+            payload: [
+                'label' => $this->resolveShareLabel($schedule, $snapshot, $shareConfig['label_template']),
+                'expires_in_days' => $shareConfig['expires_in_days'],
+                'allow_csv_download' => $shareConfig['allow_csv_download'],
+            ],
+            context: [
+                'schedule_id' => $schedule->id,
+                'report_delivery_run_id' => $run->id,
+                'trigger_mode' => $triggerMode,
+            ],
+            actor: $actor,
+            request: $request,
+        );
+    }
+
+    private function resolveShareLabel(
+        ReportDeliverySchedule $schedule,
+        \App\Models\ReportSnapshot $snapshot,
+        ?string $labelTemplate,
+    ): string {
+        $template = trim((string) $labelTemplate);
+
+        if ($template === '') {
+            return $snapshot->title;
+        }
+
+        $replacements = [
+            '{snapshot_title}' => $snapshot->title,
+            '{template_name}' => $schedule->template?->name ?? $snapshot->title,
+            '{start_date}' => $snapshot->start_date?->toDateString() ?? '-',
+            '{end_date}' => $snapshot->end_date?->toDateString() ?? '-',
+        ];
+
+        return strtr($template, $replacements);
     }
 }

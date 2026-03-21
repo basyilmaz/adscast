@@ -64,6 +64,8 @@ Report delivery foundation:
 
 - `schedule:run` icinden `adscast:run-report-deliveries` her 15 dakikada bir tetiklenir
 - gercek e-posta gonderimi yoktur; due schedule kaydi icin yeni `report_snapshot` ve `report_delivery_run` kaydi olusur
+- schedule konfigurasyonunda `auto_share_enabled=true` ise ayni run icinde snapshot icin public share link de uretilir
+- otomatik share link ayarlari schedule configuration JSON'u icinde tutulur: etiket sablonu, sure ve CSV erisimi
 
 Shareable client report foundation:
 
