@@ -82,6 +82,16 @@ class RecommendationGenerationService
             'generated_at' => now(),
             'metadata' => [
                 'ai_generation_id' => $generation->id,
+                'performance_summary' => $output['performance_summary'] ?? null,
+                'biggest_risk' => $output['biggest_risk'] ?? null,
+                'biggest_opportunity' => $output['biggest_opportunity'] ?? null,
+                'what_to_test_next' => $output['what_to_test_next'] ?? null,
+                'budget_note' => $output['budget_note'] ?? null,
+                'creative_note' => $output['creative_note'] ?? null,
+                'targeting_note' => $output['targeting_note'] ?? null,
+                'landing_page_note' => $output['landing_page_note'] ?? null,
+                'client_friendly_summary' => $output['client_friendly_summary'] ?? null,
+                'operator_notes' => $output['operator_notes'] ?? null,
             ],
         ]);
 

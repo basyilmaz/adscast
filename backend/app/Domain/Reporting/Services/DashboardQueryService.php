@@ -8,6 +8,7 @@ use App\Models\InsightDaily;
 use App\Models\MetaAdAccount;
 use App\Models\MetaConnection;
 use App\Models\Recommendation;
+use App\Support\Operations\ActionFeedService;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -15,6 +16,11 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardQueryService
 {
+    public function __construct(
+        private readonly ActionFeedService $actionFeedService,
+    ) {
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -123,6 +129,12 @@ class DashboardQueryService
             $campaigns,
             $accounts,
         );
+        $nextBestActions = $this->actionFeedService->nextBestActions(
+            $workspaceId,
+            $openAlerts,
+            $openRecommendations,
+            6,
+        );
 
         return [
             'range' => [
@@ -158,6 +170,7 @@ class DashboardQueryService
             'workspace_health' => $workspaceHealth,
             'account_health' => $accountHealth,
             'urgent_actions' => $urgentActions,
+            'next_best_actions' => $nextBestActions,
             'active_campaigns' => $activeCampaigns,
         ];
     }

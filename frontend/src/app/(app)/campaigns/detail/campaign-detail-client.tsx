@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle, CardValue } from "@/components/ui/card";
+import { NextBestActionsPanel } from "@/components/operations/next-best-actions-panel";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
 import { CampaignDetailResponse } from "@/lib/types";
@@ -230,6 +231,11 @@ export function CampaignDetailClient() {
           </Card>
 
           <div className="space-y-4">
+            <NextBestActionsPanel
+              items={data.next_best_actions}
+              emptyText="Bu kampanya icin kayitli sonraki adim bulunmuyor."
+            />
+
             <Card>
               <CardTitle>Analiz</CardTitle>
               <div className="mt-3 space-y-3 text-sm">
@@ -384,7 +390,25 @@ export function CampaignDetailClient() {
                     <Badge label={item.severity} variant={variantFor(item.severity)} />
                   </div>
                   <p className="text-xs muted-text">{item.date_detected ?? "-"}</p>
-                  <p className="mt-2 text-sm">{item.recommended_action ?? "-"}</p>
+                  <p className="mt-1 text-xs muted-text">
+                    {item.entity_label ?? "Kampanya"}
+                    {item.context_label ? ` / ${item.context_label}` : ""}
+                  </p>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div>
+                      <p className="font-semibold">Neden Onemli?</p>
+                      <p className="muted-text">{item.impact_summary}</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold">Sonraki Adim</p>
+                      <p>{item.next_step}</p>
+                    </div>
+                  </div>
+                  {item.route ? (
+                    <Link href={item.route} className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline">
+                      Ilgili kaydi ac
+                    </Link>
+                  ) : null}
                 </div>
               ))}
               {data.alerts.length === 0 ? <p className="text-sm muted-text">Aktif kampanya uyarisi yok.</p> : null}
@@ -400,8 +424,31 @@ export function CampaignDetailClient() {
                     <p className="font-semibold">{item.summary}</p>
                     <Badge label={item.priority} variant={variantFor(item.priority)} />
                   </div>
-                  <p className="text-xs muted-text">{item.generated_at ?? "-"}</p>
-                  <p className="mt-2 text-sm">{item.details ?? "-"}</p>
+                  <div className="flex flex-wrap items-center gap-2 text-xs muted-text">
+                    <span>{item.generated_at ?? "-"}</span>
+                    <span>•</span>
+                    <span>{item.action_status.label}</span>
+                  </div>
+                  <p className="mt-1 text-xs muted-text">
+                    {item.entity_label ?? "Kampanya"}
+                    {item.context_label ? ` / ${item.context_label}` : ""}
+                  </p>
+                  <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                    <div>
+                      <p className="font-semibold">Operator View</p>
+                      <p className="mt-1 text-sm muted-text">{item.operator_view.summary}</p>
+                      <p className="mt-2 text-xs muted-text">Sonraki test: {item.operator_view.next_test ?? "-"}</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold">Client View</p>
+                      <p className="mt-1 text-sm muted-text">{item.client_view.summary}</p>
+                    </div>
+                  </div>
+                  {item.route ? (
+                    <Link href={item.route} className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline">
+                      Ilgili kaydi ac
+                    </Link>
+                  ) : null}
                 </div>
               ))}
               {data.recommendations.length === 0 ? <p className="text-sm muted-text">Kayitli kampanya onerisi yok.</p> : null}

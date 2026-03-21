@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle, CardValue } from "@/components/ui/card";
+import { NextBestActionsPanel } from "@/components/operations/next-best-actions-panel";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
 import { AdAccountDetailResponse } from "@/lib/types";
@@ -214,24 +215,31 @@ export function AdAccountDetailClient() {
             </div>
           </Card>
 
-          <Card>
-            <CardTitle>Rapor Ozet Taslagi</CardTitle>
-            <div className="mt-3 space-y-3 text-sm">
-              <p className="font-semibold">{data.report_preview.headline}</p>
-              <div>
-                <p className="font-semibold">Musteri Dili</p>
-                <p className="muted-text">{data.report_preview.client_summary}</p>
+          <div className="space-y-4">
+            <NextBestActionsPanel
+              items={data.next_best_actions}
+              emptyText="Bu hesap icin kayitli sonraki adim bulunmuyor."
+            />
+
+            <Card>
+              <CardTitle>Rapor Ozet Taslagi</CardTitle>
+              <div className="mt-3 space-y-3 text-sm">
+                <p className="font-semibold">{data.report_preview.headline}</p>
+                <div>
+                  <p className="font-semibold">Musteri Dili</p>
+                  <p className="muted-text">{data.report_preview.client_summary}</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Operasyon Notu</p>
+                  <p className="muted-text">{data.report_preview.operator_summary}</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Sonraki Adim</p>
+                  <p className="muted-text">{data.report_preview.next_step}</p>
+                </div>
               </div>
-              <div>
-                <p className="font-semibold">Operasyon Notu</p>
-                <p className="muted-text">{data.report_preview.operator_summary}</p>
-              </div>
-              <div>
-                <p className="font-semibold">Sonraki Adim</p>
-                <p className="muted-text">{data.report_preview.next_step}</p>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
         </section>
       ) : null}
 
@@ -299,8 +307,25 @@ export function AdAccountDetailClient() {
                   <span className="text-xs muted-text">{alert.date_detected ?? "-"}</span>
                 </div>
                 <p className="mt-2 font-semibold">{alert.summary}</p>
-                <p className="mt-1 text-sm muted-text">{alert.campaign_name ?? "Hesap seviyesi"}</p>
-                <p className="mt-2 text-sm">{alert.recommended_action ?? "-"}</p>
+                <p className="mt-1 text-sm muted-text">
+                  {alert.entity_label ?? "Hesap seviyesi"}
+                  {alert.context_label ? ` / ${alert.context_label}` : ""}
+                </p>
+                <div className="mt-3 space-y-2 text-sm">
+                  <div>
+                    <p className="font-semibold">Neden Onemli?</p>
+                    <p className="muted-text">{alert.impact_summary}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold">Sonraki Adim</p>
+                    <p>{alert.next_step}</p>
+                  </div>
+                </div>
+                {alert.route ? (
+                  <Link href={alert.route} className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline">
+                    Ilgili kaydi ac
+                  </Link>
+                ) : null}
               </div>
             ))}
             {data.alerts.length === 0 ? <p className="text-sm muted-text">Bu hesap icin acik uyari bulunmuyor.</p> : null}
@@ -316,11 +341,30 @@ export function AdAccountDetailClient() {
               <div key={recommendation.id} className="rounded-lg border border-[var(--border)] p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge label={recommendation.priority} variant={variantFor(recommendation.priority)} />
+                  <Badge label={recommendation.action_status.label} variant="neutral" />
                   <span className="text-xs muted-text">{recommendation.generated_at ?? "-"}</span>
                 </div>
                 <p className="mt-2 font-semibold">{recommendation.summary}</p>
-                <p className="mt-1 text-sm muted-text">{recommendation.campaign_name ?? "Hesap seviyesi"}</p>
-                <p className="mt-2 text-sm">{recommendation.details ?? "-"}</p>
+                <p className="mt-1 text-sm muted-text">
+                  {recommendation.entity_label ?? "Hesap seviyesi"}
+                  {recommendation.context_label ? ` / ${recommendation.context_label}` : ""}
+                </p>
+                <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                  <div>
+                    <p className="text-sm font-semibold">Operator View</p>
+                    <p className="mt-1 text-sm muted-text">{recommendation.operator_view.summary}</p>
+                    <p className="mt-2 text-xs muted-text">Sonraki test: {recommendation.operator_view.next_test ?? "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">Client View</p>
+                    <p className="mt-1 text-sm muted-text">{recommendation.client_view.summary}</p>
+                  </div>
+                </div>
+                {recommendation.route ? (
+                  <Link href={recommendation.route} className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline">
+                    Ilgili kaydi ac
+                  </Link>
+                ) : null}
               </div>
             ))}
             {data.recommendations.length === 0 ? (

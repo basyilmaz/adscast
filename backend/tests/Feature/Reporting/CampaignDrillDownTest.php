@@ -35,6 +35,7 @@ class CampaignDrillDownTest extends TestCase
             ->assertJsonPath('data.summary.active_ad_sets', 2)
             ->assertJsonPath('data.summary.active_ads', 2)
             ->assertJsonPath('data.analysis.biggest_risk', 'Lead Engine Campaign sonuc kaybi yasiyor.')
+            ->assertJsonPath('data.next_best_actions.0.source', 'alert')
             ->assertJsonPath('data.report_preview.next_test', 'Yeni aci ile headline varyasyonu test edin.')
             ->assertJsonFragment([
                 'name' => 'Prospecting Ad Set',
@@ -57,6 +58,7 @@ class CampaignDrillDownTest extends TestCase
                     'ads',
                     'alerts',
                     'recommendations',
+                    'next_best_actions',
                     'analysis',
                     'report_preview',
                 ],

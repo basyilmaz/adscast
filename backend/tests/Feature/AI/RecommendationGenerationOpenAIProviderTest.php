@@ -61,6 +61,14 @@ class RecommendationGenerationOpenAIProviderTest extends TestCase
         $this->assertSame(333, $result['generation']->token_usage['total_tokens']);
         $this->assertSame('openai', $result['output']['provider']);
         $this->assertSame('resp_123', $result['output']['response_id']);
+        $this->assertSame(
+            'Genel gorunum stabil, ama daha fazla sonuc icin test gerekiyor.',
+            $result['recommendation']->metadata['client_friendly_summary'],
+        );
+        $this->assertSame(
+            'Rules engine ile uyumlu sekilde sonuc vermeyen kampanyalari kisitlayin.',
+            $result['recommendation']->metadata['operator_notes'],
+        );
 
         Http::assertSent(function ($request): bool {
             $payload = json_decode($request->body(), true);

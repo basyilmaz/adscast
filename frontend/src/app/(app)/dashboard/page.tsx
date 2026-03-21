@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { Card, CardTitle, CardValue } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { NextBestActionsPanel } from "@/components/operations/next-best-actions-panel";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
 import { DashboardOverviewResponse } from "@/lib/types";
@@ -170,29 +171,11 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.25fr_1fr]">
-        <Card>
-          <CardTitle>Hemen Bakilmasi Gerekenler</CardTitle>
-          <div className="mt-3 space-y-3">
-            {(data?.urgent_actions ?? []).map((item) => (
-              <div key={item.id} className="rounded-lg border border-[var(--border)] p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge label={item.source === "alert" ? "Uyari" : "Oneri"} variant="neutral" />
-                  <Badge label={item.priority} variant={priorityVariant(item.priority)} />
-                  <span className="text-xs muted-text">{item.detected_at ?? "-"}</span>
-                </div>
-                <p className="mt-2 font-semibold">{item.title}</p>
-                <p className="mt-1 text-sm muted-text">
-                  {item.entity_label}
-                  {item.context_label ? ` / ${item.context_label}` : ""}
-                </p>
-                <p className="mt-2 text-sm">{item.detail ?? "Detay kaydi bulunmuyor."}</p>
-              </div>
-            ))}
-            {(data?.urgent_actions ?? []).length === 0 ? (
-              <p className="text-sm muted-text">Su anda acil aksiyon gerektiren kayit gorunmuyor.</p>
-            ) : null}
-          </div>
-        </Card>
+        <NextBestActionsPanel
+          title="Hemen Bakilmasi Gerekenler"
+          items={data?.next_best_actions ?? []}
+          emptyText="Su anda acil aksiyon gerektiren kayit gorunmuyor."
+        />
 
         <Card>
           <CardTitle>Reklam Hesabi Sagligi</CardTitle>

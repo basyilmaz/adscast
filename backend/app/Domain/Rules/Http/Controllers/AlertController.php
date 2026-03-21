@@ -3,8 +3,8 @@
 namespace App\Domain\Rules\Http\Controllers;
 
 use App\Domain\Rules\Services\RulesEngineService;
+use App\Domain\Rules\Services\AlertQueryService;
 use App\Domain\Tenants\Support\WorkspaceContext;
-use App\Models\Alert;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,28 +13,14 @@ class AlertController
 {
     public function __construct(
         private readonly RulesEngineService $rulesEngineService,
+        private readonly AlertQueryService $alertQueryService,
     ) {
     }
 
     public function index(Request $request): JsonResponse
     {
         $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
-
-        $query = Alert::query()
-            ->where('workspace_id', $workspaceId)
-            ->latest('date_detected');
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->string('status')->toString());
-        }
-
-        if ($request->filled('severity')) {
-            $query->where('severity', $request->string('severity')->toString());
-        }
-
-        return new JsonResponse([
-            'data' => $query->paginate(25),
-        ]);
+        return new JsonResponse($this->alertQueryService->index($workspaceId, $request));
     }
 
     public function evaluate(Request $request): JsonResponse

@@ -6,6 +6,86 @@ export type Workspace = {
   currency: string;
 };
 
+export type NextBestActionItem = {
+  id: string;
+  source: "alert" | "recommendation" | string;
+  priority: "high" | "medium" | "low" | "critical" | string;
+  title: string;
+  entity_type: "workspace" | "account" | "campaign" | "ad_set" | "ad" | string;
+  entity_label: string | null;
+  context_label: string | null;
+  route: string | null;
+  why_it_matters: string | null;
+  recommended_action: string | null;
+  detected_at?: string | null;
+  generated_at?: string | null;
+};
+
+export type AlertFeedItem = {
+  id: string;
+  code: string;
+  severity: string;
+  status: string;
+  summary: string;
+  explanation: string | null;
+  confidence: number | null;
+  date_detected: string | null;
+  entity_type: "workspace" | "account" | "campaign" | "ad_set" | "ad" | string;
+  entity_label: string | null;
+  context_label: string | null;
+  route: string | null;
+  why_it_matters: string;
+  impact_summary: string;
+  recommended_action: string | null;
+  next_step: string;
+};
+
+export type RecommendationFeedItem = {
+  id: string;
+  summary: string;
+  details: string | null;
+  priority: string;
+  status: string;
+  source: string;
+  action_type: string | null;
+  generated_at: string | null;
+  entity_type: "workspace" | "account" | "campaign" | "ad_set" | "ad" | string;
+  entity_label: string | null;
+  context_label: string | null;
+  route: string | null;
+  operator_view: {
+    summary: string;
+    budget_note: string | null;
+    creative_note: string | null;
+    targeting_note: string | null;
+    landing_page_note: string | null;
+    next_test: string | null;
+  };
+  client_view: {
+    headline: string;
+    summary: string;
+  };
+  action_status: {
+    code: string;
+    label: string;
+    manual_review_required: boolean;
+  };
+};
+
+export type AlertEntityGroup = {
+  entity_type: string;
+  count: number;
+  critical_count: number;
+  items: AlertFeedItem[];
+};
+
+export type RecommendationEntityGroup = {
+  entity_type: string;
+  count: number;
+  high_priority_count: number;
+  items: RecommendationFeedItem[];
+};
+
 export type AdAccountListResponse = {
   data: {
     data: Array<{
@@ -105,24 +185,9 @@ export type AdAccountDetailResponse = {
       health_summary: string;
       updated_at: string | null;
     }>;
-    alerts: Array<{
-      id: string;
-      code: string;
-      severity: string;
-      summary: string;
-      recommended_action: string | null;
-      campaign_name: string | null;
-      date_detected: string | null;
-    }>;
-    recommendations: Array<{
-      id: string;
-      priority: string;
-      summary: string;
-      details: string | null;
-      status: string;
-      campaign_name: string | null;
-      generated_at: string | null;
-    }>;
+    alerts: AlertFeedItem[];
+    recommendations: RecommendationFeedItem[];
+    next_best_actions: NextBestActionItem[];
     report_preview: {
       headline: string;
       client_summary: string;
@@ -252,22 +317,9 @@ export type CampaignDetailResponse = {
       health_summary: string;
       last_synced_at: string | null;
     }>;
-    alerts: Array<{
-      id: string;
-      code: string;
-      severity: string;
-      summary: string;
-      recommended_action: string | null;
-      date_detected: string | null;
-    }>;
-    recommendations: Array<{
-      id: string;
-      summary: string;
-      details: string | null;
-      priority: string;
-      status: string;
-      generated_at: string | null;
-    }>;
+    alerts: AlertFeedItem[];
+    recommendations: RecommendationFeedItem[];
+    next_best_actions: NextBestActionItem[];
     analysis: {
       biggest_risk: string | null;
       biggest_opportunity: string | null;
@@ -578,6 +630,7 @@ export type DashboardOverviewResponse = {
       context_label: string | null;
       detected_at: string | null;
     }>;
+    next_best_actions: NextBestActionItem[];
     active_campaigns: Array<{
       id: string;
       name: string;
@@ -595,4 +648,32 @@ export type DashboardOverviewResponse = {
       health_summary: string;
     }>;
   };
+};
+
+export type AlertIndexResponse = {
+  data: {
+    data: AlertFeedItem[];
+  };
+  summary: {
+    open_total: number;
+    critical_total: number;
+    entity_types: number;
+    top_recommended_action: string | null;
+  };
+  entity_groups: AlertEntityGroup[];
+  next_best_actions: NextBestActionItem[];
+};
+
+export type RecommendationIndexResponse = {
+  data: {
+    data: RecommendationFeedItem[];
+  };
+  summary: {
+    open_total: number;
+    high_priority_total: number;
+    entity_types: number;
+    manual_review_total: number;
+  };
+  entity_groups: RecommendationEntityGroup[];
+  next_best_actions: NextBestActionItem[];
 };

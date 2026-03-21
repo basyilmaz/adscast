@@ -262,6 +262,7 @@ class AdAccountReportingTest extends TestCase
             ->assertJsonPath('data.campaigns.1.open_recommendations', 1)
             ->assertJsonPath('data.alerts.0.summary', 'Watch Campaign sonuc uretmiyor.')
             ->assertJsonPath('data.recommendations.0.summary', 'Kazanan kampanyada kontrollu butce artisi deneyin.')
+            ->assertJsonPath('data.next_best_actions.0.source', 'alert')
             ->assertJsonPath('data.report_preview.headline', 'Castintech Main Account hesabi secili aralikta 650.00 harcama ile 16 sonuc uretti.')
             ->assertJsonCount(7, 'data.trend');
     }

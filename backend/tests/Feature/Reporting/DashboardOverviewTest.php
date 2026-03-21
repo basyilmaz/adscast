@@ -151,6 +151,7 @@ class DashboardOverviewTest extends TestCase
             ->assertJsonPath('data.active_campaigns.0.open_alerts', 1)
             ->assertJsonPath('data.urgent_actions.0.source', 'alert')
             ->assertJsonPath('data.urgent_actions.1.source', 'recommendation')
+            ->assertJsonPath('data.next_best_actions.0.source', 'alert')
             ->assertJsonPath('data.trend.0.date', '2026-03-01')
             ->assertJsonCount(7, 'data.trend')
             ->assertJsonStructure([
@@ -167,6 +168,7 @@ class DashboardOverviewTest extends TestCase
                     ],
                     'account_health',
                     'urgent_actions',
+                    'next_best_actions',
                     'active_campaigns',
                     'trend',
                 ],

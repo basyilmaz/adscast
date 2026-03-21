@@ -9,6 +9,7 @@ use App\Models\Campaign;
 use App\Models\Creative;
 use App\Models\InsightDaily;
 use App\Models\Recommendation;
+use App\Support\Operations\ActionFeedService;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -16,6 +17,11 @@ use Illuminate\Support\Facades\DB;
 
 class CampaignQueryService
 {
+    public function __construct(
+        private readonly ActionFeedService $actionFeedService,
+    ) {
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -253,6 +259,8 @@ class CampaignQueryService
         $summary['open_recommendations'] = $recommendations->count();
 
         $healthStatus = $this->campaignHealthStatus($campaign, $summary, $alerts->count());
+        $alertPayload = $this->actionFeedService->presentAlerts($campaign->workspace_id, $alerts);
+        $recommendationPayload = $this->actionFeedService->presentRecommendations($campaign->workspace_id, $recommendations);
 
         return [
             'range' => [
@@ -286,22 +294,14 @@ class CampaignQueryService
             'trend' => $trend['trend'],
             'ad_sets' => $adSetRows->all(),
             'ads' => $adRows->all(),
-            'alerts' => $alerts->map(fn (Alert $alert): array => [
-                'id' => $alert->id,
-                'code' => $alert->code,
-                'severity' => $alert->severity,
-                'summary' => $alert->summary,
-                'recommended_action' => $alert->recommended_action,
-                'date_detected' => optional($alert->date_detected)->toDateString(),
-            ])->values()->all(),
-            'recommendations' => $recommendations->map(fn (Recommendation $recommendation): array => [
-                'id' => $recommendation->id,
-                'summary' => $recommendation->summary,
-                'details' => $recommendation->details,
-                'priority' => $recommendation->priority,
-                'status' => $recommendation->status,
-                'generated_at' => optional($recommendation->generated_at)->toDateTimeString(),
-            ])->values()->all(),
+            'alerts' => $alertPayload['items'],
+            'recommendations' => $recommendationPayload['items'],
+            'next_best_actions' => $this->actionFeedService->nextBestActions(
+                $campaign->workspace_id,
+                $alerts,
+                $recommendations,
+                5,
+            ),
             'analysis' => $this->campaignAnalysis($alerts, $recommendations, $summary),
             'report_preview' => $this->campaignReportPreview($campaign, $summary, $alerts, $recommendations),
         ];

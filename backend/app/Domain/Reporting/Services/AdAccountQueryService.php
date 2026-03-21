@@ -9,6 +9,7 @@ use App\Models\Campaign;
 use App\Models\InsightDaily;
 use App\Models\MetaAdAccount;
 use App\Models\Recommendation;
+use App\Support\Operations\ActionFeedService;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -16,6 +17,11 @@ use Illuminate\Support\Facades\DB;
 
 class AdAccountQueryService
 {
+    public function __construct(
+        private readonly ActionFeedService $actionFeedService,
+    ) {
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -251,6 +257,8 @@ class AdAccountQueryService
             (float) $summary['spend'],
             (float) $summary['results'],
         );
+        $alertPayload = $this->actionFeedService->presentAlerts($account->workspace_id, $alerts);
+        $recommendationPayload = $this->actionFeedService->presentRecommendations($account->workspace_id, $recommendations);
 
         return [
             'range' => [
@@ -282,32 +290,14 @@ class AdAccountQueryService
             ],
             'trend' => $trend,
             'campaigns' => $campaignRows->all(),
-            'alerts' => $alerts->map(function (Alert $alert) use ($campaigns): array {
-                $campaign = $campaigns->firstWhere('id', $alert->entity_id);
-
-                return [
-                    'id' => $alert->id,
-                    'code' => $alert->code,
-                    'severity' => $alert->severity,
-                    'summary' => $alert->summary,
-                    'recommended_action' => $alert->recommended_action,
-                    'campaign_name' => $campaign?->name,
-                    'date_detected' => optional($alert->date_detected)->toDateString(),
-                ];
-            })->values()->all(),
-            'recommendations' => $recommendations->map(function (Recommendation $recommendation) use ($campaigns): array {
-                $campaign = $campaigns->firstWhere('id', $recommendation->target_id);
-
-                return [
-                    'id' => $recommendation->id,
-                    'priority' => $recommendation->priority,
-                    'summary' => $recommendation->summary,
-                    'details' => $recommendation->details,
-                    'status' => $recommendation->status,
-                    'campaign_name' => $campaign?->name,
-                    'generated_at' => optional($recommendation->generated_at)->toDateTimeString(),
-                ];
-            })->values()->all(),
+            'alerts' => $alertPayload['items'],
+            'recommendations' => $recommendationPayload['items'],
+            'next_best_actions' => $this->actionFeedService->nextBestActions(
+                $account->workspace_id,
+                $alerts,
+                $recommendations,
+                5,
+            ),
             'report_preview' => $this->reportPreview($account, $summary, $campaignRows, $alerts),
         ];
     }
