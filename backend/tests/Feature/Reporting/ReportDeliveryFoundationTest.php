@@ -556,6 +556,11 @@ class ReportDeliveryFoundationTest extends TestCase
                 'name' => 'Growth Core Group',
                 'recipients' => ['ops@castintech.com'],
                 'contact_tags' => ['growth-core'],
+                'template_kind' => 'stakeholder_update',
+                'target_entity_types' => ['account'],
+                'matching_companies' => ['Castintech'],
+                'priority' => 85,
+                'is_recommended_default' => true,
             ])
             ->assertCreated();
 
@@ -568,6 +573,14 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.recipient_group_catalog_summary.preset_groups', 1)
             ->assertJsonPath('data.recipient_group_catalog_summary.segment_groups', 1)
             ->assertJsonPath('data.recipient_group_catalog_summary.smart_groups', 2)
+            ->assertJsonPath('data.recipient_preset_summary.managed_templates', 1)
+            ->assertJsonPath('data.recipient_preset_summary.recommended_default_presets', 1)
+            ->assertJsonPath('data.recipient_presets.0.template_profile.kind', 'stakeholder_update')
+            ->assertJsonPath('data.recipient_presets.0.template_profile.target_entity_scope_label', 'Reklam Hesabi')
+            ->assertJsonPath('data.recipient_presets.0.template_profile.company_scope_label', 'Castintech')
+            ->assertJsonPath('data.recipient_presets.0.template_profile.priority', 85)
+            ->assertJsonPath('data.recipient_presets.0.template_profile.is_recommended_default', true)
+            ->assertJsonPath('data.recipient_group_catalog.0.catalog_section', 'Alici Grubu Sablonlari')
             ->assertJsonPath('data.recipient_group_catalog.0.source_type', 'preset')
             ->assertJsonPath('data.recipient_group_catalog.0.recipient_group_summary.mode', 'preset_plus_segment')
             ->assertJsonPath('data.recipient_group_catalog.1.source_type', 'segment')
@@ -614,6 +627,11 @@ class ReportDeliveryFoundationTest extends TestCase
                 'name' => 'Delivery Account Core Group',
                 'recipients' => ['ops@castintech.com'],
                 'contact_tags' => ['delivery-account-core'],
+                'template_kind' => 'client_reporting',
+                'target_entity_types' => ['account'],
+                'matching_companies' => [$account->name],
+                'priority' => 90,
+                'is_recommended_default' => true,
             ])
             ->assertCreated();
 
@@ -629,6 +647,9 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.entity_id', $account->id)
             ->assertJsonPath('data.summary.total_suggestions', 4)
             ->assertJsonPath('data.summary.top_source_type', 'preset')
+            ->assertJsonPath('data.suggested_groups.0.name', 'Delivery Account Core Group')
+            ->assertJsonPath('data.suggested_groups.0.template_profile.priority', 90)
+            ->assertJsonPath('data.suggested_groups.0.template_profile.is_recommended_default', true)
             ->assertJsonFragment([
                 'source_type' => 'smart',
                 'source_subtype' => 'company',

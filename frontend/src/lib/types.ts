@@ -913,6 +913,31 @@ export type ReportRecipientPresetListItem = {
     resolved_recipients_count: number;
     sample_contact_names: string[];
   };
+  template_profile: {
+    kind: string;
+    kind_label: string;
+    target_entity_types: string[];
+    target_entity_scope_label: string;
+    matching_companies: string[];
+    company_scope_label: string;
+    priority: number;
+    priority_label: string;
+    is_recommended_default: boolean;
+    selection_strategy: string;
+    selection_strategy_label: string;
+  };
+  template_rule_summary: {
+    catalog_section: string;
+    kind_label: string;
+    entity_scope_label: string;
+    company_scope_label: string;
+    priority: number;
+    priority_label: string;
+    selection_strategy_label: string;
+    is_recommended_default: boolean;
+    badges: string[];
+  };
+  catalog_section: string;
   notes: string | null;
   is_active: boolean;
   created_at: string | null;
@@ -953,6 +978,7 @@ export type ReportContactSegmentListItem = {
 
 export type RecipientGroupCatalogItem = {
   id: string;
+  catalog_section: string;
   source_type: "preset" | "segment" | "smart" | string;
   source_subtype?: "company" | "primary" | string | null;
   source_id: string | null;
@@ -969,6 +995,30 @@ export type RecipientGroupCatalogItem = {
   tagged_contacts_count: number;
   resolved_recipients: string[];
   resolved_recipients_count: number;
+  template_profile?: {
+    kind: string;
+    kind_label: string;
+    target_entity_types: string[];
+    target_entity_scope_label: string;
+    matching_companies: string[];
+    company_scope_label: string;
+    priority: number;
+    priority_label: string;
+    is_recommended_default: boolean;
+    selection_strategy: string;
+    selection_strategy_label: string;
+  } | null;
+  template_rule_summary?: {
+    catalog_section: string;
+    kind_label: string;
+    entity_scope_label: string;
+    company_scope_label: string;
+    priority: number;
+    priority_label: string;
+    selection_strategy_label: string;
+    is_recommended_default: boolean;
+    badges: string[];
+  } | null;
   recipient_group_summary: {
     mode: string;
     label: string;
@@ -1263,6 +1313,8 @@ export type ReportIndexResponse = {
       active_presets: number;
       total_recipients: number;
       segment_backed_presets: number;
+      managed_templates: number;
+      recommended_default_presets: number;
     };
     delivery_profile_summary: {
       total_profiles: number;

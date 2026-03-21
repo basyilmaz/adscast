@@ -19,6 +19,13 @@ class StoreReportRecipientPresetRequest extends FormRequest
             'recipients.*' => ['required', 'email:rfc'],
             'contact_tags' => ['nullable', 'array', 'min:1', 'max:10'],
             'contact_tags.*' => ['required', 'string', 'max:60'],
+            'template_kind' => ['nullable', 'string', 'in:client_reporting,stakeholder_update,executive_digest,internal_ops'],
+            'target_entity_types' => ['nullable', 'array', 'min:1', 'max:2'],
+            'target_entity_types.*' => ['required', 'string', 'in:account,campaign'],
+            'matching_companies' => ['nullable', 'array', 'min:1', 'max:10'],
+            'matching_companies.*' => ['required', 'string', 'max:120'],
+            'priority' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'is_recommended_default' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['nullable', 'boolean'],
         ];

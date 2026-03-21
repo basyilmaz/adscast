@@ -43,6 +43,15 @@ class ReportRecipientPresetService
                 'segment_backed_presets' => $items->filter(
                     fn (array $item): bool => count($item['contact_tags']) > 0,
                 )->count(),
+                'managed_templates' => $items->filter(
+                    fn (array $item): bool => ($item['template_profile']['priority'] ?? 50) !== 50
+                        || ($item['template_profile']['is_recommended_default'] ?? false)
+                        || count($item['template_profile']['target_entity_types'] ?? []) > 0
+                        || count($item['template_profile']['matching_companies'] ?? []) > 0,
+                )->count(),
+                'recommended_default_presets' => $items->filter(
+                    fn (array $item): bool => (bool) ($item['template_profile']['is_recommended_default'] ?? false),
+                )->count(),
             ],
             'items' => $items->all(),
         ];
@@ -67,6 +76,11 @@ class ReportRecipientPresetService
             'name' => $name,
             'recipients' => $this->normalizeRecipients($payload['recipients'] ?? []),
             'contact_tags' => $this->reportContactService->normalizeTags($payload['contact_tags'] ?? []),
+            'template_kind' => $payload['template_kind'] ?? null,
+            'target_entity_types' => $payload['target_entity_types'] ?? null,
+            'matching_companies' => $payload['matching_companies'] ?? null,
+            'priority' => $payload['priority'] ?? null,
+            'is_recommended_default' => $payload['is_recommended_default'] ?? false,
             'notes' => isset($payload['notes']) ? trim((string) $payload['notes']) : null,
             'is_active' => (bool) ($payload['is_active'] ?? true),
             'created_at' => now()->toDateTimeString(),
@@ -90,6 +104,11 @@ class ReportRecipientPresetService
                 'recipients_count' => $item['recipients_count'],
                 'contact_tags' => $item['contact_tags'],
                 'resolved_recipients_count' => $item['resolved_recipients_count'],
+                'template_kind' => $item['template_profile']['kind'],
+                'target_entity_types' => $item['template_profile']['target_entity_types'],
+                'matching_companies' => $item['template_profile']['matching_companies'],
+                'priority' => $item['template_profile']['priority'],
+                'is_recommended_default' => $item['template_profile']['is_recommended_default'],
             ],
             request: $request,
         );
@@ -125,6 +144,11 @@ class ReportRecipientPresetService
             'name' => $name,
             'recipients' => $this->normalizeRecipients($payload['recipients'] ?? []),
             'contact_tags' => $this->reportContactService->normalizeTags($payload['contact_tags'] ?? []),
+            'template_kind' => $payload['template_kind'] ?? $current['template_profile']['kind'],
+            'target_entity_types' => $payload['target_entity_types'] ?? $current['template_profile']['target_entity_types'],
+            'matching_companies' => $payload['matching_companies'] ?? $current['template_profile']['matching_companies'],
+            'priority' => $payload['priority'] ?? $current['template_profile']['priority'],
+            'is_recommended_default' => $payload['is_recommended_default'] ?? $current['template_profile']['is_recommended_default'],
             'notes' => isset($payload['notes']) ? trim((string) $payload['notes']) : null,
             'is_active' => (bool) ($payload['is_active'] ?? $current['is_active']),
             'created_at' => $current['created_at'],
@@ -148,6 +172,11 @@ class ReportRecipientPresetService
                 'contact_tags' => $item['contact_tags'],
                 'resolved_recipients_count' => $item['resolved_recipients_count'],
                 'is_active' => $item['is_active'],
+                'template_kind' => $item['template_profile']['kind'],
+                'target_entity_types' => $item['template_profile']['target_entity_types'],
+                'matching_companies' => $item['template_profile']['matching_companies'],
+                'priority' => $item['template_profile']['priority'],
+                'is_recommended_default' => $item['template_profile']['is_recommended_default'],
             ],
             request: $request,
         );
@@ -323,6 +352,7 @@ class ReportRecipientPresetService
         $contactTags = $this->reportContactService->normalizeTags(
             is_array($item['contact_tags'] ?? null) ? $item['contact_tags'] : [],
         );
+        $templateProfile = $this->normalizeTemplateProfile($item, $recipients, $contactTags);
         $recipientGroup = $this->resolveRecipientGroup(
             workspaceId: $workspaceId,
             preset: null,
@@ -341,6 +371,9 @@ class ReportRecipientPresetService
             'resolved_recipients' => $recipientGroup['resolved_recipients'],
             'resolved_recipients_count' => count($recipientGroup['resolved_recipients']),
             'recipient_group_summary' => $recipientGroup['recipient_group_summary'],
+            'template_profile' => $templateProfile,
+            'template_rule_summary' => $this->templateRuleSummary($templateProfile, $recipientGroup['recipient_group_summary']),
+            'catalog_section' => 'Alici Grubu Sablonlari',
             'notes' => isset($item['notes']) && trim((string) $item['notes']) !== ''
                 ? trim((string) $item['notes'])
                 : null,
@@ -404,6 +437,134 @@ class ReportRecipientPresetService
             'resolved_recipients_count' => count($resolvedRecipients),
             'sample_contact_names' => collect($taggedContacts)->pluck('name')->take(3)->values()->all(),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @param  array<int, string>  $recipients
+     * @param  array<int, string>  $contactTags
+     * @return array<string, mixed>
+     */
+    private function normalizeTemplateProfile(array $item, array $recipients, array $contactTags): array
+    {
+        $kind = trim((string) ($item['template_kind'] ?? ''));
+
+        if (! in_array($kind, ['client_reporting', 'stakeholder_update', 'executive_digest', 'internal_ops'], true)) {
+            $kind = 'client_reporting';
+        }
+
+        $targetEntityTypes = collect(is_array($item['target_entity_types'] ?? null) ? $item['target_entity_types'] : [])
+            ->map(fn (mixed $value): string => trim((string) $value))
+            ->filter(fn (string $value): bool => in_array($value, ['account', 'campaign'], true))
+            ->unique()
+            ->values()
+            ->all();
+
+        $matchingCompanies = collect(is_array($item['matching_companies'] ?? null) ? $item['matching_companies'] : [])
+            ->map(fn (mixed $value): string => trim((string) $value))
+            ->filter(fn (string $value): bool => $value !== '')
+            ->unique(fn (string $value): string => mb_strtolower($value))
+            ->values()
+            ->all();
+
+        $priority = max(1, min(100, (int) ($item['priority'] ?? 50)));
+        $selectionStrategy = $this->selectionStrategy($recipients, $contactTags);
+
+        return [
+            'kind' => $kind,
+            'kind_label' => $this->templateKindLabel($kind),
+            'target_entity_types' => $targetEntityTypes,
+            'target_entity_scope_label' => $targetEntityTypes === []
+                ? 'Tum kayit tipleri'
+                : collect($targetEntityTypes)
+                    ->map(fn (string $value): string => $value === 'account' ? 'Reklam Hesabi' : 'Kampanya')
+                    ->implode(', '),
+            'matching_companies' => $matchingCompanies,
+            'company_scope_label' => $matchingCompanies === []
+                ? 'Tum markalar'
+                : implode(', ', $matchingCompanies),
+            'priority' => $priority,
+            'priority_label' => sprintf('Oncelik %d', $priority),
+            'is_recommended_default' => (bool) ($item['is_recommended_default'] ?? false),
+            'selection_strategy' => $selectionStrategy['key'],
+            'selection_strategy_label' => $selectionStrategy['label'],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $templateProfile
+     * @param  array<string, mixed>  $recipientGroupSummary
+     * @return array<string, mixed>
+     */
+    private function templateRuleSummary(array $templateProfile, array $recipientGroupSummary): array
+    {
+        $badges = [
+            $templateProfile['kind_label'],
+            $templateProfile['target_entity_scope_label'],
+            $templateProfile['priority_label'],
+            $templateProfile['selection_strategy_label'],
+        ];
+
+        if (($templateProfile['is_recommended_default'] ?? false) === true) {
+            $badges[] = 'Varsayilan Oneri';
+        }
+
+        if (($templateProfile['company_scope_label'] ?? 'Tum markalar') !== 'Tum markalar') {
+            $badges[] = $templateProfile['company_scope_label'];
+        }
+
+        if (($recipientGroupSummary['dynamic_contacts_count'] ?? 0) > 0) {
+            $badges[] = 'Dinamik Segment';
+        }
+
+        return [
+            'catalog_section' => 'Alici Grubu Sablonlari',
+            'kind_label' => $templateProfile['kind_label'],
+            'entity_scope_label' => $templateProfile['target_entity_scope_label'],
+            'company_scope_label' => $templateProfile['company_scope_label'],
+            'priority' => $templateProfile['priority'],
+            'priority_label' => $templateProfile['priority_label'],
+            'selection_strategy_label' => $templateProfile['selection_strategy_label'],
+            'is_recommended_default' => $templateProfile['is_recommended_default'],
+            'badges' => array_values(array_unique(array_filter($badges))),
+        ];
+    }
+
+    /**
+     * @param  array<int, string>  $recipients
+     * @param  array<int, string>  $contactTags
+     * @return array{key: string, label: string}
+     */
+    private function selectionStrategy(array $recipients, array $contactTags): array
+    {
+        return match (true) {
+            $recipients !== [] && $contactTags !== [] => [
+                'key' => 'hybrid',
+                'label' => 'Hibrit',
+            ],
+            $contactTags !== [] => [
+                'key' => 'segment_backed',
+                'label' => 'Segment destekli',
+            ],
+            $recipients !== [] => [
+                'key' => 'manual',
+                'label' => 'Manuel odakli',
+            ],
+            default => [
+                'key' => 'empty',
+                'label' => 'Bos',
+            ],
+        };
+    }
+
+    private function templateKindLabel(string $kind): string
+    {
+        return match ($kind) {
+            'stakeholder_update' => 'Paydas Guncellemesi',
+            'executive_digest' => 'Yonetici Ozeti',
+            'internal_ops' => 'Ic Operasyon',
+            default => 'Musteri Raporlama',
+        };
     }
 
     /**

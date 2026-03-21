@@ -2,6 +2,7 @@
 
 import { type ReactNode, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ReportRecipientTemplateProfileFields } from "@/components/reports/report-recipient-template-profile-fields";
 import { apiRequest } from "@/lib/api";
 import { ReportContactListItem } from "@/lib/types";
 
@@ -14,6 +15,11 @@ export function ReportRecipientPresetForm({ contacts = [], onCreated }: Props) {
   const [name, setName] = useState("");
   const [recipients, setRecipients] = useState("");
   const [contactTags, setContactTags] = useState<string[]>([]);
+  const [templateKind, setTemplateKind] = useState("client_reporting");
+  const [targetEntityTypes, setTargetEntityTypes] = useState<string[]>([]);
+  const [matchingCompaniesInput, setMatchingCompaniesInput] = useState("");
+  const [priority, setPriority] = useState(50);
+  const [isRecommendedDefault, setIsRecommendedDefault] = useState(false);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -57,6 +63,19 @@ export function ReportRecipientPresetForm({ contacts = [], onCreated }: Props) {
     [parsedRecipients, taggedContacts],
   );
 
+  const matchingCompanies = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          matchingCompaniesInput
+            .split(/[,\n;]+/)
+            .map((item) => item.trim())
+            .filter(Boolean),
+        ),
+      ),
+    [matchingCompaniesInput],
+  );
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -77,6 +96,11 @@ export function ReportRecipientPresetForm({ contacts = [], onCreated }: Props) {
           name: name.trim(),
           recipients: parsedRecipients.length > 0 ? parsedRecipients : null,
           contact_tags: contactTags.length > 0 ? contactTags : null,
+          template_kind: templateKind,
+          target_entity_types: targetEntityTypes.length > 0 ? targetEntityTypes : null,
+          matching_companies: matchingCompanies.length > 0 ? matchingCompanies : null,
+          priority,
+          is_recommended_default: isRecommendedDefault,
           notes: notes.trim() || null,
         },
       });
@@ -85,6 +109,11 @@ export function ReportRecipientPresetForm({ contacts = [], onCreated }: Props) {
       setName("");
       setRecipients("");
       setContactTags([]);
+      setTemplateKind("client_reporting");
+      setTargetEntityTypes([]);
+      setMatchingCompaniesInput("");
+      setPriority(50);
+      setIsRecommendedDefault(false);
       setNotes("");
 
       await onCreated?.();
@@ -127,6 +156,20 @@ export function ReportRecipientPresetForm({ contacts = [], onCreated }: Props) {
           placeholder="musteri@ornek.com, ekip@ornek.com"
         />
       </Field>
+
+      <ReportRecipientTemplateProfileFields
+        templateKind={templateKind}
+        onTemplateKindChange={setTemplateKind}
+        targetEntityTypes={targetEntityTypes}
+        onTargetEntityTypesChange={setTargetEntityTypes}
+        matchingCompaniesInput={matchingCompaniesInput}
+        onMatchingCompaniesInputChange={setMatchingCompaniesInput}
+        priority={priority}
+        onPriorityChange={setPriority}
+        isRecommendedDefault={isRecommendedDefault}
+        onIsRecommendedDefaultChange={setIsRecommendedDefault}
+        contacts={contacts}
+      />
 
       {availableContactTags.length > 0 ? (
         <div className="rounded-lg border border-[var(--border)] p-3 text-sm">

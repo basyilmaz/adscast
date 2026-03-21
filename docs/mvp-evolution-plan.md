@@ -272,3 +272,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 33. Quick delivery ve schedule formlarinda onerilen alici gruplarini ana secim akisi yapip manuel alici/etiket ayarlarini ileri seviye override'a tasimak
 34. Alici gruplarinin kullanim, teslim basarisi ve entity yayilimini gosteren recipient group analytics katmanini eklemek
 35. Onerilen alici grubu ile operator secimi arasindaki sapmayi schedule kararlarinda izleyip alignment analytics paneline tasimak
+36. Kayitli alici presetlerini kural yonetilen recipient group template kataloguna tasiyip entity tipi, sirket eslesmesi ve oncelik metadata'si ile suggestion akisini guclendirmek

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ReportRecipientTemplateProfileFields } from "@/components/reports/report-recipient-template-profile-fields";
 import { apiRequest } from "@/lib/api";
 import { ReportContactListItem, ReportRecipientPresetListItem } from "@/lib/types";
 
@@ -17,6 +18,11 @@ export function ReportRecipientPresetManager({ presets, contacts, onChanged }: P
   const [name, setName] = useState("");
   const [recipients, setRecipients] = useState("");
   const [contactTags, setContactTags] = useState<string[]>([]);
+  const [templateKind, setTemplateKind] = useState("client_reporting");
+  const [targetEntityTypes, setTargetEntityTypes] = useState<string[]>([]);
+  const [matchingCompaniesInput, setMatchingCompaniesInput] = useState("");
+  const [priority, setPriority] = useState(50);
+  const [isRecommendedDefault, setIsRecommendedDefault] = useState(false);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -70,6 +76,11 @@ export function ReportRecipientPresetManager({ presets, contacts, onChanged }: P
     setName(preset.name);
     setRecipients(preset.recipients.join(", "));
     setContactTags(preset.contact_tags);
+    setTemplateKind(preset.template_profile.kind);
+    setTargetEntityTypes(preset.template_profile.target_entity_types);
+    setMatchingCompaniesInput(preset.template_profile.matching_companies.join(", "));
+    setPriority(preset.template_profile.priority);
+    setIsRecommendedDefault(preset.template_profile.is_recommended_default);
     setNotes(preset.notes ?? "");
     setMessage(null);
     setError(null);
@@ -80,8 +91,26 @@ export function ReportRecipientPresetManager({ presets, contacts, onChanged }: P
     setName("");
     setRecipients("");
     setContactTags([]);
+    setTemplateKind("client_reporting");
+    setTargetEntityTypes([]);
+    setMatchingCompaniesInput("");
+    setPriority(50);
+    setIsRecommendedDefault(false);
     setNotes("");
   };
+
+  const matchingCompanies = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          matchingCompaniesInput
+            .split(/[,\n;]+/)
+            .map((item) => item.trim())
+            .filter(Boolean),
+        ),
+      ),
+    [matchingCompaniesInput],
+  );
 
   const handleUpdate = async (presetId: string) => {
     if (!name.trim() || (parsedRecipients.length === 0 && contactTags.length === 0)) {
@@ -101,6 +130,11 @@ export function ReportRecipientPresetManager({ presets, contacts, onChanged }: P
           name: name.trim(),
           recipients: parsedRecipients.length > 0 ? parsedRecipients : null,
           contact_tags: contactTags.length > 0 ? contactTags : null,
+          template_kind: templateKind,
+          target_entity_types: targetEntityTypes.length > 0 ? targetEntityTypes : null,
+          matching_companies: matchingCompanies.length > 0 ? matchingCompanies : null,
+          priority,
+          is_recommended_default: isRecommendedDefault,
           notes: notes.trim() || null,
         },
       });
@@ -173,6 +207,8 @@ export function ReportRecipientPresetManager({ presets, contacts, onChanged }: P
             <Badge label={`${preset.recipient_group_summary.static_recipients_count} statik`} variant="neutral" />
             <Badge label={`${preset.recipient_group_summary.dynamic_contacts_count} dinamik`} variant="neutral" />
             <Badge label={`${preset.resolved_recipients_count} cozumlenen`} variant="neutral" />
+            <Badge label={preset.template_profile.kind_label} variant="neutral" />
+            {preset.template_profile.is_recommended_default ? <Badge label="Varsayilan Oneri" variant="success" /> : null}
           </div>
 
           {editingId === preset.id ? (
@@ -188,6 +224,19 @@ export function ReportRecipientPresetManager({ presets, contacts, onChanged }: P
                 value={recipients}
                 onChange={(event) => setRecipients(event.target.value)}
                 placeholder="musteri@ornek.com, ekip@ornek.com"
+              />
+              <ReportRecipientTemplateProfileFields
+                templateKind={templateKind}
+                onTemplateKindChange={setTemplateKind}
+                targetEntityTypes={targetEntityTypes}
+                onTargetEntityTypesChange={setTargetEntityTypes}
+                matchingCompaniesInput={matchingCompaniesInput}
+                onMatchingCompaniesInputChange={setMatchingCompaniesInput}
+                priority={priority}
+                onPriorityChange={setPriority}
+                isRecommendedDefault={isRecommendedDefault}
+                onIsRecommendedDefaultChange={setIsRecommendedDefault}
+                contacts={contacts}
               />
               {availableContactTags.length > 0 ? (
                 <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
@@ -245,6 +294,9 @@ export function ReportRecipientPresetManager({ presets, contacts, onChanged }: P
               <p className="mt-1 text-sm muted-text">{preset.recipient_group_summary.label}</p>
               <p className="mt-1 text-xs muted-text">
                 Statik: {preset.recipient_group_summary.static_recipients_count} / Dinamik: {preset.recipient_group_summary.dynamic_contacts_count}
+              </p>
+              <p className="mt-1 text-xs muted-text">
+                {preset.template_rule_summary.entity_scope_label} / {preset.template_rule_summary.company_scope_label} / {preset.template_profile.priority_label}
               </p>
               {preset.contact_tags.length > 0 ? (
                 <p className="mt-1 text-xs muted-text">Etiketler: {preset.contact_tags.join(", ")}</p>

@@ -40,39 +40,60 @@ export function ReportRecipientGroupCatalog({ items, emptyText, onApply }: Props
     return <p className="text-sm muted-text">{emptyText}</p>;
   }
 
+  const groups = items.reduce<Record<string, RecipientGroupCatalogItem[]>>((carry, item) => {
+    const section = item.catalog_section || "Katalog";
+    carry[section] = carry[section] ?? [];
+    carry[section].push(item);
+
+    return carry;
+  }, {});
+
   return (
     <div className="space-y-3">
-      {items.map((item) => (
-        <div key={item.id} className="rounded-lg border border-[var(--border)] p-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
-                <Badge label={sourceLabel(item.source_type, item.source_subtype)} variant="neutral" />
-                <Badge label={`${item.resolved_recipients_count} alici`} variant="neutral" />
-                {item.recommendation_label ? <Badge label={item.recommendation_label} variant="success" /> : null}
-              </div>
-              <div>
-                <p className="font-semibold">{item.name}</p>
-                <p className="mt-1 text-sm muted-text">{item.description ?? item.recipient_group_summary.label}</p>
-              </div>
-              <p className="text-xs muted-text">{item.recipient_group_summary.label}</p>
-              <p className="text-xs muted-text">
-                Statik: {item.recipient_group_summary.static_recipients_count} / Dinamik: {item.recipient_group_summary.dynamic_contacts_count}
-              </p>
-              {item.recommendation_reason ? <p className="text-xs muted-text">{item.recommendation_reason}</p> : null}
-              {item.recipient_group_summary.sample_contact_names.length > 0 ? (
-                <p className="text-xs muted-text">
-                  Ornek kisiler: {item.recipient_group_summary.sample_contact_names.join(", ")}
-                </p>
-              ) : null}
-            </div>
+      {Object.entries(groups).map(([section, sectionItems]) => (
+        <div key={section} className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide muted-text">{section}</p>
+          {sectionItems.map((item) => (
+            <div key={item.id} className="rounded-lg border border-[var(--border)] p-3">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge label={sourceLabel(item.source_type, item.source_subtype)} variant="neutral" />
+                    <Badge label={`${item.resolved_recipients_count} alici`} variant="neutral" />
+                    {item.recommendation_label ? <Badge label={item.recommendation_label} variant="success" /> : null}
+                    {item.template_rule_summary?.badges?.slice(0, 2).map((badge) => (
+                      <Badge key={`${item.id}-${badge}`} label={badge} variant="neutral" />
+                    ))}
+                  </div>
+                  <div>
+                    <p className="font-semibold">{item.name}</p>
+                    <p className="mt-1 text-sm muted-text">{item.description ?? item.recipient_group_summary.label}</p>
+                  </div>
+                  <p className="text-xs muted-text">{item.recipient_group_summary.label}</p>
+                  <p className="text-xs muted-text">
+                    Statik: {item.recipient_group_summary.static_recipients_count} / Dinamik: {item.recipient_group_summary.dynamic_contacts_count}
+                  </p>
+                  {item.template_rule_summary ? (
+                    <p className="text-xs muted-text">
+                      {item.template_rule_summary.entity_scope_label} / {item.template_rule_summary.company_scope_label} / {item.template_rule_summary.priority_label}
+                    </p>
+                  ) : null}
+                  {item.recommendation_reason ? <p className="text-xs muted-text">{item.recommendation_reason}</p> : null}
+                  {item.recipient_group_summary.sample_contact_names.length > 0 ? (
+                    <p className="text-xs muted-text">
+                      Ornek kisiler: {item.recipient_group_summary.sample_contact_names.join(", ")}
+                    </p>
+                  ) : null}
+                </div>
 
-            {onApply ? (
-              <Button type="button" variant="secondary" size="sm" onClick={() => onApply(item)}>
-                Bu grubu kullan
-              </Button>
-            ) : null}
-          </div>
+                {onApply ? (
+                  <Button type="button" variant="secondary" size="sm" onClick={() => onApply(item)}>
+                    Bu grubu kullan
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ))}
         </div>
       ))}
     </div>

@@ -188,6 +188,7 @@ export default function ReportsPage() {
         <MetricCard label="Izlenen Grup" value={data?.recipient_group_analytics_summary.total_groups ?? 0} />
         <MetricCard label="Override Karar" value={data?.recipient_group_alignment_summary.overridden_decisions ?? 0} />
         <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
+        <MetricCard label="Sablon Kurali" value={data?.recipient_preset_summary.managed_templates ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
         <MetricCard label="Aktif Schedule" value={data?.delivery_summary.active_schedules ?? 0} />
         <MetricCard label="Basarisiz Teslim" value={data?.delivery_run_summary.failed_runs ?? 0} />
@@ -245,9 +246,9 @@ export default function ReportsPage() {
         </Card>
 
         <Card>
-          <CardTitle>Kayitli Alici Gruplari</CardTitle>
+          <CardTitle>Kayitli Alici Grubu Sablonlari</CardTitle>
           <p className="mt-2 text-sm muted-text">
-            Statik alicilari ve kisi segmentlerini bir kez gruplayin. Hizli teslim ve schedule akislarinda bu gruplari tekrar secerek kullanin.
+            Alici gruplarini tek sefer tanimlayin; kayit tipi, marka eslesmesi ve oncelik kurallariyla katalogu daha akilli hale getirin.
           </p>
           <div className="mt-4">
             <ReportRecipientPresetForm contacts={data?.contacts ?? []} onCreated={reload} />

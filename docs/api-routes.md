@@ -28,7 +28,9 @@ Base path: `/api/v1`
   - `recipient_group_catalog_summary` ve `recipient_group_catalog[]` ile kayitli grup + segment + primary/sirket bazli akilli grup katalogunu doner
   - `recipient_group_analytics_summary` ve `recipient_group_analytics[]` ile alici grubu kullanim, teslim basarisi ve entity yayilimini doner
   - `recipient_group_alignment_summary` ve `recipient_group_alignment[]` ile onerilen grup ile operator secimi arasindaki sapmayi doner
+  - `recipient_preset_summary.managed_templates` ve `recipient_preset_summary.recommended_default_presets` ile kural yonetilen grup sablonlarini ozetler
   - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner
+  - `recipient_presets[].template_profile` ve `template_rule_summary` ile grup sablon kurallarini doner
   - `delivery_profiles[].recipient_group_summary` ile varsayilan alici grubunun kaynagini ozetler
 - `GET /reports/recipient-group-suggestions`
   - `entity_type` + `entity_id` icin operator akislarinda kullanilacak onerilen alici gruplarini doner
@@ -44,7 +46,9 @@ Base path: `/api/v1`
 - `DELETE /reports/contacts/{contactId}` (`settings.manage`)
 - `POST /reports/recipient-presets` (`settings.manage`)
   - `recipients[]` ve/veya `contact_tags[]` ile statik + segment destekli alici grubu tanimlanabilir
+  - `template_kind`, `target_entity_types[]`, `matching_companies[]`, `priority`, `is_recommended_default` ile kural yonetilen grup sablonu tanimlanabilir
 - `PUT /reports/recipient-presets/{presetId}` (`settings.manage`)
+  - ayni kural alanlariyla kayitli grup sablonu guncellenebilir
 - `POST /reports/recipient-presets/{presetId}/toggle` (`settings.manage`)
 - `DELETE /reports/recipient-presets/{presetId}` (`settings.manage`)
 - `PUT /reports/delivery-profiles/{entityType}/{entityId}` (`settings.manage`)

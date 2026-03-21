@@ -88,8 +88,8 @@ class ReportRecipientGroupAdvisorService
         ]);
 
         $ranked = $catalog
-            ->map(function (array $candidate) use ($entityTokens, $currentProfile): array {
-                $meta = $this->recommendationMeta($candidate, $entityTokens, $currentProfile);
+            ->map(function (array $candidate) use ($entityType, $entityTokens, $currentProfile): array {
+                $meta = $this->recommendationMeta($candidate, $entityType, $entityTokens, $currentProfile);
 
                 return array_merge($candidate, $meta);
             })
@@ -127,11 +127,14 @@ class ReportRecipientGroupAdvisorService
 
         return [
             'id' => sprintf('preset:%s', $preset['id']),
+            'catalog_section' => 'Alici Grubu Sablonlari',
             'source_type' => 'preset',
             'source_subtype' => null,
             'source_id' => $preset['id'],
             'name' => $preset['name'],
             'description' => $preset['notes'] ?: 'Kayitli alici grubu',
+            'template_profile' => $preset['template_profile'] ?? null,
+            'template_rule_summary' => $preset['template_rule_summary'] ?? null,
             'recipient_preset_id' => $preset['id'],
             'recipients' => [],
             'recipients_count' => 0,
@@ -159,6 +162,7 @@ class ReportRecipientGroupAdvisorService
 
         return [
             'id' => sprintf('segment:%s', Str::slug((string) $segment['tag'])),
+            'catalog_section' => 'Kisi Segmentleri',
             'source_type' => 'segment',
             'source_subtype' => null,
             'source_id' => (string) $segment['tag'],
@@ -169,6 +173,18 @@ class ReportRecipientGroupAdvisorService
                 (int) ($segment['primary_contacts_count'] ?? 0),
             ),
             'recipient_preset_id' => null,
+            'template_profile' => null,
+            'template_rule_summary' => [
+                'catalog_section' => 'Kisi Segmentleri',
+                'kind_label' => 'Dinamik Segment',
+                'entity_scope_label' => 'Tum kayit tipleri',
+                'company_scope_label' => 'Tum markalar',
+                'priority' => 50,
+                'priority_label' => 'Oncelik 50',
+                'selection_strategy_label' => 'Segment destekli',
+                'is_recommended_default' => false,
+                'badges' => ['Dinamik Segment'],
+            ],
             'recipients' => [],
             'recipients_count' => 0,
             'contact_tags' => [(string) $segment['tag']],
@@ -201,12 +217,25 @@ class ReportRecipientGroupAdvisorService
 
         return [
             'id' => 'smart:primary_contacts',
+            'catalog_section' => 'Akilli Gruplar',
             'source_type' => 'smart',
             'source_subtype' => 'primary',
             'source_id' => 'primary_contacts',
             'name' => 'Primary Musteri Kisileri',
             'description' => sprintf('%d primary kisi otomatik olarak secildi.', $primaryContacts->count()),
             'recipient_preset_id' => null,
+            'template_profile' => null,
+            'template_rule_summary' => [
+                'catalog_section' => 'Akilli Gruplar',
+                'kind_label' => 'Akilli Grup',
+                'entity_scope_label' => 'Tum kayit tipleri',
+                'company_scope_label' => 'Tum markalar',
+                'priority' => 55,
+                'priority_label' => 'Oncelik 55',
+                'selection_strategy_label' => 'Manuel odakli',
+                'is_recommended_default' => false,
+                'badges' => ['Primary Akilli Grup'],
+            ],
             'recipients' => $emails,
             'recipients_count' => count($emails),
             'contact_tags' => [],
@@ -271,6 +300,7 @@ class ReportRecipientGroupAdvisorService
 
         return [
             'id' => sprintf('smart:company:%s', Str::slug($companyName)),
+            'catalog_section' => 'Akilli Gruplar',
             'source_type' => 'smart',
             'source_subtype' => 'company',
             'source_id' => sprintf('company:%s', Str::slug($companyName)),
@@ -281,6 +311,18 @@ class ReportRecipientGroupAdvisorService
                 $companyContacts->where('is_primary', true)->count(),
             ),
             'recipient_preset_id' => null,
+            'template_profile' => null,
+            'template_rule_summary' => [
+                'catalog_section' => 'Akilli Gruplar',
+                'kind_label' => 'Akilli Grup',
+                'entity_scope_label' => 'Tum kayit tipleri',
+                'company_scope_label' => $companyName,
+                'priority' => 60,
+                'priority_label' => 'Oncelik 60',
+                'selection_strategy_label' => 'Manuel odakli',
+                'is_recommended_default' => false,
+                'badges' => ['Sirket Akilli Grup', $companyName],
+            ],
             'recipients' => $emails,
             'recipients_count' => count($emails),
             'contact_tags' => [],
@@ -298,7 +340,7 @@ class ReportRecipientGroupAdvisorService
      * @param  array<string, mixed>|null  $currentProfile
      * @return array{score: int, recommendation_reason: string}
      */
-    private function recommendationMeta(array $candidate, array $entityTokens, ?array $currentProfile = null): array
+    private function recommendationMeta(array $candidate, string $entityType, array $entityTokens, ?array $currentProfile = null): array
     {
         $score = match ($candidate['source_type']) {
             'preset' => 50,
@@ -309,6 +351,54 @@ class ReportRecipientGroupAdvisorService
 
         $reasons = [];
         $matchedTokens = $this->matchedTokens($candidate, $entityTokens);
+        $templateProfile = is_array($candidate['template_profile'] ?? null) ? $candidate['template_profile'] : null;
+
+        if ($templateProfile !== null) {
+            $score += (int) floor((((int) ($templateProfile['priority'] ?? 50)) - 50) / 5);
+
+            $targetEntityTypes = collect($templateProfile['target_entity_types'] ?? [])
+                ->map(fn (mixed $value): string => trim((string) $value))
+                ->filter()
+                ->all();
+
+            if ($targetEntityTypes !== []) {
+                if (in_array($entityType, $targetEntityTypes, true)) {
+                    $score += 18;
+                    $reasons[] = 'Sablon kuralinda bu kayit tipi hedeflenmis.';
+                } else {
+                    $score -= 12;
+                    $reasons[] = 'Sablon kuralinda farkli kayit tipleri hedeflenmis.';
+                }
+            }
+
+            $matchingCompanies = collect($templateProfile['matching_companies'] ?? [])
+                ->map(fn (mixed $value): string => mb_strtolower(trim((string) $value)))
+                ->filter()
+                ->all();
+
+            if ($matchingCompanies !== []) {
+                $matchedCompanies = collect($matchingCompanies)
+                    ->filter(function (string $company) use ($entityTokens): bool {
+                        return collect($entityTokens)->contains(
+                            fn (string $token): bool => str_contains($company, $token) || str_contains($token, $company),
+                        );
+                    })
+                    ->values()
+                    ->all();
+
+                if ($matchedCompanies !== []) {
+                    $score += 18;
+                    $reasons[] = 'Sirket/marka kurali bu kayitla eslesiyor.';
+                } else {
+                    $score -= 6;
+                }
+            }
+
+            if (($templateProfile['is_recommended_default'] ?? false) === true) {
+                $score += 10;
+                $reasons[] = 'Varsayilan onerili sablon olarak isaretlenmis.';
+            }
+        }
 
         if ($currentProfile !== null) {
             if (
@@ -430,6 +520,13 @@ class ReportRecipientGroupAdvisorService
 
         if ($sourceComparison !== 0) {
             return $sourceComparison;
+        }
+
+        $priorityComparison = ((int) data_get($right, 'template_profile.priority', 50))
+            <=> ((int) data_get($left, 'template_profile.priority', 50));
+
+        if ($priorityComparison !== 0) {
+            return $priorityComparison;
         }
 
         $recipientComparison = ((int) $right['resolved_recipients_count']) <=> ((int) $left['resolved_recipients_count']);
