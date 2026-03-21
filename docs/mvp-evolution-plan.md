@@ -255,3 +255,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 24. Kayitli alici listeleri icin duzenle/pasife al/sil akisini ve detail ekranlarinda teslim profili gorunurlugunu eklemek
 25. Hesap ve kampanya detail ekranlarina inline varsayilan teslim profili yonetimini eklemek
 26. Faz 7'yi resmi backlog olarak acip workspace bazli musteri kisi havuzu / contact book temelini eklemek
+27. Delivery history merkezine basarili/basarisiz teslim ozeti, hata gorunurlugu ve failed run retry aksiyonunu eklemek

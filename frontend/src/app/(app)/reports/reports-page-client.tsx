@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ReportContactForm } from "@/components/reports/report-contact-form";
 import { ReportContactManager } from "@/components/reports/report-contact-manager";
+import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery-history-panel";
 import { ReportDeliverySetupForm } from "@/components/reports/report-delivery-setup-form";
 import { ReportRecipientPresetManager } from "@/components/reports/report-recipient-preset-manager";
 import { ReportRecipientPresetForm } from "@/components/reports/report-recipient-preset-form";
@@ -21,6 +22,7 @@ import { apiRequest } from "@/lib/api";
 import { buildHrefWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
 import {
   ReportDeliveryScheduleListItem,
+  ReportDeliveryRunListItem,
   ReportDeliveryProfileListItem,
   ReportIndexResponse,
   ReportSnapshotListItem,
@@ -104,6 +106,41 @@ export default function ReportsPage() {
     }
   };
 
+  const handleRetryRun = async (run: ReportDeliveryRunListItem) => {
+    const actionKey = `retry:${run.id}`;
+    setActiveActionKey(actionKey);
+    setActionError(null);
+    setActionMessage(null);
+
+    try {
+      const response = await apiRequest<{
+        message: string;
+        data: {
+          run_id: string;
+          status: string;
+          snapshot_id: string | null;
+          share_link?: {
+            share_url: string | null;
+          } | null;
+        };
+      }>(`/reports/delivery-runs/${run.id}/retry`, {
+        method: "POST",
+        requireWorkspace: true,
+      });
+
+      setActionMessage(
+        response.data.share_link?.share_url
+          ? "Basarisiz teslim yeniden denendi, yeni snapshot ve musteri paylasim linki hazirlandi."
+          : "Basarisiz teslim yeniden denendi.",
+      );
+      await reload();
+    } catch (requestError) {
+      setActionError(requestError instanceof Error ? requestError.message : "Retry aksiyonu calistirilamadi.");
+    } finally {
+      setActiveActionKey(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <PageBreadcrumbs
@@ -145,6 +182,7 @@ export default function ReportsPage() {
         <MetricCard label="Alici Preseti" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
         <MetricCard label="Aktif Schedule" value={data?.delivery_summary.active_schedules ?? 0} />
+        <MetricCard label="Basarisiz Teslim" value={data?.delivery_run_summary.failed_runs ?? 0} />
         <MetricCard label="Aktif Paylasim" value={data?.share_summary.active_links ?? 0} />
       </section>
 
@@ -351,6 +389,27 @@ export default function ReportsPage() {
       </Card>
 
       <Card>
+        <CardTitle>Teslim Gecmisi ve Hata Merkezi</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Son teslim calismalarini, hata nedenlerini ve tekrar denenebilir kayitlari tek listede takip edin.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
+          <span>Toplam run: {data?.delivery_run_summary.total_runs ?? 0}</span>
+          <span>Basarili: {data?.delivery_run_summary.delivered_runs ?? 0}</span>
+          <span>Retry bekleyen: {data?.delivery_run_summary.retryable_runs ?? 0}</span>
+          <span>Son hata: {data?.delivery_run_summary.latest_failed_at ?? "-"}</span>
+        </div>
+        <div className="mt-4">
+          <ReportDeliveryHistoryPanel
+            runs={data?.delivery_runs ?? []}
+            searchParams={searchParams}
+            activeActionKey={activeActionKey}
+            onRetry={handleRetryRun}
+          />
+        </div>
+      </Card>
+
+      <Card>
         <CardTitle>Scheduled Delivery Kayitlari</CardTitle>
         <div className="mt-3 space-y-3">
           {(data?.delivery_schedules ?? []).map((schedule: ReportDeliveryScheduleListItem) => (
@@ -463,6 +522,17 @@ export default function ReportsPage() {
                             </div>
                           ) : null}
                           {run.error_message ? <p className="mt-1 text-xs text-[var(--danger)]">{run.error_message}</p> : null}
+                          {run.can_retry ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="mt-2 h-8 px-2 text-xs"
+                              onClick={() => void handleRetryRun(run)}
+                              disabled={activeActionKey !== null}
+                            >
+                              {activeActionKey === `retry:${run.id}` ? "Retry..." : "Retry"}
+                            </Button>
+                          ) : null}
                         </div>
                       ))}
                       {schedule.recent_runs.length === 0 ? <p className="text-sm muted-text">Henuz run kaydi yok.</p> : null}

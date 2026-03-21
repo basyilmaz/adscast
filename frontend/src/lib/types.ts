@@ -721,6 +721,9 @@ export type ReportDeliveryRunListItem = {
   delivered_at: string | null;
   snapshot_title: string | null;
   snapshot_url: string | null;
+  can_retry: boolean;
+  retry_of_run_id: string | null;
+  retried_by_run_id: string | null;
   share_link: {
     id: string;
     label: string | null;
@@ -737,6 +740,24 @@ export type ReportDeliveryRunListItem = {
     recipients_count: number;
     share_link_used: boolean;
     outbound: boolean;
+  } | null;
+  schedule: {
+    id: string;
+    cadence: string;
+    cadence_label: string;
+    delivery_channel: string;
+    delivery_channel_label: string;
+    is_active: boolean;
+    next_run_at: string | null;
+    template: {
+      id: string | null;
+      name: string | null;
+      entity_type: string | null;
+      entity_id: string | null;
+      entity_label: string | null;
+      context_label: string | null;
+      report_url: string | null;
+    };
   } | null;
   error_message: string | null;
 };
@@ -987,6 +1008,13 @@ export type ReportIndexResponse = {
       from_name: string | null;
       note: string;
     };
+    delivery_run_summary: {
+      total_runs: number;
+      failed_runs: number;
+      delivered_runs: number;
+      retryable_runs: number;
+      latest_failed_at: string | null;
+    };
     share_summary: {
       total_links: number;
       active_links: number;
@@ -997,6 +1025,7 @@ export type ReportIndexResponse = {
     contacts: ReportContactListItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
+    delivery_runs: ReportDeliveryRunListItem[];
     delivery_schedules: ReportDeliveryScheduleListItem[];
     builders: {
       accounts: Array<{

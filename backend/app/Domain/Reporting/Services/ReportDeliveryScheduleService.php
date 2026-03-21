@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ReportDeliveryScheduleService
 {
@@ -71,7 +72,8 @@ class ReportDeliveryScheduleService
             })->all(),
         );
 
-        $recentRuns = $this->recentRunsForSchedules($schedules->pluck('id'));
+        $recentRuns = $this->recentRunsForSchedules($workspaceId, $schedules->pluck('id'));
+        $deliveryRunIndex = $this->deliveryRunIndex($workspaceId);
 
         return [
             'summary' => [
@@ -84,6 +86,8 @@ class ReportDeliveryScheduleService
                     ->count(),
             ],
             'delivery_capabilities' => $this->deliveryCapabilities(),
+            'run_summary' => $deliveryRunIndex['summary'],
+            'delivery_runs' => $deliveryRunIndex['items'],
             'items' => $schedules->map(function (ReportDeliverySchedule $schedule) use ($contexts, $recentRuns): array {
                 $template = $schedule->template;
                 $context = $template
@@ -132,6 +136,97 @@ class ReportDeliveryScheduleService
                     'recent_runs' => $recentRuns->get($schedule->id, []),
                 ];
             })->values()->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function retryRun(
+        Workspace $workspace,
+        string $runId,
+        ?User $actor = null,
+        ?Request $request = null,
+    ): array {
+        $run = ReportDeliveryRun::query()
+            ->where('workspace_id', $workspace->id)
+            ->with([
+                'schedule.template',
+                'schedule.workspace',
+            ])
+            ->findOrFail($runId);
+
+        if ($run->status !== 'failed') {
+            throw ValidationException::withMessages([
+                'run_id' => 'Sadece basarisiz teslim kayitlari tekrar denenebilir.',
+            ]);
+        }
+
+        if (data_get($run->metadata, 'retry.next_run_id')) {
+            throw ValidationException::withMessages([
+                'run_id' => 'Bu teslim kaydi zaten tekrar denenmis.',
+            ]);
+        }
+
+        $schedule = $run->schedule;
+
+        if (! $schedule || ! $schedule->template || ! $schedule->workspace) {
+            throw ValidationException::withMessages([
+                'run_id' => 'Retry icin gerekli schedule baglami bulunamadi.',
+            ]);
+        }
+
+        $retryRun = $this->runSchedule(
+            schedule: $schedule,
+            triggerMode: 'retry',
+            triggeredBy: $actor?->id,
+            request: $request,
+            extraMetadata: [
+                'retry' => [
+                    'source_run_id' => $run->id,
+                ],
+            ],
+        );
+
+        $runMetadata = $run->metadata ?? [];
+        $runMetadata['retry'] = array_merge(
+            is_array(data_get($runMetadata, 'retry')) ? data_get($runMetadata, 'retry') : [],
+            [
+                'attempted_at' => now()->toDateTimeString(),
+                'next_run_id' => $retryRun->id,
+                'requested_by' => $actor?->id,
+            ],
+        );
+
+        $run->forceFill([
+            'metadata' => $runMetadata,
+        ])->save();
+
+        $this->auditLogService->log(
+            actor: $actor,
+            action: 'report_delivery_run_retried',
+            targetType: 'report_delivery_run',
+            targetId: $retryRun->id,
+            organizationId: $workspace->organization_id,
+            workspaceId: $workspace->id,
+            metadata: [
+                'source_run_id' => $run->id,
+                'schedule_id' => $schedule->id,
+                'status' => $retryRun->status,
+            ],
+            request: $request,
+        );
+
+        $snapshot = $retryRun->snapshot;
+
+        return [
+            'run_id' => $retryRun->id,
+            'status' => $retryRun->status,
+            'snapshot_id' => $snapshot?->id,
+            'snapshot_url' => $snapshot ? sprintf('/reports/snapshots/detail?id=%s', $snapshot->id) : null,
+            'export_csv_url' => $snapshot ? sprintf('/api/v1/reports/snapshots/%s/export.csv', $snapshot->id) : null,
+            'retry_of_run_id' => $run->id,
+            'share_link' => data_get($retryRun->metadata, 'share_link'),
         ];
     }
 
@@ -330,6 +425,7 @@ class ReportDeliveryScheduleService
         string $triggerMode,
         ?string $triggeredBy = null,
         ?Request $request = null,
+        array $extraMetadata = [],
     ): ReportDeliveryRun {
         $schedule->loadMissing(['template', 'workspace']);
         $template = $schedule->template;
@@ -351,7 +447,7 @@ class ReportDeliveryScheduleService
             'prepared_at' => now(),
             'triggered_by' => $triggeredBy,
             'trigger_mode' => $triggerMode,
-            'metadata' => [
+            'metadata' => array_merge([
                 'template_id' => $template->id,
                 'template_name' => $template->name,
                 'report_type' => $template->report_type,
@@ -359,7 +455,7 @@ class ReportDeliveryScheduleService
                     'start_date' => $startDate->toDateString(),
                     'end_date' => $endDate->toDateString(),
                 ],
-            ],
+            ], $extraMetadata),
         ]);
 
         try {
@@ -565,15 +661,19 @@ class ReportDeliveryScheduleService
      * @param  Collection<int, string>  $scheduleIds
      * @return Collection<string, array<int, array<string, string|null>>>
      */
-    private function recentRunsForSchedules(Collection $scheduleIds): Collection
+    private function recentRunsForSchedules(string $workspaceId, Collection $scheduleIds): Collection
     {
         if ($scheduleIds->isEmpty()) {
             return collect();
         }
 
-        return ReportDeliveryRun::query()
+        $runs = ReportDeliveryRun::query()
             ->whereIn('report_delivery_schedule_id', $scheduleIds->all())
-            ->with('snapshot:id,title')
+            ->with([
+                'snapshot:id,title',
+                'schedule:id,report_template_id,delivery_channel,cadence,weekday,month_day,send_time,timezone,is_active,next_run_at',
+                'schedule.template:id,name,entity_type,entity_id,report_type',
+            ])
             ->latest('prepared_at')
             ->get([
                 'id',
@@ -585,28 +685,165 @@ class ReportDeliveryScheduleService
                 'delivered_at',
                 'error_message',
                 'metadata',
-            ])
+            ]);
+
+        $contexts = $this->entityContextResolver->resolveMany(
+            $workspaceId,
+            $runs->map(function (ReportDeliveryRun $run): ?array {
+                $template = $run->schedule?->template;
+
+                if (! $template || ! $template->entity_type || ! $template->entity_id) {
+                    return null;
+                }
+
+                return [
+                    'type' => $template->entity_type,
+                    'id' => $template->entity_id,
+                ];
+            })->filter()->values()->all(),
+        );
+
+        return $runs
             ->groupBy('report_delivery_schedule_id')
             ->map(fn (Collection $runs): array => $runs
                 ->take(3)
-                ->map(function (ReportDeliveryRun $run): array {
-                    return [
-                        'id' => $run->id,
-                        'status' => $run->status,
-                        'trigger_mode' => $run->trigger_mode,
-                        'prepared_at' => $run->prepared_at?->toDateTimeString(),
-                        'delivered_at' => $run->delivered_at?->toDateTimeString(),
-                        'snapshot_title' => $run->snapshot?->title,
-                        'snapshot_url' => $run->report_snapshot_id
-                            ? sprintf('/reports/snapshots/detail?id=%s', $run->report_snapshot_id)
-                            : null,
-                        'share_link' => data_get($run->metadata, 'share_link'),
-                        'delivery' => data_get($run->metadata, 'delivery'),
-                        'error_message' => $run->error_message,
-                    ];
-                })
+                ->map(fn (ReportDeliveryRun $run): array => $this->serializeRun(
+                    $run,
+                    $contexts[$this->entityContextResolver->key(
+                        $run->schedule?->template?->entity_type,
+                        $run->schedule?->template?->entity_id,
+                    )] ?? null,
+                ))
                 ->values()
                 ->all());
+    }
+
+    /**
+     * @return array{summary: array<string, mixed>, items: array<int, array<string, mixed>>}
+     */
+    private function deliveryRunIndex(string $workspaceId): array
+    {
+        $runs = ReportDeliveryRun::query()
+            ->where('workspace_id', $workspaceId)
+            ->with([
+                'snapshot:id,title',
+                'schedule:id,report_template_id,delivery_channel,cadence,weekday,month_day,send_time,timezone,is_active,next_run_at',
+                'schedule.template:id,name,entity_type,entity_id,report_type',
+            ])
+            ->latest('prepared_at')
+            ->limit(20)
+            ->get([
+                'id',
+                'workspace_id',
+                'report_delivery_schedule_id',
+                'report_snapshot_id',
+                'status',
+                'trigger_mode',
+                'prepared_at',
+                'delivered_at',
+                'error_message',
+                'metadata',
+            ]);
+
+        $contexts = $this->entityContextResolver->resolveMany(
+            $workspaceId,
+            $runs->map(function (ReportDeliveryRun $run): ?array {
+                $template = $run->schedule?->template;
+
+                if (! $template || ! $template->entity_type || ! $template->entity_id) {
+                    return null;
+                }
+
+                return [
+                    'type' => $template->entity_type,
+                    'id' => $template->entity_id,
+                ];
+            })->filter()->values()->all(),
+        );
+
+        $items = $runs->map(fn (ReportDeliveryRun $run): array => $this->serializeRun(
+            $run,
+            $contexts[$this->entityContextResolver->key(
+                $run->schedule?->template?->entity_type,
+                $run->schedule?->template?->entity_id,
+            )] ?? null,
+        ))->values()->all();
+
+        return [
+            'summary' => [
+                'total_runs' => ReportDeliveryRun::query()
+                    ->where('workspace_id', $workspaceId)
+                    ->count(),
+                'failed_runs' => ReportDeliveryRun::query()
+                    ->where('workspace_id', $workspaceId)
+                    ->where('status', 'failed')
+                    ->count(),
+                'delivered_runs' => ReportDeliveryRun::query()
+                    ->where('workspace_id', $workspaceId)
+                    ->whereIn('status', ['delivered_stub', 'delivered_email'])
+                    ->count(),
+                'retryable_runs' => collect($items)->where('can_retry', true)->count(),
+                'latest_failed_at' => ReportDeliveryRun::query()
+                    ->where('workspace_id', $workspaceId)
+                    ->where('status', 'failed')
+                    ->latest('prepared_at')
+                    ->value('prepared_at'),
+            ],
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param  array{entity_label?: string|null, context_label?: string|null}|null  $context
+     * @return array<string, mixed>
+     */
+    private function serializeRun(ReportDeliveryRun $run, ?array $context = null): array
+    {
+        $schedule = $run->schedule;
+        $template = $schedule?->template;
+        $retryMetadata = is_array(data_get($run->metadata, 'retry')) ? data_get($run->metadata, 'retry') : [];
+
+        return [
+            'id' => $run->id,
+            'status' => $run->status,
+            'trigger_mode' => $run->trigger_mode,
+            'prepared_at' => $run->prepared_at?->toDateTimeString(),
+            'delivered_at' => $run->delivered_at?->toDateTimeString(),
+            'snapshot_title' => $run->snapshot?->title,
+            'snapshot_url' => $run->report_snapshot_id
+                ? sprintf('/reports/snapshots/detail?id=%s', $run->report_snapshot_id)
+                : null,
+            'share_link' => data_get($run->metadata, 'share_link'),
+            'delivery' => data_get($run->metadata, 'delivery'),
+            'error_message' => $run->error_message,
+            'can_retry' => $run->status === 'failed'
+                && ! data_get($retryMetadata, 'next_run_id')
+                && $run->report_delivery_schedule_id !== null
+                && $schedule !== null
+                && $template !== null,
+            'retry_of_run_id' => data_get($retryMetadata, 'source_run_id'),
+            'retried_by_run_id' => data_get($retryMetadata, 'next_run_id'),
+            'schedule' => $schedule ? [
+                'id' => $schedule->id,
+                'cadence' => $schedule->cadence,
+                'cadence_label' => $this->cadenceLabel($schedule),
+                'delivery_channel' => $schedule->delivery_channel,
+                'delivery_channel_label' => $this->deliveryChannelLabel($schedule->delivery_channel),
+                'is_active' => $schedule->is_active,
+                'next_run_at' => $schedule->next_run_at?->toDateTimeString(),
+                'template' => [
+                    'id' => $template?->id,
+                    'name' => $template?->name,
+                    'entity_type' => $template?->entity_type,
+                    'entity_id' => $template?->entity_id,
+                    'entity_label' => $context['entity_label'] ?? null,
+                    'context_label' => $context['context_label'] ?? null,
+                    'report_url' => ($template && $template->entity_type && $template->entity_id)
+                        ? $this->reportUrl($template->entity_type, $template->entity_id)
+                        : null,
+                ],
+            ] : null,
+        ];
     }
 
     private function cadenceLabel(ReportDeliverySchedule $schedule): string

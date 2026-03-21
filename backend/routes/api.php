@@ -97,6 +97,8 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/delivery-schedules/{scheduleId}/run-now', [ReportController::class, 'runDeliveryScheduleNow'])
                 ->middleware('workspace.permission:settings.manage');
+            Route::post('/reports/delivery-runs/{runId}/retry', [ReportController::class, 'retryDeliveryRun'])
+                ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/share-links/{shareLinkId}/revoke', [ReportController::class, 'revokeShareLink'])
                 ->middleware('workspace.permission:settings.manage');
             Route::get('/reports/snapshots/{snapshotId}', [ReportController::class, 'showSnapshot'])

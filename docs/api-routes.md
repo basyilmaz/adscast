@@ -43,6 +43,7 @@ Base path: `/api/v1`
 - `POST /reports/delivery-schedules` (`settings.manage`)
 - `POST /reports/delivery-schedules/{scheduleId}/toggle` (`settings.manage`)
 - `POST /reports/delivery-schedules/{scheduleId}/run-now` (`settings.manage`)
+- `POST /reports/delivery-runs/{runId}/retry` (`settings.manage`)
 - `POST /reports/share-links/{shareLinkId}/revoke` (`settings.manage`)
 - `GET /reports/snapshots/{snapshotId}`
 - `GET /reports/account/{adAccountId}/export.csv`

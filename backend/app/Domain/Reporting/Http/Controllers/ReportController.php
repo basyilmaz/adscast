@@ -69,6 +69,8 @@ class ReportController
                     'delivery_profiles' => $profileIndex['items'],
                     'delivery_summary' => $deliveryIndex['summary'],
                     'delivery_capabilities' => $deliveryIndex['delivery_capabilities'],
+                    'delivery_run_summary' => $deliveryIndex['run_summary'],
+                    'delivery_runs' => $deliveryIndex['delivery_runs'],
                     'delivery_schedules' => $deliveryIndex['items'],
                     'share_summary' => $shareSummary,
                 ],
@@ -436,6 +438,23 @@ class ReportController
 
         return new JsonResponse([
             'message' => 'Rapor teslim run kaydi hazirlandi.',
+            'data' => $result,
+        ]);
+    }
+
+    public function retryDeliveryRun(Request $request, string $runId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $result = $this->reportDeliveryScheduleService->retryRun(
+            workspace: $workspace,
+            runId: $runId,
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Basarisiz teslim yeniden denendi.',
             'data' => $result,
         ]);
     }

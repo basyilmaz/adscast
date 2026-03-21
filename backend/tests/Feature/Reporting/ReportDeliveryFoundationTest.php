@@ -537,6 +537,210 @@ class ReportDeliveryFoundationTest extends TestCase
         ]);
     }
 
+    public function test_reports_index_includes_delivery_history_summary_and_retryable_failed_runs(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'History Account Delivery',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 7,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $schedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $template->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 2,
+            'send_time' => '09:00',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['client@castintech.com'],
+            'configuration' => [],
+            'is_active' => true,
+            'next_run_at' => now()->addDay(),
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'delivered_stub',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subHour(),
+            'delivered_at' => now()->subHour()->addMinute(),
+            'trigger_mode' => 'manual',
+            'metadata' => [
+                'delivery' => [
+                    'channel' => 'email_stub',
+                    'channel_label' => 'Email Stub',
+                    'mailer' => null,
+                    'recipients' => ['client@castintech.com'],
+                    'recipients_count' => 1,
+                    'share_link_used' => false,
+                    'outbound' => false,
+                ],
+            ],
+        ]);
+
+        $failedRun = ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(15),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'SMTP timeout',
+            'metadata' => [
+                'delivery' => [
+                    'channel' => 'email',
+                    'channel_label' => 'Gercek Email',
+                    'mailer' => 'smtp',
+                    'recipients' => ['client@castintech.com'],
+                    'recipients_count' => 1,
+                    'share_link_used' => false,
+                    'outbound' => true,
+                ],
+            ],
+        ]);
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.delivery_run_summary.total_runs', 2)
+            ->assertJsonPath('data.delivery_run_summary.failed_runs', 1)
+            ->assertJsonPath('data.delivery_run_summary.delivered_runs', 1)
+            ->assertJsonPath('data.delivery_run_summary.retryable_runs', 1)
+            ->assertJsonPath('data.delivery_runs.0.id', $failedRun->id)
+            ->assertJsonPath('data.delivery_runs.0.can_retry', true)
+            ->assertJsonPath('data.delivery_runs.0.error_message', 'SMTP timeout')
+            ->assertJsonPath('data.delivery_runs.0.schedule.template.name', 'History Account Delivery');
+    }
+
+    public function test_failed_delivery_run_can_be_retried_from_history_endpoint(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Retryable Delivery Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 7,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $schedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $template->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 3,
+            'send_time' => '09:00',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['client@castintech.com'],
+            'configuration' => [],
+            'is_active' => true,
+            'next_run_at' => now()->addHour(),
+        ]);
+
+        $failedRun = ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(5),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'Manual retry bekliyor',
+            'metadata' => [],
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/delivery-runs/{$failedRun->id}/retry");
+
+        $retryRunId = $response->json('data.run_id');
+
+        $response->assertOk()
+            ->assertJsonPath('data.retry_of_run_id', $failedRun->id)
+            ->assertJsonPath('data.status', 'delivered_stub');
+
+        $this->assertDatabaseHas('report_delivery_runs', [
+            'id' => $retryRunId,
+            'report_delivery_schedule_id' => $schedule->id,
+            'trigger_mode' => 'retry',
+            'status' => 'delivered_stub',
+        ]);
+
+        $failedRun->refresh();
+
+        $this->assertSame($retryRunId, data_get($failedRun->metadata, 'retry.next_run_id'));
+        $this->assertDatabaseHas('audit_logs', [
+            'workspace_id' => $workspace->id,
+            'action' => 'report_delivery_run_retried',
+            'target_id' => $retryRunId,
+        ]);
+    }
+
+    public function test_only_failed_delivery_runs_can_be_retried(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Non Retry Delivery Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 7,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $schedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $template->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 2,
+            'send_time' => '09:00',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['client@castintech.com'],
+            'configuration' => [],
+            'is_active' => true,
+            'next_run_at' => now()->addDay(),
+        ]);
+
+        $deliveredRun = ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'delivered_stub',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinute(),
+            'delivered_at' => now(),
+            'trigger_mode' => 'manual',
+            'metadata' => [],
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/delivery-runs/{$deliveredRun->id}/retry")
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.run_id.0', 'Sadece basarisiz teslim kayitlari tekrar denenebilir.');
+    }
+
     /**
      * @return array{0: Workspace, 1: string, 2: MetaAdAccount, 3: Campaign}
      */
