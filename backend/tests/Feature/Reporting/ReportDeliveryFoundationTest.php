@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Reporting;
 
+use App\Domain\Reporting\Mail\ScheduledReportDeliveryMail;
 use App\Models\Ad;
 use App\Models\AdSet;
 use App\Models\Alert;
@@ -20,6 +21,7 @@ use App\Models\Workspace;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\TenantSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -202,6 +204,67 @@ class ReportDeliveryFoundationTest extends TestCase
         $schedule->refresh();
         $this->assertNotNull($schedule->next_run_at);
         $this->assertTrue($schedule->next_run_at->gt(now()));
+    }
+
+    public function test_email_channel_sends_real_delivery_mail_and_updates_run_status(): void
+    {
+        Mail::fake();
+
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Gercek Email Teslimi',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 14,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $scheduleResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/delivery-schedules', [
+                'report_template_id' => $template->id,
+                'delivery_channel' => 'email',
+                'cadence' => 'weekly',
+                'weekday' => 2,
+                'send_time' => '10:00',
+                'timezone' => 'Europe/Istanbul',
+                'recipients' => ['client@castintech.com', 'ops@castintech.com'],
+                'auto_share_enabled' => true,
+                'share_label_template' => '{template_name} / {end_date}',
+                'share_expires_in_days' => 7,
+                'share_allow_csv_download' => false,
+            ]);
+
+        $scheduleId = $scheduleResponse->json('data.id');
+
+        $runResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/delivery-schedules/{$scheduleId}/run-now");
+
+        $runResponse->assertOk()
+            ->assertJsonPath('data.status', 'delivered_email')
+            ->assertJsonPath('data.share_link.status', 'active');
+
+        Mail::assertSent(ScheduledReportDeliveryMail::class, 2);
+
+        $this->assertDatabaseHas('report_delivery_runs', [
+            'report_delivery_schedule_id' => $scheduleId,
+            'status' => 'delivered_email',
+            'delivery_channel' => 'email',
+        ]);
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.delivery_capabilities.default_mailer', config('mail.default'))
+            ->assertJsonPath('data.delivery_schedules.0.delivery_channel', 'email')
+            ->assertJsonPath('data.delivery_schedules.0.recent_runs.0.delivery.channel', 'email');
     }
 
     /**

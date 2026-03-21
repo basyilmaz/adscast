@@ -727,6 +727,15 @@ export type ReportDeliveryRunListItem = {
     share_url: string | null;
     export_csv_url: string | null;
   } | null;
+  delivery: {
+    channel: string;
+    channel_label: string;
+    mailer: string | null;
+    recipients: string[];
+    recipients_count: number;
+    share_link_used: boolean;
+    outbound: boolean;
+  } | null;
   error_message: string | null;
 };
 
@@ -895,6 +904,13 @@ export type ReportIndexResponse = {
       active_schedules: number;
       due_schedules: number;
       runs_last_7_days: number;
+    };
+    delivery_capabilities: {
+      default_mailer: string;
+      real_email_available: boolean;
+      from_address: string | null;
+      from_name: string | null;
+      note: string;
     };
     share_summary: {
       total_links: number;

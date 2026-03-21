@@ -151,12 +151,16 @@ export default function ReportsPage() {
         </Card>
 
         <Card>
-          <CardTitle>Scheduled Delivery Foundation</CardTitle>
+          <CardTitle>Scheduled Delivery</CardTitle>
           <p className="mt-2 text-sm muted-text">
-            Bu fazda gercek e-posta gonderimi yok. Schedule calistiginda yeni snapshot ve delivery run izi olusur.
+            Schedule calistiginda yeni snapshot uretilir, secilen kanala gore email gonderimi veya stub teslim kaydi acilir.
           </p>
           <div className="mt-4">
-            <ReportScheduleForm templates={data?.templates ?? []} onCreated={reload} />
+            <ReportScheduleForm
+              templates={data?.templates ?? []}
+              deliveryCapabilities={data?.delivery_capabilities ?? null}
+              onCreated={reload}
+            />
           </div>
         </Card>
       </section>
@@ -330,6 +334,11 @@ export default function ReportsPage() {
                             {run.prepared_at ?? "-"}
                             {run.delivered_at ? ` / ${run.delivered_at}` : ""}
                           </p>
+                          {run.delivery ? (
+                            <p className="mt-1 text-xs muted-text">
+                              {run.delivery.channel_label} / {run.delivery.mailer ?? "-"} / {run.delivery.recipients_count} alici
+                            </p>
+                          ) : null}
                           {run.snapshot_url ? (
                             <Link href={run.snapshot_url} className="mt-1 inline-flex text-xs font-semibold text-[var(--accent)] hover:underline">
                               {run.snapshot_title ?? "Snapshot"}

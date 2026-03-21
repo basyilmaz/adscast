@@ -3,10 +3,11 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
-import { ReportTemplateListItem } from "@/lib/types";
+import { ReportIndexResponse, ReportTemplateListItem } from "@/lib/types";
 
 type Props = {
   templates: ReportTemplateListItem[];
+  deliveryCapabilities: ReportIndexResponse["data"]["delivery_capabilities"] | null;
   onCreated?: () => Promise<void> | void;
 };
 
@@ -20,13 +21,16 @@ const WEEKDAY_OPTIONS = [
   { value: "7", label: "Pazar" },
 ];
 
-export function ReportScheduleForm({ templates, onCreated }: Props) {
+export function ReportScheduleForm({ templates, deliveryCapabilities, onCreated }: Props) {
   const activeTemplates = useMemo(
     () => templates.filter((item) => item.is_active),
     [templates],
   );
 
   const [templateId, setTemplateId] = useState(activeTemplates[0]?.id ?? "");
+  const [deliveryChannel, setDeliveryChannel] = useState<"email_stub" | "email">(
+    deliveryCapabilities?.real_email_available ? "email" : "email_stub",
+  );
   const [cadence, setCadence] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [weekday, setWeekday] = useState("1");
   const [monthDay, setMonthDay] = useState("1");
@@ -48,6 +52,10 @@ export function ReportScheduleForm({ templates, onCreated }: Props) {
 
     setTemplateId(activeTemplates[0]?.id ?? "");
   }, [activeTemplates, templateId]);
+
+  useEffect(() => {
+    setDeliveryChannel(deliveryCapabilities?.real_email_available ? "email" : "email_stub");
+  }, [deliveryCapabilities?.real_email_available]);
 
   const parsedRecipients = recipients
     .split(/[\n,;]+/)
@@ -80,7 +88,7 @@ export function ReportScheduleForm({ templates, onCreated }: Props) {
           send_time: sendTime,
           timezone,
           recipients: parsedRecipients,
-          delivery_channel: "email_stub",
+          delivery_channel: deliveryChannel,
           auto_share_enabled: autoShareEnabled,
           share_label_template: autoShareEnabled ? shareLabelTemplate.trim() || null : null,
           share_expires_in_days: autoShareEnabled ? Number(shareExpiresInDays) : null,
@@ -126,6 +134,19 @@ export function ReportScheduleForm({ templates, onCreated }: Props) {
             <option value="daily">Gunluk</option>
             <option value="weekly">Haftalik</option>
             <option value="monthly">Aylik</option>
+          </select>
+        </Field>
+
+        <Field label="Teslim Kanali">
+          <select
+            className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+            value={deliveryChannel}
+            onChange={(event) => setDeliveryChannel(event.target.value as "email_stub" | "email")}
+          >
+            <option value="email_stub">Email Stub</option>
+            <option value="email" disabled={!deliveryCapabilities?.real_email_available}>
+              Gercek Email
+            </option>
           </select>
         </Field>
 
@@ -185,6 +206,15 @@ export function ReportScheduleForm({ templates, onCreated }: Props) {
           placeholder="client@castintech.com, ops@castintech.com"
         />
       </Field>
+
+      <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+        <p className="font-semibold">Mail Delivery Durumu</p>
+        <p className="mt-1 muted-text">
+          Mailer: {deliveryCapabilities?.default_mailer ?? "-"}
+          {deliveryCapabilities?.from_address ? ` / From: ${deliveryCapabilities.from_address}` : ""}
+        </p>
+        <p className="mt-1 muted-text">{deliveryCapabilities?.note ?? "Mailer durumu okunamadi."}</p>
+      </div>
 
       <div className="rounded-lg border border-[var(--border)] p-3">
         <p className="text-xs font-semibold uppercase tracking-wide muted-text">Otomatik Musteri Linki</p>

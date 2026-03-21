@@ -3,8 +3,10 @@
 namespace App\Domain\Reporting\Services;
 
 use App\Domain\Audit\Services\AuditLogService;
+use App\Domain\Reporting\Mail\ScheduledReportDeliveryMail;
 use App\Models\ReportDeliveryRun;
 use App\Models\ReportDeliverySchedule;
+use App\Models\ReportSnapshot;
 use App\Models\ReportTemplate;
 use App\Models\User;
 use App\Models\Workspace;
@@ -13,6 +15,7 @@ use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class ReportDeliveryScheduleService
@@ -80,6 +83,7 @@ class ReportDeliveryScheduleService
                     ->where('created_at', '>=', now()->subDays(7))
                     ->count(),
             ],
+            'delivery_capabilities' => $this->deliveryCapabilities(),
             'items' => $schedules->map(function (ReportDeliverySchedule $schedule) use ($contexts, $recentRuns): array {
                 $template = $schedule->template;
                 $context = $template
@@ -379,25 +383,32 @@ class ReportDeliveryScheduleService
                 triggerMode: $triggerMode,
             );
 
-            $deliveredAt = now();
+            $delivery = $this->deliverReport(
+                workspace: $workspace,
+                template: $template,
+                schedule: $schedule,
+                snapshot: $snapshot,
+                shareLink: $shareLink,
+            );
 
             $run->forceFill([
                 'report_snapshot_id' => $snapshot->id,
-                'status' => 'delivered_stub',
-                'delivered_at' => $deliveredAt,
+                'status' => $delivery['status'],
+                'delivered_at' => $delivery['delivered_at'],
                 'metadata' => array_merge($run->metadata ?? [], [
                     'snapshot_title' => $snapshot->title,
                     'snapshot_url' => sprintf('/reports/snapshots/detail?id=%s', $snapshot->id),
                     'share_link' => $shareLink,
+                    'delivery' => $delivery['metadata'],
                 ]),
             ])->save();
 
             $schedule->forceFill([
-                'last_run_at' => $deliveredAt,
-                'last_status' => 'delivered_stub',
+                'last_run_at' => $delivery['delivered_at'],
+                'last_status' => $delivery['status'],
                 'last_report_snapshot_id' => $snapshot->id,
                 'next_run_at' => $schedule->is_active
-                    ? $this->calculateNextRunAtFromSchedule($schedule, $deliveredAt)
+                    ? $this->calculateNextRunAtFromSchedule($schedule, $delivery['delivered_at'])
                     : $schedule->next_run_at,
             ])->save();
 
@@ -415,6 +426,7 @@ class ReportDeliveryScheduleService
                     'trigger_mode' => $triggerMode,
                     'delivery_channel' => $schedule->delivery_channel,
                     'share_link_id' => data_get($shareLink, 'id'),
+                    'delivery_status' => $delivery['status'],
                 ],
                 request: $request,
             );
@@ -589,6 +601,7 @@ class ReportDeliveryScheduleService
                             ? sprintf('/reports/snapshots/detail?id=%s', $run->report_snapshot_id)
                             : null,
                         'share_link' => data_get($run->metadata, 'share_link'),
+                        'delivery' => data_get($run->metadata, 'delivery'),
                         'error_message' => $run->error_message,
                     ];
                 })
@@ -610,6 +623,7 @@ class ReportDeliveryScheduleService
     {
         return match ($channel) {
             'email_stub' => 'Email Stub',
+            'email' => 'Gercek Email',
             default => $channel,
         };
     }
@@ -716,7 +730,7 @@ class ReportDeliveryScheduleService
 
     private function resolveShareLabel(
         ReportDeliverySchedule $schedule,
-        \App\Models\ReportSnapshot $snapshot,
+        ReportSnapshot $snapshot,
         ?string $labelTemplate,
     ): string {
         $template = trim((string) $labelTemplate);
@@ -733,5 +747,115 @@ class ReportDeliveryScheduleService
         ];
 
         return strtr($template, $replacements);
+    }
+
+    /**
+     * @return array{default_mailer: string, real_email_available: bool, from_address: ?string, from_name: ?string, note: string}
+     */
+    public function deliveryCapabilities(): array
+    {
+        $defaultMailer = (string) config('mail.default', 'log');
+        $realEmailAvailable = ! in_array($defaultMailer, ['log', 'array'], true);
+
+        return [
+            'default_mailer' => $defaultMailer,
+            'real_email_available' => $realEmailAvailable,
+            'from_address' => config('mail.from.address'),
+            'from_name' => config('mail.from.name'),
+            'note' => $realEmailAvailable
+                ? 'Gercek email gonderimi hazir. Schedule kanalini email olarak secip canli teslim kullanabilirsiniz.'
+                : 'MAIL_MAILER log/array modunda. Gercek dis e-posta gonderimi icin SMTP veya desteklenen bir mail provider tanimlanmali.',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $shareLink
+     * @return array{status: string, delivered_at: CarbonInterface, metadata: array<string, mixed>}
+     */
+    private function deliverReport(
+        Workspace $workspace,
+        ReportTemplate $template,
+        ReportDeliverySchedule $schedule,
+        ReportSnapshot $snapshot,
+        ?array $shareLink,
+    ): array {
+        return match ($schedule->delivery_channel) {
+            'email' => $this->deliverByEmail($workspace, $template, $schedule, $snapshot, $shareLink),
+            'email_stub' => $this->deliverByStub($schedule, $shareLink),
+            default => throw new \InvalidArgumentException('Desteklenmeyen delivery channel.'),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $shareLink
+     * @return array{status: string, delivered_at: CarbonInterface, metadata: array<string, mixed>}
+     */
+    private function deliverByStub(
+        ReportDeliverySchedule $schedule,
+        ?array $shareLink,
+    ): array {
+        $deliveredAt = now();
+
+        return [
+            'status' => 'delivered_stub',
+            'delivered_at' => $deliveredAt,
+            'metadata' => [
+                'channel' => 'email_stub',
+                'channel_label' => $this->deliveryChannelLabel('email_stub'),
+                'mailer' => config('mail.default'),
+                'recipients' => $schedule->recipients ?? [],
+                'recipients_count' => count($schedule->recipients ?? []),
+                'share_link_used' => $shareLink !== null,
+                'outbound' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $shareLink
+     * @return array{status: string, delivered_at: CarbonInterface, metadata: array<string, mixed>}
+     */
+    private function deliverByEmail(
+        Workspace $workspace,
+        ReportTemplate $template,
+        ReportDeliverySchedule $schedule,
+        ReportSnapshot $snapshot,
+        ?array $shareLink,
+    ): array {
+        $recipients = array_values(array_filter($schedule->recipients ?? []));
+
+        if ($recipients === []) {
+            throw new \RuntimeException('Email delivery icin en az bir alici gereklidir.');
+        }
+
+        $reportPayload = $this->reportSnapshotService->snapshotDetail($snapshot);
+
+        foreach ($recipients as $recipient) {
+            Mail::to($recipient)->send(
+                new ScheduledReportDeliveryMail(
+                    workspace: $workspace,
+                    template: $template,
+                    snapshot: $snapshot,
+                    reportPayload: $reportPayload,
+                    shareLink: $shareLink,
+                ),
+            );
+        }
+
+        $deliveredAt = now();
+
+        return [
+            'status' => 'delivered_email',
+            'delivered_at' => $deliveredAt,
+            'metadata' => [
+                'channel' => 'email',
+                'channel_label' => $this->deliveryChannelLabel('email'),
+                'mailer' => config('mail.default'),
+                'recipients' => $recipients,
+                'recipients_count' => count($recipients),
+                'share_link_used' => $shareLink !== null,
+                'outbound' => ! in_array((string) config('mail.default'), ['log', 'array'], true),
+            ],
+        ];
     }
 }

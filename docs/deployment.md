@@ -63,7 +63,9 @@ Varsayilan Meta automation cadence:
 Report delivery foundation:
 
 - `schedule:run` icinden `adscast:run-report-deliveries` her 15 dakikada bir tetiklenir
-- gercek e-posta gonderimi yoktur; due schedule kaydi icin yeni `report_snapshot` ve `report_delivery_run` kaydi olusur
+- `delivery_channel=email` secilirse Laravel mailer uzerinden alicilara gercek email delivery denenir
+- `MAIL_MAILER=log|array` ise operator paneli bunu hazir degil olarak gosterir; gercek dis e-posta icin SMTP veya desteklenen provider gerekir
+- `delivery_channel=email_stub` secilirse due schedule kaydi icin yeni `report_snapshot` ve `report_delivery_run` kaydi olusur, dis mail cikisi olmaz
 - schedule konfigurasyonunda `auto_share_enabled=true` ise ayni run icinde snapshot icin public share link de uretilir
 - otomatik share link ayarlari schedule configuration JSON'u icinde tutulur: etiket sablonu, sure ve CSV erisimi
 

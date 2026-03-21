@@ -46,6 +46,7 @@ class ReportController
                     'template_summary' => $templateIndex['summary'],
                     'templates' => $templateIndex['items'],
                     'delivery_summary' => $deliveryIndex['summary'],
+                    'delivery_capabilities' => $deliveryIndex['delivery_capabilities'],
                     'delivery_schedules' => $deliveryIndex['items'],
                     'share_summary' => $shareSummary,
                 ],

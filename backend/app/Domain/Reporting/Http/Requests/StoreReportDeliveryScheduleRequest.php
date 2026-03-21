@@ -17,7 +17,7 @@ class StoreReportDeliveryScheduleRequest extends FormRequest
 
         return [
             'report_template_id' => ['required', 'uuid', 'exists:report_templates,id'],
-            'delivery_channel' => ['nullable', 'string', 'in:email_stub'],
+            'delivery_channel' => ['nullable', 'string', 'in:email_stub,email'],
             'cadence' => ['required', 'string', 'in:daily,weekly,monthly'],
             'weekday' => ['nullable', 'integer', 'min:1', 'max:7'],
             'month_day' => ['nullable', 'integer', 'min:1', 'max:28'],

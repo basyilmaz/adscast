@@ -219,3 +219,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 18. Snapshot tabanli shareable client report foundation eklemek
 19. Schedule seviyesinde otomatik musteri paylasim linki konfigurasyonunu eklemek
 20. Delivery run metadata'sinda olusan share link'i operator paneline tasimak
+21. Scheduled delivery icin gercek email kanali ve mailer readiness gorunurlugu eklemek
