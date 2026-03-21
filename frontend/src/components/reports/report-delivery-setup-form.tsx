@@ -47,7 +47,7 @@ export function ReportDeliverySetupForm({
   const [monthDay, setMonthDay] = useState("1");
   const [sendTime, setSendTime] = useState("09:00");
   const [timezone, setTimezone] = useState("Europe/Istanbul");
-  const [recipients, setRecipients] = useState("musteri@ornek.com");
+  const [recipients, setRecipients] = useState("");
   const [contactTags, setContactTags] = useState<string[]>([]);
   const [autoShareEnabled, setAutoShareEnabled] = useState(true);
   const [shareLabelTemplate, setShareLabelTemplate] = useState("{template_name} / {end_date}");
@@ -93,21 +93,25 @@ export function ReportDeliverySetupForm({
     [contacts],
   );
 
-  const taggedContacts = useMemo(
-    () =>
-      contactTags.length === 0
-        ? []
-        : contacts.filter(
-            (item) => item.is_active && item.tags.some((tag) => contactTags.includes(tag)),
-          ),
-    [contactTags, contacts],
-  );
-
   const selectedEntity = entityOptions.find((item) => item.id === entityId) ?? null;
   const selectedPreset = recipientPresets.find((item) => item.id === recipientPresetId) ?? null;
   const selectedProfile = useMemo(
     () => deliveryProfiles.find((item) => item.entity_type === entityType && item.entity_id === entityId) ?? null,
     [deliveryProfiles, entityId, entityType],
+  );
+  const mergedContactTags = useMemo(
+    () => Array.from(new Set([...(selectedPreset?.contact_tags ?? []), ...contactTags])),
+    [contactTags, selectedPreset?.contact_tags],
+  );
+
+  const taggedContacts = useMemo(
+    () =>
+      mergedContactTags.length === 0
+        ? []
+        : contacts.filter(
+            (item) => item.is_active && item.tags.some((tag) => mergedContactTags.includes(tag)),
+          ),
+    [contacts, mergedContactTags],
   );
 
   const resolvedRecipientPreview = useMemo(
@@ -132,7 +136,7 @@ export function ReportDeliverySetupForm({
     setMonthDay("1");
     setSendTime("09:00");
     setTimezone("Europe/Istanbul");
-    setRecipients("musteri@ornek.com");
+    setRecipients("");
     setContactTags([]);
     setAutoShareEnabled(true);
     setShareLabelTemplate("{template_name} / {end_date}");
@@ -180,19 +184,11 @@ export function ReportDeliverySetupForm({
     applyProfile(selectedProfile);
   }, [applyProfile, loadedProfileId, resetProfileDefaults, selectedProfile]);
 
-  useEffect(() => {
-    if (!selectedPreset) {
-      return;
-    }
-
-    setRecipients(selectedPreset.recipients.join(", "));
-  }, [selectedPreset]);
-
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!entityId || (!recipientPresetId && parsedRecipients.length === 0 && contactTags.length === 0)) {
-      setError("Hedef kayit ve en az bir alici, alici listesi veya kisi etiketi zorunlu.");
+      setError("Hedef kayit ve en az bir alici, alici grubu veya kisi etiketi zorunlu.");
       return;
     }
 
@@ -278,7 +274,7 @@ export function ReportDeliverySetupForm({
           </select>
         </Field>
 
-        <Field label="Kayitli Alici Listesi">
+        <Field label="Kayitli Alici Grubu">
           <select
             className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
             value={recipientPresetId}
@@ -289,7 +285,7 @@ export function ReportDeliverySetupForm({
               .filter((item) => item.is_active)
               .map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.name} ({item.recipients_count})
+                  {item.name} ({item.resolved_recipients_count})
                 </option>
               ))}
           </select>
@@ -389,7 +385,7 @@ export function ReportDeliverySetupForm({
         </Field>
       </div>
 
-      <Field label="Musteri Alicilari">
+      <Field label="Ek Manuel Alicilar">
         <textarea
           className="min-h-[96px] w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
           value={recipients}
@@ -398,11 +394,24 @@ export function ReportDeliverySetupForm({
         />
       </Field>
 
+      {selectedPreset ? (
+        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+          <p className="font-semibold">Secili Alici Grubu</p>
+          <p className="mt-1 muted-text">{selectedPreset.recipient_group_summary.label}</p>
+          <p className="mt-1 text-xs muted-text">
+            Statik: {selectedPreset.recipient_group_summary.static_recipients_count} / Dinamik: {selectedPreset.recipient_group_summary.dynamic_contacts_count} / Cozumlenen: {selectedPreset.resolved_recipients_count}
+          </p>
+          {selectedPreset.contact_tags.length > 0 ? (
+            <p className="mt-1 text-xs muted-text">Etiketler: {selectedPreset.contact_tags.join(", ")}</p>
+          ) : null}
+        </div>
+      ) : null}
+
       {availableContactTags.length > 0 ? (
         <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
-          <p className="font-semibold">Kisi Etiketleriyle Alici Sec</p>
+          <p className="font-semibold">Ek Kisi Segmentleri</p>
           <p className="mt-1 muted-text">
-            Secilen etiketler schedule calistiginda aktif kisi havuzundan dinamik alici cozumler.
+            Secilen etiketler, varsa kayitli grup etiketleriyle birlesip aktif kisi havuzundan dinamik alici cozer.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {availableContactTags.map((tag) => {
@@ -428,7 +437,7 @@ export function ReportDeliverySetupForm({
               );
             })}
           </div>
-          {contactTags.length > 0 ? (
+          {mergedContactTags.length > 0 ? (
             <p className="mt-2 text-xs muted-text">
               Eslesen kisi: {taggedContacts.length} / Toplam cozumlenen alici: {resolvedRecipientPreview.length}
             </p>
@@ -471,7 +480,7 @@ export function ReportDeliverySetupForm({
         </div>
       ) : null}
 
-      {contactTags.length > 0 ? (
+      {mergedContactTags.length > 0 ? (
         <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
           <p className="font-semibold">Etiket Eslesme Onizlemesi</p>
           <p className="mt-1 muted-text">

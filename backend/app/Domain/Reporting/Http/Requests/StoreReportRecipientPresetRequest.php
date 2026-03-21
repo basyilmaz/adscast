@@ -15,10 +15,24 @@ class StoreReportRecipientPresetRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:160'],
-            'recipients' => ['required', 'array', 'min:1', 'max:10'],
+            'recipients' => ['nullable', 'array', 'min:1', 'max:10'],
             'recipients.*' => ['required', 'email:rfc'],
+            'contact_tags' => ['nullable', 'array', 'min:1', 'max:10'],
+            'contact_tags.*' => ['required', 'string', 'max:60'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['nullable', 'boolean'],
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator): void {
+            $recipients = $this->input('recipients');
+            $contactTags = $this->input('contact_tags');
+
+            if ((! is_array($recipients) || count($recipients) === 0) && (! is_array($contactTags) || count($contactTags) === 0)) {
+                $validator->errors()->add('recipients', 'En az bir statik alici veya kisi etiketi gereklidir.');
+            }
+        });
     }
 }

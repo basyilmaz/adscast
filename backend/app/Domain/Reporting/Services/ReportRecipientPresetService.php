@@ -16,6 +16,7 @@ class ReportRecipientPresetService
 
     public function __construct(
         private readonly ReportWorkspaceConfigStore $configStore,
+        private readonly ReportContactService $reportContactService,
         private readonly AuditLogService $auditLogService,
     ) {
     }
@@ -27,7 +28,7 @@ class ReportRecipientPresetService
     {
         $items = $this->configStore
             ->collection($workspaceId, self::SETTING_KEY)
-            ->map(fn (array $item): array => $this->normalizeItem($item))
+            ->map(fn (array $item): array => $this->normalizeItem($workspaceId, $item))
             ->sortBy([
                 ['is_active', 'desc'],
                 ['name', 'asc'],
@@ -38,7 +39,10 @@ class ReportRecipientPresetService
             'summary' => [
                 'total_presets' => $items->count(),
                 'active_presets' => $items->where('is_active', true)->count(),
-                'total_recipients' => $items->sum(fn (array $item): int => $item['recipients_count']),
+                'total_recipients' => $items->sum(fn (array $item): int => $item['resolved_recipients_count']),
+                'segment_backed_presets' => $items->filter(
+                    fn (array $item): bool => count($item['contact_tags']) > 0,
+                )->count(),
             ],
             'items' => $items->all(),
         ];
@@ -58,17 +62,19 @@ class ReportRecipientPresetService
 
         $this->assertUniqueName($items, $name);
 
-        $item = $this->normalizeItem([
+        $raw = [
             'id' => (string) Str::uuid(),
             'name' => $name,
             'recipients' => $this->normalizeRecipients($payload['recipients'] ?? []),
+            'contact_tags' => $this->reportContactService->normalizeTags($payload['contact_tags'] ?? []),
             'notes' => isset($payload['notes']) ? trim((string) $payload['notes']) : null,
             'is_active' => (bool) ($payload['is_active'] ?? true),
             'created_at' => now()->toDateTimeString(),
             'updated_at' => now()->toDateTimeString(),
-        ]);
+        ];
+        $item = $this->normalizeItem($workspace->id, $raw);
 
-        $items->push($item);
+        $items->push($raw);
 
         $this->configStore->put($workspace, self::SETTING_KEY, $items->all(), $actor);
 
@@ -82,6 +88,8 @@ class ReportRecipientPresetService
             metadata: [
                 'name' => $item['name'],
                 'recipients_count' => $item['recipients_count'],
+                'contact_tags' => $item['contact_tags'],
+                'resolved_recipients_count' => $item['resolved_recipients_count'],
             ],
             request: $request,
         );
@@ -104,25 +112,27 @@ class ReportRecipientPresetService
 
         if ($index === false) {
             throw ValidationException::withMessages([
-                'preset_id' => 'Duzenlenecek alici listesi bulunamadi.',
+                'preset_id' => 'Duzenlenecek alici grubu bulunamadi.',
             ]);
         }
 
-        $current = $this->normalizeItem($items->get($index));
+        $current = $this->normalizeItem($workspace->id, $items->get($index));
         $name = trim((string) $payload['name']);
         $this->assertUniqueName($items, $name, $presetId);
 
-        $item = $this->normalizeItem([
+        $raw = [
             'id' => $presetId,
             'name' => $name,
             'recipients' => $this->normalizeRecipients($payload['recipients'] ?? []),
+            'contact_tags' => $this->reportContactService->normalizeTags($payload['contact_tags'] ?? []),
             'notes' => isset($payload['notes']) ? trim((string) $payload['notes']) : null,
             'is_active' => (bool) ($payload['is_active'] ?? $current['is_active']),
             'created_at' => $current['created_at'],
             'updated_at' => now()->toDateTimeString(),
-        ]);
+        ];
+        $item = $this->normalizeItem($workspace->id, $raw);
 
-        $items->put($index, $item);
+        $items->put($index, $raw);
         $this->configStore->put($workspace, self::SETTING_KEY, $items->all(), $actor);
 
         $this->auditLogService->log(
@@ -135,6 +145,8 @@ class ReportRecipientPresetService
             metadata: [
                 'name' => $item['name'],
                 'recipients_count' => $item['recipients_count'],
+                'contact_tags' => $item['contact_tags'],
+                'resolved_recipients_count' => $item['resolved_recipients_count'],
                 'is_active' => $item['is_active'],
             ],
             request: $request,
@@ -158,15 +170,17 @@ class ReportRecipientPresetService
 
         if ($index === false) {
             throw ValidationException::withMessages([
-                'preset_id' => 'Durumu degistirilecek alici listesi bulunamadi.',
+                'preset_id' => 'Durumu degistirilecek alici grubu bulunamadi.',
             ]);
         }
 
-        $current = $this->normalizeItem($items->get($index));
-        $current['is_active'] = $isActive ?? ! $current['is_active'];
-        $current['updated_at'] = now()->toDateTimeString();
+        $currentRaw = $items->get($index);
+        $current = $this->normalizeItem($workspace->id, $currentRaw);
+        $currentRaw['is_active'] = $isActive ?? ! $current['is_active'];
+        $currentRaw['updated_at'] = now()->toDateTimeString();
+        $current = $this->normalizeItem($workspace->id, $currentRaw);
 
-        $items->put($index, $current);
+        $items->put($index, $currentRaw);
         $this->configStore->put($workspace, self::SETTING_KEY, $items->all(), $actor);
 
         $this->auditLogService->log(
@@ -197,7 +211,7 @@ class ReportRecipientPresetService
 
         if (! $item) {
             throw ValidationException::withMessages([
-                'preset_id' => 'Silinecek alici listesi bulunamadi.',
+                'preset_id' => 'Silinecek alici grubu bulunamadi.',
             ]);
         }
 
@@ -230,7 +244,59 @@ class ReportRecipientPresetService
             ->collection($workspaceId, self::SETTING_KEY)
             ->first(fn (array $item): bool => (string) ($item['id'] ?? '') === $presetId);
 
-        return $item ? $this->normalizeItem($item) : null;
+        return $item ? $this->normalizeItem($workspaceId, $item) : null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $preset
+     * @param  array<int, mixed>  $manualRecipients
+     * @param  array<int, mixed>  $manualContactTags
+     * @return array{
+     *   manual_recipients: array<int, string>,
+     *   preset_recipients: array<int, string>,
+     *   contact_tags: array<int, string>,
+     *   tagged_contacts: array<int, array<string, mixed>>,
+     *   resolved_recipients: array<int, string>,
+     *   recipient_group_summary: array<string, mixed>
+     * }
+     */
+    public function resolveRecipientGroup(
+        string $workspaceId,
+        ?array $preset = null,
+        array $manualRecipients = [],
+        array $manualContactTags = [],
+    ): array {
+        $manualRecipients = $this->normalizeRecipients($manualRecipients);
+        $manualContactTags = $this->reportContactService->normalizeTags($manualContactTags);
+        $presetRecipients = $this->normalizeRecipients(
+            is_array($preset['recipients'] ?? null) ? $preset['recipients'] : [],
+        );
+        $mergedContactTags = $this->reportContactService->normalizeTags(array_merge(
+            is_array($preset['contact_tags'] ?? null) ? $preset['contact_tags'] : [],
+            $manualContactTags,
+        ));
+        $taggedContacts = $this->reportContactService->findActiveByTags($workspaceId, $mergedContactTags);
+        $resolvedRecipients = $this->normalizeRecipients(array_merge(
+            $manualRecipients,
+            $presetRecipients,
+            $this->reportContactService->extractEmails($taggedContacts),
+        ));
+
+        return [
+            'manual_recipients' => $manualRecipients,
+            'preset_recipients' => $presetRecipients,
+            'contact_tags' => $mergedContactTags,
+            'tagged_contacts' => $taggedContacts,
+            'resolved_recipients' => $resolvedRecipients,
+            'recipient_group_summary' => $this->recipientGroupSummary(
+                presetName: $preset['name'] ?? null,
+                manualRecipients: $manualRecipients,
+                presetRecipients: $presetRecipients,
+                contactTags: $mergedContactTags,
+                taggedContacts: $taggedContacts,
+                resolvedRecipients: $resolvedRecipients,
+            ),
+        ];
     }
 
     /**
@@ -251,21 +317,92 @@ class ReportRecipientPresetService
      * @param  array<string, mixed>  $item
      * @return array<string, mixed>
      */
-    private function normalizeItem(array $item): array
+    private function normalizeItem(string $workspaceId, array $item): array
     {
         $recipients = $this->normalizeRecipients(is_array($item['recipients'] ?? null) ? $item['recipients'] : []);
+        $contactTags = $this->reportContactService->normalizeTags(
+            is_array($item['contact_tags'] ?? null) ? $item['contact_tags'] : [],
+        );
+        $recipientGroup = $this->resolveRecipientGroup(
+            workspaceId: $workspaceId,
+            preset: null,
+            manualRecipients: $recipients,
+            manualContactTags: $contactTags,
+        );
 
         return [
             'id' => (string) ($item['id'] ?? Str::uuid()->toString()),
-            'name' => trim((string) ($item['name'] ?? 'Alici Listesi')),
+            'name' => trim((string) ($item['name'] ?? 'Alici Grubu')),
             'recipients' => $recipients,
             'recipients_count' => count($recipients),
+            'contact_tags' => $contactTags,
+            'tagged_contacts' => $recipientGroup['tagged_contacts'],
+            'tagged_contacts_count' => count($recipientGroup['tagged_contacts']),
+            'resolved_recipients' => $recipientGroup['resolved_recipients'],
+            'resolved_recipients_count' => count($recipientGroup['resolved_recipients']),
+            'recipient_group_summary' => $recipientGroup['recipient_group_summary'],
             'notes' => isset($item['notes']) && trim((string) $item['notes']) !== ''
                 ? trim((string) $item['notes'])
                 : null,
             'is_active' => (bool) ($item['is_active'] ?? true),
             'created_at' => isset($item['created_at']) ? (string) $item['created_at'] : null,
             'updated_at' => isset($item['updated_at']) ? (string) $item['updated_at'] : null,
+        ];
+    }
+
+    /**
+     * @param  array<int, string>  $manualRecipients
+     * @param  array<int, string>  $presetRecipients
+     * @param  array<int, string>  $contactTags
+     * @param  array<int, array<string, mixed>>  $taggedContacts
+     * @param  array<int, string>  $resolvedRecipients
+     * @return array<string, mixed>
+     */
+    private function recipientGroupSummary(
+        ?string $presetName,
+        array $manualRecipients,
+        array $presetRecipients,
+        array $contactTags,
+        array $taggedContacts,
+        array $resolvedRecipients,
+    ): array {
+        $hasPreset = $presetName !== null && $presetName !== '';
+        $hasManualRecipients = count($manualRecipients) > 0;
+        $hasSegments = count($contactTags) > 0;
+
+        $mode = match (true) {
+            $hasPreset && $hasManualRecipients && $hasSegments => 'preset_plus_manual_plus_segment',
+            $hasPreset && $hasManualRecipients => 'preset_plus_manual',
+            $hasPreset && $hasSegments => 'preset_plus_segment',
+            $hasPreset => 'preset',
+            $hasManualRecipients && $hasSegments => 'manual_plus_segment',
+            $hasSegments => 'segment',
+            $hasManualRecipients => 'manual',
+            default => 'empty',
+        };
+
+        $label = match ($mode) {
+            'preset_plus_manual_plus_segment' => sprintf('Kayitli grup + manuel + segment (%s)', implode(', ', $contactTags)),
+            'preset_plus_manual' => sprintf('Kayitli grup + manuel alici (%s)', $presetName ?? 'Kayitli grup'),
+            'preset_plus_segment' => sprintf('Kayitli grup + segment (%s)', implode(', ', $contactTags)),
+            'preset' => sprintf('Kayitli grup: %s', $presetName ?? 'Kayitli grup'),
+            'manual_plus_segment' => sprintf('Manuel alici + segment (%s)', implode(', ', $contactTags)),
+            'segment' => sprintf('Segment: %s', implode(', ', $contactTags)),
+            'manual' => 'Manuel alici listesi',
+            default => 'Alici grubu tanimli degil',
+        };
+
+        return [
+            'mode' => $mode,
+            'label' => $label,
+            'preset_name' => $presetName,
+            'contact_tags' => $contactTags,
+            'static_recipients_count' => count($manualRecipients) + count($presetRecipients),
+            'manual_recipients_count' => count($manualRecipients),
+            'preset_recipients_count' => count($presetRecipients),
+            'dynamic_contacts_count' => count($taggedContacts),
+            'resolved_recipients_count' => count($resolvedRecipients),
+            'sample_contact_names' => collect($taggedContacts)->pluck('name')->take(3)->values()->all(),
         ];
     }
 
@@ -284,7 +421,7 @@ class ReportRecipientPresetService
 
         if ($nameExists) {
             throw ValidationException::withMessages([
-                'name' => 'Bu isimle kayitli bir alici listesi zaten var.',
+                'name' => 'Bu isimle kayitli bir alici grubu zaten var.',
             ]);
         }
     }

@@ -4,17 +4,19 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
-import { ReportRecipientPresetListItem } from "@/lib/types";
+import { ReportContactListItem, ReportRecipientPresetListItem } from "@/lib/types";
 
 type Props = {
   presets: ReportRecipientPresetListItem[];
+  contacts: ReportContactListItem[];
   onChanged?: () => Promise<void> | void;
 };
 
-export function ReportRecipientPresetManager({ presets, onChanged }: Props) {
+export function ReportRecipientPresetManager({ presets, contacts, onChanged }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [recipients, setRecipients] = useState("");
+  const [contactTags, setContactTags] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -25,10 +27,49 @@ export function ReportRecipientPresetManager({ presets, onChanged }: Props) {
     [presets],
   );
 
+  const availableContactTags = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          contacts
+            .filter((item) => item.is_active)
+            .flatMap((item) => item.tags),
+        ),
+      ).sort((left, right) => left.localeCompare(right, "tr")),
+    [contacts],
+  );
+
+  const parsedRecipients = recipients
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const taggedContacts = useMemo(
+    () =>
+      contactTags.length === 0
+        ? []
+        : contacts.filter(
+            (item) => item.is_active && item.tags.some((tag) => contactTags.includes(tag)),
+          ),
+    [contactTags, contacts],
+  );
+
+  const resolvedRecipients = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...parsedRecipients.map((item) => item.toLowerCase()),
+          ...taggedContacts.map((item) => item.email.toLowerCase()),
+        ]),
+      ),
+    [parsedRecipients, taggedContacts],
+  );
+
   const startEdit = (preset: ReportRecipientPresetListItem) => {
     setEditingId(preset.id);
     setName(preset.name);
     setRecipients(preset.recipients.join(", "));
+    setContactTags(preset.contact_tags);
     setNotes(preset.notes ?? "");
     setMessage(null);
     setError(null);
@@ -38,17 +79,13 @@ export function ReportRecipientPresetManager({ presets, onChanged }: Props) {
     setEditingId(null);
     setName("");
     setRecipients("");
+    setContactTags([]);
     setNotes("");
   };
 
   const handleUpdate = async (presetId: string) => {
-    const parsedRecipients = recipients
-      .split(/[\n,;]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    if (!name.trim() || parsedRecipients.length === 0) {
-      setError("Liste adi ve en az bir alici zorunlu.");
+    if (!name.trim() || (parsedRecipients.length === 0 && contactTags.length === 0)) {
+      setError("Grup adi ve en az bir statik alici veya kisi etiketi zorunlu.");
       return;
     }
 
@@ -62,16 +99,17 @@ export function ReportRecipientPresetManager({ presets, onChanged }: Props) {
         requireWorkspace: true,
         body: {
           name: name.trim(),
-          recipients: parsedRecipients,
+          recipients: parsedRecipients.length > 0 ? parsedRecipients : null,
+          contact_tags: contactTags.length > 0 ? contactTags : null,
           notes: notes.trim() || null,
         },
       });
 
-      setMessage("Alici listesi guncellendi.");
+      setMessage("Alici grubu guncellendi.");
       cancelEdit();
       await onChanged?.();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Alici listesi guncellenemedi.");
+      setError(requestError instanceof Error ? requestError.message : "Alici grubu guncellenemedi.");
     } finally {
       setIsSubmitting(null);
     }
@@ -91,10 +129,10 @@ export function ReportRecipientPresetManager({ presets, onChanged }: Props) {
         },
       });
 
-      setMessage(preset.is_active ? "Alici listesi pasife alindi." : "Alici listesi tekrar aktif edildi.");
+      setMessage(preset.is_active ? "Alici grubu pasife alindi." : "Alici grubu tekrar aktif edildi.");
       await onChanged?.();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Alici listesi guncellenemedi.");
+      setError(requestError instanceof Error ? requestError.message : "Alici grubu guncellenemedi.");
     } finally {
       setIsSubmitting(null);
     }
@@ -111,13 +149,13 @@ export function ReportRecipientPresetManager({ presets, onChanged }: Props) {
         requireWorkspace: true,
       });
 
-      setMessage("Alici listesi silindi.");
+      setMessage("Alici grubu silindi.");
       if (editingId === preset.id) {
         cancelEdit();
       }
       await onChanged?.();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Alici listesi silinemedi.");
+      setError(requestError instanceof Error ? requestError.message : "Alici grubu silinemedi.");
     } finally {
       setIsSubmitting(null);
     }
@@ -132,7 +170,9 @@ export function ReportRecipientPresetManager({ presets, onChanged }: Props) {
         <div key={preset.id} className="rounded-lg border border-[var(--border)] p-3">
           <div className="flex flex-wrap items-center gap-2">
             <Badge label={preset.is_active ? "active" : "inactive"} variant={preset.is_active ? "success" : "warning"} />
-            <Badge label={`${preset.recipients_count} alici`} variant="neutral" />
+            <Badge label={`${preset.recipient_group_summary.static_recipients_count} statik`} variant="neutral" />
+            <Badge label={`${preset.recipient_group_summary.dynamic_contacts_count} dinamik`} variant="neutral" />
+            <Badge label={`${preset.resolved_recipients_count} cozumlenen`} variant="neutral" />
           </div>
 
           {editingId === preset.id ? (
@@ -147,7 +187,42 @@ export function ReportRecipientPresetManager({ presets, onChanged }: Props) {
                 className="min-h-[84px] w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
                 value={recipients}
                 onChange={(event) => setRecipients(event.target.value)}
+                placeholder="musteri@ornek.com, ekip@ornek.com"
               />
+              {availableContactTags.length > 0 ? (
+                <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+                  <p className="font-semibold">Kisi Segmentleri</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {availableContactTags.map((tag) => {
+                      const isSelected = contactTags.includes(tag);
+
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                            isSelected
+                              ? "border-[var(--accent)] bg-[var(--surface-2)] text-[var(--accent)]"
+                              : "border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                          }`}
+                          onClick={() =>
+                            setContactTags((current) =>
+                              current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag],
+                            )
+                          }
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {contactTags.length > 0 ? (
+                    <p className="mt-2 text-xs muted-text">
+                      Eslesen kisi: {taggedContacts.length} / Toplam cozumlenen alici: {resolvedRecipients.length}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <input
                 type="text"
                 className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
@@ -167,7 +242,16 @@ export function ReportRecipientPresetManager({ presets, onChanged }: Props) {
           ) : (
             <>
               <p className="mt-2 font-semibold">{preset.name}</p>
-              <p className="mt-1 text-sm muted-text">{preset.recipients.join(", ")}</p>
+              <p className="mt-1 text-sm muted-text">{preset.recipient_group_summary.label}</p>
+              <p className="mt-1 text-xs muted-text">
+                Statik: {preset.recipient_group_summary.static_recipients_count} / Dinamik: {preset.recipient_group_summary.dynamic_contacts_count}
+              </p>
+              {preset.contact_tags.length > 0 ? (
+                <p className="mt-1 text-xs muted-text">Etiketler: {preset.contact_tags.join(", ")}</p>
+              ) : null}
+              {preset.resolved_recipients.length > 0 ? (
+                <p className="mt-1 text-xs muted-text">Cozumlenen alicilar: {preset.resolved_recipients.join(", ")}</p>
+              ) : null}
               {preset.notes ? <p className="mt-2 text-xs muted-text">{preset.notes}</p> : null}
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -186,7 +270,7 @@ export function ReportRecipientPresetManager({ presets, onChanged }: Props) {
         </div>
       ))}
 
-      {sortedPresets.length === 0 ? <p className="text-sm muted-text">Henuz kayitli alici listesi yok.</p> : null}
+      {sortedPresets.length === 0 ? <p className="text-sm muted-text">Henuz kayitli alici grubu yok.</p> : null}
     </div>
   );
 }

@@ -62,35 +62,44 @@ finally {
 }
 
 Write-Host "`n[5/5] Frontend build smoke" -ForegroundColor Yellow
-Push-Location $frontend
+$qualityBuildRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("adscast-next-build-" + [System.Guid]::NewGuid().ToString("N"))
+$qualityFrontend = Join-Path $qualityBuildRoot "frontend"
+
 try {
-  $qualityDistDir = ".next-quality"
-  if (Test-Path $qualityDistDir) {
-    Remove-Item $qualityDistDir -Recurse -Force -ErrorAction SilentlyContinue
+  New-Item -ItemType Directory -Path $qualityFrontend -Force | Out-Null
+
+  $robocopyArgs = @(
+    $frontend,
+    $qualityFrontend,
+    "/MIR",
+    "/XD", "node_modules", ".next", ".next-quality", "out"
+  )
+
+  & robocopy @robocopyArgs | Out-Null
+  if ($LASTEXITCODE -gt 7) {
+    throw "Frontend build smoke icin gecici kopya olusturulamadi."
   }
-  if (Test-Path "out") {
-    Remove-Item "out" -Recurse -Force -ErrorAction SilentlyContinue
-  }
-  $env:NEXT_DIST_DIR = $qualityDistDir
-  node .\node_modules\next\dist\bin\next build
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host "Ilk build denemesi basarisiz. Temizleyip tekrar deneniyor..." -ForegroundColor DarkYellow
-    Start-Sleep -Seconds 1
-    if (Test-Path $qualityDistDir) {
-      Remove-Item $qualityDistDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    if (Test-Path "out") {
-      Remove-Item "out" -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    node .\node_modules\next\dist\bin\next build
+
+  New-Item -ItemType Junction -Path (Join-Path $qualityFrontend "node_modules") -Target (Join-Path $frontend "node_modules") -Force | Out-Null
+
+  Push-Location $qualityFrontend
+  try {
+    $qualityDistDir = ".next-quality"
+    $env:NEXT_DIST_DIR = $qualityDistDir
+    node .\node_modules\next\dist\bin\next build --webpack
     if ($LASTEXITCODE -ne 0) {
       throw "Frontend build basarisiz."
     }
   }
+  finally {
+    Remove-Item Env:NEXT_DIST_DIR -ErrorAction SilentlyContinue
+    Pop-Location
+  }
 }
 finally {
-  Remove-Item Env:NEXT_DIST_DIR -ErrorAction SilentlyContinue
-  Pop-Location
+  if (Test-Path $qualityBuildRoot) {
+    Remove-Item $qualityBuildRoot -Recurse -Force -ErrorAction SilentlyContinue
+  }
 }
 
 Write-Host "`nQuality gate basarili." -ForegroundColor Green

@@ -128,14 +128,6 @@ export function ReportDeliveryProfileManager({
     setShareAllowCsvDownload(false);
   }, [currentProfile, isEditing, options?.deliveryCapabilities.real_email_available]);
 
-  useEffect(() => {
-    if (!selectedPreset) {
-      return;
-    }
-
-    setRecipients(selectedPreset.recipients.join(", "));
-  }, [selectedPreset]);
-
   const parsedRecipients = recipients
     .split(/[\n,;]+/)
     .map((item) => item.trim())
@@ -149,7 +141,7 @@ export function ReportDeliveryProfileManager({
 
   const handleSave = async () => {
     if (!recipientPresetId && parsedRecipients.length === 0) {
-      setError("En az bir alici veya kayitli alici listesi secilmelidir.");
+      setError("En az bir alici veya kayitli alici grubu secilmelidir.");
       return;
     }
 
@@ -267,8 +259,9 @@ export function ReportDeliveryProfileManager({
                 <Badge label={currentProfile.is_active ? "active" : "inactive"} variant={currentProfile.is_active ? "success" : "warning"} />
                 {currentProfile.share_delivery.enabled ? <Badge label="Auto Share" variant="success" /> : null}
               </div>
-              <p className="muted-text">
-                Alicilar: {currentProfile.recipient_preset_name ?? currentProfile.recipients.join(", ")}
+              <p className="muted-text">{currentProfile.recipient_group_summary.label}</p>
+              <p className="text-xs muted-text">
+                Statik: {currentProfile.recipient_group_summary.static_recipients_count} / Dinamik: {currentProfile.recipient_group_summary.dynamic_contacts_count}
               </p>
               <p className="muted-text">
                 {currentProfile.default_range_days} gun / {currentProfile.timezone}
@@ -304,7 +297,7 @@ export function ReportDeliveryProfileManager({
           ) : (
             <div className="space-y-4 rounded-lg border border-[var(--border)] p-4">
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Kayitli Alici Listesi">
+                <Field label="Kayitli Alici Grubu">
                   <select
                     className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
                     value={recipientPresetId}
@@ -313,7 +306,7 @@ export function ReportDeliveryProfileManager({
                     <option value="">Ozel Alici Girisi</option>
                     {visiblePresets.map((preset) => (
                       <option key={preset.id} value={preset.id}>
-                        {preset.name} ({preset.recipients_count})
+                        {preset.name} ({preset.resolved_recipients_count})
                       </option>
                     ))}
                   </select>
@@ -405,7 +398,7 @@ export function ReportDeliveryProfileManager({
                 </Field>
               </div>
 
-              <Field label="Musteri Alicilari">
+              <Field label="Ek Manuel Alicilar">
                 <textarea
                   className="min-h-[84px] w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
                   value={recipients}
@@ -413,6 +406,16 @@ export function ReportDeliveryProfileManager({
                   placeholder="musteri@ornek.com, ekip@ornek.com"
                 />
               </Field>
+
+              {selectedPreset ? (
+                <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+                  <p className="font-semibold">Secili Alici Grubu</p>
+                  <p className="mt-1 muted-text">{selectedPreset.recipient_group_summary.label}</p>
+                  <p className="mt-1 text-xs muted-text">
+                    Statik: {selectedPreset.recipient_group_summary.static_recipients_count} / Dinamik: {selectedPreset.recipient_group_summary.dynamic_contacts_count} / Cozumlenen: {selectedPreset.resolved_recipients_count}
+                  </p>
+                </div>
+              ) : null}
 
               <p className="text-xs muted-text">
                 {options?.deliveryCapabilities.real_email_available

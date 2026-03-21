@@ -181,7 +181,7 @@ export default function ReportsPage() {
         <MetricCard label="Kayitli Sablon" value={data?.template_summary.total_templates ?? 0} />
         <MetricCard label="Kisi Havuzu" value={data?.contact_summary.total_contacts ?? 0} />
         <MetricCard label="Kisi Segmenti" value={data?.contact_segment_summary.total_segments ?? 0} />
-        <MetricCard label="Alici Preseti" value={data?.recipient_preset_summary.total_presets ?? 0} />
+        <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
         <MetricCard label="Aktif Schedule" value={data?.delivery_summary.active_schedules ?? 0} />
         <MetricCard label="Basarisiz Teslim" value={data?.delivery_run_summary.failed_runs ?? 0} />
@@ -215,6 +215,7 @@ export default function ReportsPage() {
             <ReportScheduleForm
               templates={data?.templates ?? []}
               contacts={data?.contacts ?? []}
+              recipientPresets={data?.recipient_presets ?? []}
               deliveryCapabilities={data?.delivery_capabilities ?? null}
               onCreated={reload}
             />
@@ -238,16 +239,16 @@ export default function ReportsPage() {
         </Card>
 
         <Card>
-          <CardTitle>Kayitli Alici Listeleri</CardTitle>
+          <CardTitle>Kayitli Alici Gruplari</CardTitle>
           <p className="mt-2 text-sm muted-text">
-            Sik kullanilan musteri ve ekip alicilarini bir kez kaydedin. Hizli teslim formunda tekrar secerek kullanin.
+            Statik alicilari ve kisi segmentlerini bir kez gruplayin. Hizli teslim ve schedule akislarinda bu gruplari tekrar secerek kullanin.
           </p>
           <div className="mt-4">
             <ReportRecipientPresetForm contacts={data?.contacts ?? []} onCreated={reload} />
           </div>
 
           <div className="mt-4">
-            <ReportRecipientPresetManager presets={data?.recipient_presets ?? []} onChanged={reload} />
+            <ReportRecipientPresetManager presets={data?.recipient_presets ?? []} contacts={data?.contacts ?? []} onChanged={reload} />
           </div>
         </Card>
       </section>

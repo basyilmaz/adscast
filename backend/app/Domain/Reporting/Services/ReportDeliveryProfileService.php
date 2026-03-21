@@ -45,7 +45,10 @@ class ReportDeliveryProfileService
         );
 
         $items = $profiles
-            ->map(function (array $profile) use ($contexts, $workspaceId): array {
+            ->map(function (array $profile) use ($contexts, $workspaceId, $presets): array {
+                $preset = $profile['recipient_preset_id']
+                    ? $this->resolvePresetFromCollection($presets, $profile['recipient_preset_id'])
+                    : null;
                 $context = $contexts[$this->entityContextResolver->key($profile['entity_type'], $profile['entity_id'])] ?? [
                     'entity_label' => 'Bilinmeyen varlik',
                     'context_label' => null,
@@ -55,7 +58,7 @@ class ReportDeliveryProfileService
                     'entity_label' => $context['entity_label'],
                     'context_label' => $context['context_label'],
                     'report_url' => $this->reportUrl($profile['entity_type'], $profile['entity_id']),
-                ]));
+                ]), $preset);
             })
             ->sortBy([
                 ['is_active', 'desc'],
@@ -104,7 +107,7 @@ class ReportDeliveryProfileService
             'entity_label' => $resolved['entity_label'],
             'context_label' => $resolved['context_label'],
             'report_url' => $this->reportUrl($profile['entity_type'], $profile['entity_id']),
-        ]));
+        ]), $profile['recipient_preset_id'] ? $this->resolvePresetFromCollection($presets, $profile['recipient_preset_id']) : null);
     }
 
     /**
@@ -269,7 +272,9 @@ class ReportDeliveryProfileService
             'timezone' => (string) ($payload['timezone'] ?? $workspace->timezone),
             'default_range_days' => (int) ($payload['default_range_days'] ?? 7),
             'layout_preset' => (string) ($payload['layout_preset'] ?? 'client_digest'),
-            'recipients' => $this->baseRecipients($workspace->id, $payload),
+            'recipients' => $this->recipientPresetService->normalizeRecipients(
+                is_array($payload['recipients'] ?? null) ? $payload['recipients'] : [],
+            ),
             'share_delivery' => [
                 'enabled' => (bool) ($payload['auto_share_enabled'] ?? false),
                 'label_template' => $payload['share_label_template'] ?? null,
@@ -329,23 +334,26 @@ class ReportDeliveryProfileService
 
             if (! $preset || ! ($preset['is_active'] ?? true)) {
                 throw ValidationException::withMessages([
-                    'recipient_preset_id' => 'Secilen alici listesi bulunamadi veya aktif degil.',
+                    'recipient_preset_id' => 'Secilen alici grubu bulunamadi veya aktif degil.',
                 ]);
             }
         }
 
-        $contactTags = $this->reportContactService->normalizeTags(
+        $manualContactTags = $this->reportContactService->normalizeTags(
             is_array($payload['contact_tags'] ?? null) ? $payload['contact_tags'] : [],
         );
 
-        $resolvedRecipients = $this->recipientPresetService->normalizeRecipients(array_merge(
-            $this->baseRecipients($workspaceId, $payload, $preset),
-            $this->reportContactService->resolveRecipientEmailsByTags($workspaceId, $contactTags),
-        ));
+        $recipientGroup = $this->recipientPresetService->resolveRecipientGroup(
+            workspaceId: $workspaceId,
+            preset: $preset,
+            manualRecipients: is_array($payload['recipients'] ?? null) ? $payload['recipients'] : [],
+            manualContactTags: $manualContactTags,
+        );
+        $resolvedRecipients = $recipientGroup['resolved_recipients'];
 
         if ($resolvedRecipients === []) {
             throw ValidationException::withMessages([
-                'recipients' => 'Teslim icin en az bir alici, alici listesi veya kisi etiketi gereklidir.',
+                'recipients' => 'Teslim icin en az bir alici, alici grubu veya kisi etiketi gereklidir.',
             ]);
         }
 
@@ -353,95 +361,26 @@ class ReportDeliveryProfileService
     }
 
     /**
-     * @param  array<string, mixed>  $payload
-     * @param  array<string, mixed>|null  $preset
-     * @return array<int, string>
-     */
-    private function baseRecipients(string $workspaceId, array $payload, ?array $preset = null): array
-    {
-        if ($preset === null && isset($payload['recipient_preset_id']) && $payload['recipient_preset_id'] !== '') {
-            $preset = $this->recipientPresetService->find($workspaceId, (string) $payload['recipient_preset_id']);
-        }
-
-        return $this->recipientPresetService->normalizeRecipients(
-            is_array($payload['recipients'] ?? null) && count($payload['recipients']) > 0
-                ? $payload['recipients']
-                : ($preset['recipients'] ?? []),
-        );
-    }
-
-    /**
      * @param  array<string, mixed>  $profile
+     * @param  array<string, mixed>|null  $preset
      * @return array<string, mixed>
      */
-    private function enrichRecipientResolution(string $workspaceId, array $profile): array
+    private function enrichRecipientResolution(string $workspaceId, array $profile, ?array $preset = null): array
     {
-        $taggedContacts = $this->reportContactService->findActiveByTags(
-            $workspaceId,
-            is_array($profile['contact_tags'] ?? null) ? $profile['contact_tags'] : [],
+        $recipientGroup = $this->recipientPresetService->resolveRecipientGroup(
+            workspaceId: $workspaceId,
+            preset: $preset,
+            manualRecipients: is_array($profile['recipients'] ?? null) ? $profile['recipients'] : [],
+            manualContactTags: is_array($profile['contact_tags'] ?? null) ? $profile['contact_tags'] : [],
         );
-
-        $resolvedRecipients = $this->recipientPresetService->normalizeRecipients(array_merge(
-            is_array($profile['recipients'] ?? null) ? $profile['recipients'] : [],
-            $this->reportContactService->extractEmails($taggedContacts),
-        ));
 
         return array_merge($profile, [
-            'tagged_contacts' => $taggedContacts,
-            'tagged_contacts_count' => count($taggedContacts),
-            'resolved_recipients' => $resolvedRecipients,
-            'resolved_recipients_count' => count($resolvedRecipients),
-            'recipient_group_summary' => $this->recipientGroupSummary($profile, $taggedContacts, $resolvedRecipients),
+            'tagged_contacts' => $recipientGroup['tagged_contacts'],
+            'tagged_contacts_count' => count($recipientGroup['tagged_contacts']),
+            'resolved_recipients' => $recipientGroup['resolved_recipients'],
+            'resolved_recipients_count' => count($recipientGroup['resolved_recipients']),
+            'recipient_group_summary' => $recipientGroup['recipient_group_summary'],
         ]);
-    }
-
-    /**
-     * @param  array<string, mixed>  $profile
-     * @param  array<int, array<string, mixed>>  $taggedContacts
-     * @param  array<int, string>  $resolvedRecipients
-     * @return array<string, mixed>
-     */
-    private function recipientGroupSummary(array $profile, array $taggedContacts, array $resolvedRecipients): array
-    {
-        $hasPreset = ! empty($profile['recipient_preset_id']);
-        $hasStaticRecipients = count($profile['recipients'] ?? []) > 0;
-        $hasSegments = count($profile['contact_tags'] ?? []) > 0;
-
-        $mode = match (true) {
-            $hasPreset && $hasSegments => 'preset_plus_segment',
-            $hasStaticRecipients && $hasSegments => 'manual_plus_segment',
-            $hasPreset => 'preset',
-            $hasSegments => 'segment',
-            $hasStaticRecipients => 'manual',
-            default => 'empty',
-        };
-
-        $label = match ($mode) {
-            'preset_plus_segment' => sprintf(
-                'Preset + segment (%s + %s)',
-                $profile['recipient_preset_name'] ?? 'Kayitli liste',
-                implode(', ', $profile['contact_tags'] ?? []),
-            ),
-            'manual_plus_segment' => sprintf(
-                'Manuel alici + segment (%s)',
-                implode(', ', $profile['contact_tags'] ?? []),
-            ),
-            'preset' => sprintf('Preset: %s', $profile['recipient_preset_name'] ?? 'Kayitli liste'),
-            'segment' => sprintf('Segment: %s', implode(', ', $profile['contact_tags'] ?? [])),
-            'manual' => 'Manuel alici listesi',
-            default => 'Alici grubu tanimli degil',
-        };
-
-        return [
-            'mode' => $mode,
-            'label' => $label,
-            'preset_name' => $profile['recipient_preset_name'] ?? null,
-            'contact_tags' => $profile['contact_tags'] ?? [],
-            'static_recipients_count' => count($profile['recipients'] ?? []),
-            'dynamic_contacts_count' => count($taggedContacts),
-            'resolved_recipients_count' => count($resolvedRecipients),
-            'sample_contact_names' => collect($taggedContacts)->pluck('name')->take(3)->values()->all(),
-        ];
     }
 
     /**
@@ -509,6 +448,21 @@ class ReportDeliveryProfileService
             'created_at' => isset($item['created_at']) ? (string) $item['created_at'] : null,
             'updated_at' => isset($item['updated_at']) ? (string) $item['updated_at'] : null,
         ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<string, array<string, mixed>>  $presets
+     * @return array<string, mixed>|null
+     */
+    private function resolvePresetFromCollection($presets, ?string $presetId): ?array
+    {
+        if ($presetId === null || $presetId === '') {
+            return null;
+        }
+
+        $preset = $presets->get($presetId);
+
+        return is_array($preset) ? $preset : null;
     }
 
     private function cadenceLabel(string $cadence, ?int $weekday, ?int $monthDay, string $sendTime): string

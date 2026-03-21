@@ -344,7 +344,8 @@ class ReportDeliveryFoundationTest extends TestCase
 
         $presetResponse->assertCreated()
             ->assertJsonPath('data.name', 'Merva Musteri Dagitimi')
-            ->assertJsonPath('data.recipients_count', 2);
+            ->assertJsonPath('data.recipients_count', 2)
+            ->assertJsonPath('data.resolved_recipients_count', 2);
 
         $setupResponse = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspace->id)
@@ -383,7 +384,9 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.delivery_profiles.0.entity_id', $account->id)
             ->assertJsonPath('data.delivery_profiles.0.recipient_preset_id', $presetId)
             ->assertJsonPath('data.delivery_profiles.0.recipient_preset_name', 'Merva Musteri Dagitimi')
-            ->assertJsonPath('data.delivery_profiles.0.recipients_count', 2)
+            ->assertJsonPath('data.delivery_profiles.0.recipients_count', 0)
+            ->assertJsonPath('data.delivery_profiles.0.resolved_recipients_count', 2)
+            ->assertJsonPath('data.delivery_profiles.0.recipient_group_summary.mode', 'preset')
             ->assertJsonPath('data.delivery_profiles.0.cadence', 'weekly')
             ->assertJsonPath('data.delivery_profiles.0.weekday', 4);
     }
@@ -406,11 +409,13 @@ class ReportDeliveryFoundationTest extends TestCase
             ->putJson("/api/v1/reports/recipient-presets/{$presetId}", [
                 'name' => 'Guncel Preset',
                 'recipients' => ['first@castintech.com', 'second@castintech.com'],
+                'contact_tags' => ['brand-core'],
                 'notes' => 'Guncel liste',
             ])
             ->assertOk()
             ->assertJsonPath('data.name', 'Guncel Preset')
-            ->assertJsonPath('data.recipients_count', 2);
+            ->assertJsonPath('data.recipients_count', 2)
+            ->assertJsonPath('data.contact_tags.0', 'brand-core');
 
         $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspace->id)
@@ -432,6 +437,93 @@ class ReportDeliveryFoundationTest extends TestCase
         $indexResponse->assertOk()
             ->assertJsonPath('data.recipient_preset_summary.total_presets', 0)
             ->assertJsonPath('data.recipient_presets', []);
+    }
+
+    public function test_segment_backed_recipient_preset_can_drive_delivery_setup_and_schedule_resolution(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Core Client',
+            'email' => 'core.client@castintech.com',
+            'tags' => ['brand-core'],
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Core Stakeholder',
+            'email' => 'core.stakeholder@castintech.com',
+            'tags' => ['brand-core'],
+            'is_primary' => false,
+            'is_active' => true,
+        ]);
+
+        $presetResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/recipient-presets', [
+                'name' => 'Brand Core Group',
+                'recipients' => ['ops@castintech.com'],
+                'contact_tags' => ['brand-core'],
+            ]);
+
+        $presetId = $presetResponse->json('data.id');
+
+        $presetResponse->assertCreated()
+            ->assertJsonPath('data.contact_tags.0', 'brand-core')
+            ->assertJsonPath('data.tagged_contacts_count', 2)
+            ->assertJsonPath('data.resolved_recipients_count', 3);
+
+        $setupResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/delivery-setups', [
+                'entity_type' => 'account',
+                'entity_id' => $account->id,
+                'recipient_preset_id' => $presetId,
+                'default_range_days' => 7,
+                'layout_preset' => 'client_digest',
+                'delivery_channel' => 'email_stub',
+                'cadence' => 'weekly',
+                'weekday' => 2,
+                'send_time' => '09:30',
+                'timezone' => 'Europe/Istanbul',
+                'save_as_default_profile' => true,
+                'auto_share_enabled' => false,
+            ]);
+
+        $scheduleId = $setupResponse->json('data.schedule_id');
+
+        $setupResponse->assertCreated()
+            ->assertJsonPath('data.recipient_preset_id', $presetId)
+            ->assertJsonPath('data.recipient_group_summary.mode', 'preset_plus_segment')
+            ->assertJsonPath('data.recipient_group_summary.resolved_recipients_count', 3);
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.recipient_presets.0.recipient_group_summary.mode', 'manual_plus_segment')
+            ->assertJsonPath('data.delivery_schedules.0.recipient_preset_id', $presetId)
+            ->assertJsonPath('data.delivery_schedules.0.recipient_group_summary.mode', 'preset_plus_segment')
+            ->assertJsonPath('data.delivery_schedules.0.resolved_recipients_count', 3)
+            ->assertJsonPath('data.delivery_profiles.0.recipient_group_summary.mode', 'preset_plus_segment')
+            ->assertJsonPath('data.delivery_profiles.0.resolved_recipients_count', 3);
+
+        $runResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/delivery-schedules/{$scheduleId}/run-now");
+
+        $runResponse->assertOk()
+            ->assertJsonPath('data.status', 'delivered_stub');
+
+        $run = ReportDeliveryRun::query()->where('report_delivery_schedule_id', $scheduleId)->latest()->firstOrFail();
+        $this->assertEqualsCanonicalizing(
+            ['ops@castintech.com', 'core.client@castintech.com', 'core.stakeholder@castintech.com'],
+            $run->recipients ?? [],
+        );
     }
 
     public function test_delivery_profile_can_be_managed_from_entity_endpoints(): void
@@ -468,7 +560,7 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.entity_type', 'account')
             ->assertJsonPath('data.entity_id', $account->id)
             ->assertJsonPath('data.recipient_preset_id', $presetId)
-            ->assertJsonPath('data.recipients_count', 2);
+            ->assertJsonPath('data.recipients_count', 0);
 
         $campaignProfileResponse = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspace->id)

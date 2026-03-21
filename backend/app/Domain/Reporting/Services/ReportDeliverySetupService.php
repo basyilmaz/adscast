@@ -42,29 +42,29 @@ class ReportDeliverySetupService
 
             if (! $preset || ! ($preset['is_active'] ?? true)) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'recipient_preset_id' => 'Secilen alici listesi bulunamadi veya aktif degil.',
+                    'recipient_preset_id' => 'Secilen alici grubu bulunamadi veya aktif degil.',
                 ]);
             }
         }
 
-        $selectedContactTags = $this->reportContactService->normalizeTags(
+        $manualContactTags = $this->reportContactService->normalizeTags(
             is_array($payload['contact_tags'] ?? null) ? $payload['contact_tags'] : [],
         );
 
-        $baseRecipients = $this->reportRecipientPresetService->normalizeRecipients(
-            is_array($payload['recipients'] ?? null) && count($payload['recipients']) > 0
-                ? $payload['recipients']
-                : ($preset['recipients'] ?? []),
+        $manualRecipients = $this->reportRecipientPresetService->normalizeRecipients(
+            is_array($payload['recipients'] ?? null) ? $payload['recipients'] : [],
         );
-
-        $resolvedRecipients = $this->reportRecipientPresetService->normalizeRecipients(array_merge(
-            $baseRecipients,
-            $this->reportContactService->resolveRecipientEmailsByTags($workspace->id, $selectedContactTags),
-        ));
+        $recipientGroup = $this->reportRecipientPresetService->resolveRecipientGroup(
+            workspaceId: $workspace->id,
+            preset: $preset,
+            manualRecipients: $manualRecipients,
+            manualContactTags: $manualContactTags,
+        );
+        $resolvedRecipients = $recipientGroup['resolved_recipients'];
 
         if ($resolvedRecipients === []) {
             throw \Illuminate\Validation\ValidationException::withMessages([
-                'recipients' => 'Teslim icin en az bir alici, alici listesi veya kisi etiketi gereklidir.',
+                'recipients' => 'Teslim icin en az bir alici, alici grubu veya kisi etiketi gereklidir.',
             ]);
         }
 
@@ -107,11 +107,9 @@ class ReportDeliverySetupService
             workspace: $workspace,
             payload: array_merge($payload, [
                 'report_template_id' => $template->id,
-                'recipients' => $baseRecipients,
-                'contact_tags' => $selectedContactTags,
-                'configuration' => [
-                    'recipient_preset_id' => $preset['id'] ?? null,
-                ],
+                'recipient_preset_id' => $preset['id'] ?? null,
+                'recipients' => $recipientGroup['manual_recipients'],
+                'contact_tags' => $manualContactTags,
             ]),
             actor: $actor,
             request: $request,
@@ -123,8 +121,8 @@ class ReportDeliverySetupService
             $profile = $this->reportDeliveryProfileService->upsertFromSetup(
                 workspace: $workspace,
                 payload: array_merge($payload, [
-                    'recipients' => $baseRecipients,
-                    'contact_tags' => $selectedContactTags,
+                    'recipients' => $recipientGroup['manual_recipients'],
+                    'contact_tags' => $manualContactTags,
                 ]),
                 resolvedRecipients: $resolvedRecipients,
                 actor: $actor,
@@ -142,7 +140,8 @@ class ReportDeliverySetupService
             'entity_id' => $entityId,
             'recipient_preset_id' => $preset['id'] ?? null,
             'recipient_preset_name' => $preset['name'] ?? null,
-            'contact_tags' => $selectedContactTags,
+            'contact_tags' => $recipientGroup['contact_tags'],
+            'recipient_group_summary' => $recipientGroup['recipient_group_summary'],
             'profile_saved' => $profile !== null,
             'profile_id' => $profile['id'] ?? null,
         ];

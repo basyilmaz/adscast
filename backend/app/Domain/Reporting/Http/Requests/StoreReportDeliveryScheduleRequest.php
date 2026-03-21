@@ -17,6 +17,7 @@ class StoreReportDeliveryScheduleRequest extends FormRequest
 
         return [
             'report_template_id' => ['required', 'uuid', 'exists:report_templates,id'],
+            'recipient_preset_id' => ['nullable', 'uuid'],
             'delivery_channel' => ['nullable', 'string', 'in:email_stub,email'],
             'cadence' => ['required', 'string', 'in:daily,weekly,monthly'],
             'weekday' => ['nullable', 'integer', 'min:1', 'max:7'],
@@ -40,11 +41,12 @@ class StoreReportDeliveryScheduleRequest extends FormRequest
     {
         $validator->after(function ($validator): void {
             $cadence = $this->input('cadence');
+            $hasPreset = $this->filled('recipient_preset_id');
             $recipients = $this->input('recipients');
             $contactTags = $this->input('contact_tags');
 
-            if ((! is_array($recipients) || count($recipients) === 0) && (! is_array($contactTags) || count($contactTags) === 0)) {
-                $validator->errors()->add('recipients', 'En az bir alici veya kisi etiketi secilmelidir.');
+            if (! $hasPreset && (! is_array($recipients) || count($recipients) === 0) && (! is_array($contactTags) || count($contactTags) === 0)) {
+                $validator->errors()->add('recipients', 'En az bir alici, alici grubu veya kisi etiketi secilmelidir.');
             }
 
             if ($cadence === 'weekly' && ! $this->filled('weekday')) {

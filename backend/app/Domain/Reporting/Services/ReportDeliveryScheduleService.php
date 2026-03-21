@@ -24,6 +24,7 @@ class ReportDeliveryScheduleService
     public function __construct(
         private readonly EntityContextResolver $entityContextResolver,
         private readonly ReportContactService $reportContactService,
+        private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportSnapshotService $reportSnapshotService,
         private readonly ReportShareLinkService $reportShareLinkService,
         private readonly AuditLogService $auditLogService,
@@ -114,11 +115,14 @@ class ReportDeliveryScheduleService
                     'month_day' => $schedule->month_day,
                     'recipients' => $schedule->recipients ?? [],
                     'recipients_count' => count($schedule->recipients ?? []),
+                    'recipient_preset_id' => $recipientResolution['recipient_preset_id'],
+                    'recipient_preset_name' => $recipientResolution['recipient_preset_name'],
                     'contact_tags' => $recipientResolution['contact_tags'],
                     'tagged_contacts' => $recipientResolution['tagged_contacts'],
                     'tagged_contacts_count' => count($recipientResolution['tagged_contacts']),
                     'resolved_recipients' => $recipientResolution['resolved_recipients'],
                     'resolved_recipients_count' => count($recipientResolution['resolved_recipients']),
+                    'recipient_group_summary' => $recipientResolution['recipient_group_summary'],
                     'share_delivery' => $this->shareDeliveryConfiguration($schedule),
                     'is_active' => $schedule->is_active,
                     'next_run_at' => $schedule->next_run_at?->toDateTimeString(),
@@ -246,6 +250,17 @@ class ReportDeliveryScheduleService
         $template = ReportTemplate::query()
             ->where('workspace_id', $workspace->id)
             ->findOrFail((string) $payload['report_template_id']);
+        $preset = null;
+
+        if (isset($payload['recipient_preset_id']) && $payload['recipient_preset_id'] !== '') {
+            $preset = $this->reportRecipientPresetService->find($workspace->id, (string) $payload['recipient_preset_id']);
+
+            if (! $preset || ! ($preset['is_active'] ?? true)) {
+                throw ValidationException::withMessages([
+                    'recipient_preset_id' => 'Secilen alici grubu bulunamadi veya aktif degil.',
+                ]);
+            }
+        }
 
         $schedule = ReportDeliverySchedule::query()->create([
             'workspace_id' => $workspace->id,
@@ -283,6 +298,7 @@ class ReportDeliveryScheduleService
                 'send_time' => $schedule->send_time,
                 'timezone' => $schedule->timezone,
                 'recipients_count' => count($schedule->recipients ?? []),
+                'recipient_preset_id' => $preset['id'] ?? data_get($schedule->configuration, 'recipient_preset_id'),
                 'contact_tags' => $this->contactTagsFromSchedule($schedule),
                 'auto_share_enabled' => $this->shareDeliveryConfiguration($schedule)['enabled'],
             ],
@@ -460,6 +476,8 @@ class ReportDeliveryScheduleService
                 'template_id' => $template->id,
                 'template_name' => $template->name,
                 'report_type' => $template->report_type,
+                'recipient_preset_id' => $recipientResolution['recipient_preset_id'],
+                'recipient_preset_name' => $recipientResolution['recipient_preset_name'],
                 'contact_tags' => $recipientResolution['contact_tags'],
                 'tagged_contacts' => $recipientResolution['tagged_contacts'],
                 'range' => [
@@ -939,6 +957,11 @@ class ReportDeliveryScheduleService
         $configuration['contact_tags'] = $this->reportContactService->normalizeTags(
             is_array($payload['contact_tags'] ?? null) ? $payload['contact_tags'] : [],
         );
+        $configuration['recipient_preset_id'] = isset($payload['recipient_preset_id']) && $payload['recipient_preset_id'] !== ''
+            ? (string) $payload['recipient_preset_id']
+            : (is_string(data_get($configuration, 'recipient_preset_id')) && data_get($configuration, 'recipient_preset_id') !== ''
+                ? (string) data_get($configuration, 'recipient_preset_id')
+                : null);
 
         return $configuration;
     }
@@ -1132,22 +1155,42 @@ class ReportDeliveryScheduleService
     }
 
     /**
-     * @return array{contact_tags: array<int, string>, tagged_contacts: array<int, array<string, mixed>>, resolved_recipients: array<int, string>}
+     * @return array{
+     *   recipient_preset_id: string|null,
+     *   recipient_preset_name: string|null,
+     *   contact_tags: array<int, string>,
+     *   tagged_contacts: array<int, array<string, mixed>>,
+     *   resolved_recipients: array<int, string>,
+     *   recipient_group_summary: array<string, mixed>
+     * }
      */
     private function resolveScheduleRecipients(string $workspaceId, ReportDeliverySchedule $schedule): array
     {
-        $contactTags = $this->contactTagsFromSchedule($schedule);
-        $taggedContacts = $this->reportContactService->findActiveByTags($workspaceId, $contactTags);
-        $resolvedRecipients = $this->normalizeRecipients(array_merge(
-            $schedule->recipients ?? [],
-            $this->reportContactService->extractEmails($taggedContacts),
-        ));
+        $presetId = $this->recipientPresetIdFromSchedule($schedule);
+        $preset = $presetId ? $this->reportRecipientPresetService->find($workspaceId, $presetId) : null;
+        $recipientGroup = $this->reportRecipientPresetService->resolveRecipientGroup(
+            workspaceId: $workspaceId,
+            preset: $preset,
+            manualRecipients: $schedule->recipients ?? [],
+            manualContactTags: $this->contactTagsFromSchedule($schedule),
+        );
 
         return [
-            'contact_tags' => $contactTags,
-            'tagged_contacts' => $taggedContacts,
-            'resolved_recipients' => $resolvedRecipients,
+            'recipient_preset_id' => $preset['id'] ?? null,
+            'recipient_preset_name' => $preset['name'] ?? null,
+            'contact_tags' => $recipientGroup['contact_tags'],
+            'tagged_contacts' => $recipientGroup['tagged_contacts'],
+            'resolved_recipients' => $recipientGroup['resolved_recipients'],
+            'recipient_group_summary' => $recipientGroup['recipient_group_summary'],
         ];
+    }
+
+    private function recipientPresetIdFromSchedule(ReportDeliverySchedule $schedule): ?string
+    {
+        $configuration = is_array($schedule->configuration ?? null) ? $schedule->configuration : [];
+        $presetId = data_get($configuration, 'recipient_preset_id');
+
+        return is_string($presetId) && $presetId !== '' ? $presetId : null;
     }
 
     /**

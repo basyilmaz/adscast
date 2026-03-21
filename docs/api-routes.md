@@ -24,6 +24,7 @@ Base path: `/api/v1`
 - `GET /ads/{adId}`
 - `GET /reports`
   - `contact_segment_summary` ve `contact_segments[]` ile kisi etiket segmentlerini doner
+  - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner
   - `delivery_profiles[].recipient_group_summary` ile varsayilan alici grubunun kaynagini ozetler
 - `GET /reports/account/{adAccountId}`
 - `GET /reports/campaign/{campaignId}`
@@ -35,6 +36,7 @@ Base path: `/api/v1`
 - `POST /reports/contacts/{contactId}/toggle` (`settings.manage`)
 - `DELETE /reports/contacts/{contactId}` (`settings.manage`)
 - `POST /reports/recipient-presets` (`settings.manage`)
+  - `recipients[]` ve/veya `contact_tags[]` ile statik + segment destekli alici grubu tanimlanabilir
 - `PUT /reports/recipient-presets/{presetId}` (`settings.manage`)
 - `POST /reports/recipient-presets/{presetId}/toggle` (`settings.manage`)
 - `DELETE /reports/recipient-presets/{presetId}` (`settings.manage`)
@@ -44,7 +46,7 @@ Base path: `/api/v1`
 - `POST /reports/delivery-setups` (`settings.manage`)
   - `recipient_preset_id`, `recipients` veya `contact_tags[]` ile alici tanimlanabilir
 - `POST /reports/delivery-schedules` (`settings.manage`)
-  - `recipients` veya `contact_tags[]` ile teslim alicilari tanimlanabilir
+  - `recipient_preset_id`, `recipients` veya `contact_tags[]` ile teslim alicilari tanimlanabilir
 - `POST /reports/delivery-schedules/{scheduleId}/toggle` (`settings.manage`)
 - `POST /reports/delivery-schedules/{scheduleId}/run-now` (`settings.manage`)
 - `POST /reports/delivery-runs/{runId}/retry` (`settings.manage`)

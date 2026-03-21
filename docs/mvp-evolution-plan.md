@@ -211,6 +211,7 @@ Amac: Musteri raporlarini yalnizca uretmek degil, dogru kisilere, dogru ritimde 
 6. Schedule kurulumunu kisi havuzu etiketleriyle secilebilir hale getir.
 7. Delivery formunda etiket secimiyle cozumlenen alicilari onizleyip dinamik recipient listesi olarak calistir.
 8. Kisi etiketlerini segment ozeti olarak gorunur hale getir ve entity bazli varsayilan alici grubunu daha okunur sun.
+9. Contact segmentlerini kaydedilmis alici grubu sablonlarina tasiyip schedule ve hizli teslimde grup secimini ana akisa cevir.
 
 ### Kabul Kriterleri
 
@@ -262,3 +263,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 27. Delivery history merkezine basarili/basarisiz teslim ozeti, hata gorunurlugu ve failed run retry aksiyonunu eklemek
 28. Schedule ve hizli teslim akisini kisi havuzu etiketleriyle dinamik alici cozebilecek hale getirmek
 29. Kisi etiketlerini segment ozeti olarak sunup entity bazli varsayilan alici grubu gorunurlugunu guclendirmek
+30. Kayitli alici presetlerini segment destekli alici grubu sablonlarina donusturup quick delivery ve schedule formlarinda grup secimini ana akis haline getirmek

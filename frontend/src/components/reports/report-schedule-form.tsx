@@ -8,6 +8,7 @@ import { ReportContactListItem, ReportIndexResponse, ReportTemplateListItem } fr
 type Props = {
   templates: ReportTemplateListItem[];
   contacts: ReportContactListItem[];
+  recipientPresets: ReportIndexResponse["data"]["recipient_presets"];
   deliveryCapabilities: ReportIndexResponse["data"]["delivery_capabilities"] | null;
   onCreated?: () => Promise<void> | void;
 };
@@ -22,7 +23,7 @@ const WEEKDAY_OPTIONS = [
   { value: "7", label: "Pazar" },
 ];
 
-export function ReportScheduleForm({ templates, contacts, deliveryCapabilities, onCreated }: Props) {
+export function ReportScheduleForm({ templates, contacts, recipientPresets, deliveryCapabilities, onCreated }: Props) {
   const activeTemplates = useMemo(
     () => templates.filter((item) => item.is_active),
     [templates],
@@ -37,7 +38,8 @@ export function ReportScheduleForm({ templates, contacts, deliveryCapabilities, 
   const [monthDay, setMonthDay] = useState("1");
   const [sendTime, setSendTime] = useState("09:00");
   const [timezone, setTimezone] = useState("Europe/Istanbul");
-  const [recipients, setRecipients] = useState("client@castintech.com");
+  const [recipientPresetId, setRecipientPresetId] = useState("");
+  const [recipients, setRecipients] = useState("");
   const [contactTags, setContactTags] = useState<string[]>([]);
   const [autoShareEnabled, setAutoShareEnabled] = useState(true);
   const [shareLabelTemplate, setShareLabelTemplate] = useState("{template_name} / {end_date}");
@@ -76,14 +78,20 @@ export function ReportScheduleForm({ templates, contacts, deliveryCapabilities, 
     [contacts],
   );
 
+  const selectedPreset = recipientPresets.find((item) => item.id === recipientPresetId) ?? null;
+  const mergedContactTags = useMemo(
+    () => Array.from(new Set([...(selectedPreset?.contact_tags ?? []), ...contactTags])),
+    [contactTags, selectedPreset?.contact_tags],
+  );
+
   const taggedContacts = useMemo(
     () =>
-      contactTags.length === 0
+      mergedContactTags.length === 0
         ? []
         : contacts.filter(
-            (item) => item.is_active && item.tags.some((tag) => contactTags.includes(tag)),
+            (item) => item.is_active && item.tags.some((tag) => mergedContactTags.includes(tag)),
           ),
-    [contactTags, contacts],
+    [contacts, mergedContactTags],
   );
 
   const resolvedRecipientPreview = useMemo(
@@ -91,10 +99,11 @@ export function ReportScheduleForm({ templates, contacts, deliveryCapabilities, 
       Array.from(
         new Set([
           ...parsedRecipients.map((item) => item.toLowerCase()),
+          ...(selectedPreset?.recipients ?? []).map((item) => item.toLowerCase()),
           ...taggedContacts.map((item) => item.email.toLowerCase()),
         ]),
       ),
-    [parsedRecipients, taggedContacts],
+    [parsedRecipients, selectedPreset?.recipients, taggedContacts],
   );
 
   const isDisabled = activeTemplates.length === 0 || isSubmitting;
@@ -102,8 +111,8 @@ export function ReportScheduleForm({ templates, contacts, deliveryCapabilities, 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!templateId || (parsedRecipients.length === 0 && contactTags.length === 0)) {
-      setError("Sablon ve en az bir alici veya kisi etiketi zorunlu.");
+    if (!templateId || (!recipientPresetId && parsedRecipients.length === 0 && contactTags.length === 0)) {
+      setError("Sablon ve en az bir alici, alici grubu veya kisi etiketi zorunlu.");
       return;
     }
 
@@ -122,7 +131,8 @@ export function ReportScheduleForm({ templates, contacts, deliveryCapabilities, 
           month_day: cadence === "monthly" ? Number(monthDay) : null,
           send_time: sendTime,
           timezone,
-          recipients: parsedRecipients,
+          recipient_preset_id: recipientPresetId || null,
+          recipients: parsedRecipients.length > 0 ? parsedRecipients : null,
           contact_tags: contactTags.length > 0 ? contactTags : null,
           delivery_channel: deliveryChannel,
           auto_share_enabled: autoShareEnabled,
@@ -186,6 +196,23 @@ export function ReportScheduleForm({ templates, contacts, deliveryCapabilities, 
           </select>
         </Field>
 
+        <Field label="Kayitli Alici Grubu">
+          <select
+            className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+            value={recipientPresetId}
+            onChange={(event) => setRecipientPresetId(event.target.value)}
+          >
+            <option value="">Ozel Alici Girisi</option>
+            {recipientPresets
+              .filter((item) => item.is_active)
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} ({item.resolved_recipients_count})
+                </option>
+              ))}
+          </select>
+        </Field>
+
         {cadence === "weekly" ? (
           <Field label="Haftanin Gunu">
             <select
@@ -234,7 +261,7 @@ export function ReportScheduleForm({ templates, contacts, deliveryCapabilities, 
         </Field>
       </div>
 
-      <Field label="Alicilar">
+      <Field label="Ek Manuel Alicilar">
         <textarea
           className="min-h-[96px] w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
           value={recipients}
@@ -243,9 +270,19 @@ export function ReportScheduleForm({ templates, contacts, deliveryCapabilities, 
         />
       </Field>
 
+      {selectedPreset ? (
+        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+          <p className="font-semibold">Secili Alici Grubu</p>
+          <p className="mt-1 muted-text">{selectedPreset.recipient_group_summary.label}</p>
+          <p className="mt-1 text-xs muted-text">
+            Statik: {selectedPreset.recipient_group_summary.static_recipients_count} / Dinamik: {selectedPreset.recipient_group_summary.dynamic_contacts_count} / Cozumlenen: {selectedPreset.resolved_recipients_count}
+          </p>
+        </div>
+      ) : null}
+
       {availableContactTags.length > 0 ? (
         <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
-          <p className="font-semibold">Kisi Etiketleriyle Alici Sec</p>
+          <p className="font-semibold">Ek Kisi Segmentleri</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {availableContactTags.map((tag) => {
               const isSelected = contactTags.includes(tag);
@@ -270,11 +307,22 @@ export function ReportScheduleForm({ templates, contacts, deliveryCapabilities, 
               );
             })}
           </div>
-          {contactTags.length > 0 ? (
+          {mergedContactTags.length > 0 ? (
             <p className="mt-2 text-xs muted-text">
               Eslesen kisi: {taggedContacts.length} / Toplam cozumlenen alici: {resolvedRecipientPreview.length}
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {mergedContactTags.length > 0 ? (
+        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+          <p className="font-semibold">Etiket Eslesme Onizlemesi</p>
+          <p className="mt-1 muted-text">
+            {taggedContacts.length > 0
+              ? taggedContacts.map((contact) => `${contact.name} <${contact.email}>`).join(", ")
+              : "Secili etiketlerle eslesen aktif kisi yok."}
+          </p>
         </div>
       ) : null}
 

@@ -793,11 +793,25 @@ export type ReportDeliveryScheduleListItem = {
   month_day: number | null;
   recipients: string[];
   recipients_count: number;
+  recipient_preset_id: string | null;
+  recipient_preset_name: string | null;
   contact_tags: string[];
   tagged_contacts: ReportContactListItem[];
   tagged_contacts_count: number;
   resolved_recipients: string[];
   resolved_recipients_count: number;
+  recipient_group_summary: {
+    mode: string;
+    label: string;
+    preset_name: string | null;
+    contact_tags: string[];
+    static_recipients_count: number;
+    manual_recipients_count: number;
+    preset_recipients_count: number;
+    dynamic_contacts_count: number;
+    resolved_recipients_count: number;
+    sample_contact_names: string[];
+  };
   share_delivery: {
     enabled: boolean;
     label_template: string | null;
@@ -830,6 +844,23 @@ export type ReportRecipientPresetListItem = {
   name: string;
   recipients: string[];
   recipients_count: number;
+  contact_tags: string[];
+  tagged_contacts: ReportContactListItem[];
+  tagged_contacts_count: number;
+  resolved_recipients: string[];
+  resolved_recipients_count: number;
+  recipient_group_summary: {
+    mode: string;
+    label: string;
+    preset_name: string | null;
+    contact_tags: string[];
+    static_recipients_count: number;
+    manual_recipients_count: number;
+    preset_recipients_count: number;
+    dynamic_contacts_count: number;
+    resolved_recipients_count: number;
+    sample_contact_names: string[];
+  };
   notes: string | null;
   is_active: boolean;
   created_at: string | null;
@@ -900,6 +931,8 @@ export type ReportDeliveryProfileListItem = {
     preset_name: string | null;
     contact_tags: string[];
     static_recipients_count: number;
+    manual_recipients_count: number;
+    preset_recipients_count: number;
     dynamic_contacts_count: number;
     resolved_recipients_count: number;
     sample_contact_names: string[];
@@ -1037,6 +1070,7 @@ export type ReportIndexResponse = {
       total_presets: number;
       active_presets: number;
       total_recipients: number;
+      segment_backed_presets: number;
     };
     delivery_profile_summary: {
       total_profiles: number;
