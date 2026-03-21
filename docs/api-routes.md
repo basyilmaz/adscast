@@ -33,6 +33,7 @@ Base path: `/api/v1`
   - `recipient_group_failure_alignment_summary` ve `recipient_group_failure_alignment[]` ile failure reason dagiliminin onerilen grup mu yoksa override secimi mi tarafinda biriktigini doner
   - `recipient_group_correlation_summary` ve `recipient_group_correlation[]` ile onerilen grup uyumu ile gercek teslim basarisi arasindaki korelasyonu doner
   - `recipient_group_failure_reason_summary` ve `recipient_group_failure_reasons[]` ile recipient group bazli teslim hata tiplerini, etkiledigi grup/entity yayilimini ve onerilen aksiyonu doner
+  - her failure reason item'i provider (`provider_label`) ve teslim asamasi (`delivery_stage_label`) metadata'si da tasir
   - `recipient_preset_summary.managed_templates` ve `recipient_preset_summary.recommended_default_presets` ile kural yonetilen grup sablonlarini ozetler
   - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner
   - `recipient_presets[].template_profile` ve `template_rule_summary` ile grup sablon kurallarini doner

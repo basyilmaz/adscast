@@ -145,6 +145,10 @@ class ReportRecipientGroupFailureReasonAnalyticsService
         return [
             'reason_code' => (string) $reason['code'],
             'label' => (string) $reason['label'],
+            'provider' => (string) $reason['provider'],
+            'provider_label' => (string) $reason['provider_label'],
+            'delivery_stage' => (string) $reason['delivery_stage'],
+            'delivery_stage_label' => (string) $reason['delivery_stage_label'],
             'severity' => (string) $reason['severity'],
             'summary' => (string) $reason['summary'],
             'suggested_action' => (string) $reason['suggested_action'],
@@ -226,8 +230,38 @@ class ReportRecipientGroupFailureReasonAnalyticsService
             'affected_groups_count' => $affectedGroups,
             'top_reason_label' => data_get($topReason, 'label'),
             'top_reason_count' => (int) data_get($topReason, 'failed_runs', 0),
+            'providers_count' => $items->pluck('provider')->filter()->unique()->count(),
+            'stages_count' => $items->pluck('delivery_stage')->filter()->unique()->count(),
+            'top_provider_label' => $this->topSummaryLabel($items, 'provider_label'),
+            'top_stage_label' => $this->topSummaryLabel($items, 'delivery_stage_label'),
             'window_days' => $windowDays,
         ];
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $items
+     */
+    private function topSummaryLabel(Collection $items, string $field): ?string
+    {
+        $counts = [];
+
+        foreach ($items as $item) {
+            $label = (string) ($item[$field] ?? '');
+
+            if ($label === '') {
+                continue;
+            }
+
+            $counts[$label] = ($counts[$label] ?? 0) + (int) ($item['failed_runs'] ?? 0);
+        }
+
+        if ($counts === []) {
+            return null;
+        }
+
+        arsort($counts);
+
+        return array_key_first($counts);
     }
 
     /**

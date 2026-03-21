@@ -796,6 +796,10 @@ export type ReportDeliveryRunListItem = {
   failure_reason: {
     code: string;
     label: string;
+    provider: string;
+    provider_label: string;
+    delivery_stage: string;
+    delivery_stage_label: string;
     severity: string;
     summary: string;
     suggested_action: string;
@@ -1293,12 +1297,20 @@ export type ReportRecipientGroupFailureReasonSummary = {
   affected_groups_count: number;
   top_reason_label: string | null;
   top_reason_count: number;
+  providers_count: number;
+  stages_count: number;
+  top_provider_label: string | null;
+  top_stage_label: string | null;
   window_days: number;
 };
 
 export type ReportRecipientGroupFailureReasonItem = {
   reason_code: string;
   label: string;
+  provider: string;
+  provider_label: string;
+  delivery_stage: string;
+  delivery_stage_label: string;
   severity: string;
   summary: string;
   suggested_action: string;

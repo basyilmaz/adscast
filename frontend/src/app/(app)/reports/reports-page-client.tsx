@@ -362,6 +362,8 @@ export default function ReportsPage() {
         <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
           <span>Toplam fail: {data?.recipient_group_failure_reason_summary.total_failed_runs ?? 0}</span>
           <span>En baskin neden: {data?.recipient_group_failure_reason_summary.top_reason_label ?? "-"}</span>
+          <span>En baskin provider: {data?.recipient_group_failure_reason_summary.top_provider_label ?? "-"}</span>
+          <span>En baskin asama: {data?.recipient_group_failure_reason_summary.top_stage_label ?? "-"}</span>
           <span>Bilinmeyen: {data?.recipient_group_failure_reason_summary.unknown_failed_runs ?? 0}</span>
         </div>
         <div className="mt-4">

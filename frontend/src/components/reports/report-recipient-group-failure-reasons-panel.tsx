@@ -15,10 +15,12 @@ type Props = {
 export function ReportRecipientGroupFailureReasonsPanel({ summary, items }: Props) {
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <Metric label="Hata Tipi" value={summary?.total_reason_types ?? 0} />
         <Metric label="Fail Run" value={summary?.total_failed_runs ?? 0} />
         <Metric label="Etkilenen Grup" value={summary?.affected_groups_count ?? 0} />
+        <Metric label="Provider" value={summary?.providers_count ?? 0} />
+        <Metric label="Asama" value={summary?.stages_count ?? 0} />
         <Metric label="Bilinmeyen" value={summary?.unknown_failed_runs ?? 0} />
       </div>
 
@@ -27,6 +29,8 @@ export function ReportRecipientGroupFailureReasonsPanel({ summary, items }: Prop
           <Card key={item.reason_code} className="p-4">
             <div className="flex flex-wrap gap-2">
               <Badge label={item.label} variant={item.severity === "critical" ? "danger" : item.severity === "warning" ? "warning" : "neutral"} />
+              <Badge label={item.provider_label} variant="neutral" />
+              <Badge label={item.delivery_stage_label} variant="neutral" />
               <Badge label={`${item.failed_runs} fail`} variant="neutral" />
               <Badge label={`${item.affected_groups_count} grup`} variant="neutral" />
               {item.is_unknown ? <Badge label="Yeni sinif gerekli" variant="warning" /> : null}

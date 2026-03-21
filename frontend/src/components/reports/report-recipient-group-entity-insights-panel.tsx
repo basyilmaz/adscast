@@ -95,6 +95,8 @@ export function ReportRecipientGroupEntityInsightsPanel({
                     label={item.label}
                     variant={item.severity === "critical" ? "danger" : item.severity === "warning" ? "warning" : "neutral"}
                   />
+                  <Badge label={item.provider_label} variant="neutral" />
+                  <Badge label={item.delivery_stage_label} variant="neutral" />
                   <Badge label={`${item.failed_runs} fail`} variant="neutral" />
                 </div>
                 <p className="mt-2 text-sm muted-text">{item.summary}</p>

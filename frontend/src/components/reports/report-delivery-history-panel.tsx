@@ -63,6 +63,8 @@ export function ReportDeliveryHistoryPanel({
                             : "neutral"
                       }
                     />
+                    <Badge label={run.failure_reason.provider_label} variant="neutral" />
+                    <Badge label={run.failure_reason.delivery_stage_label} variant="neutral" />
                     {run.failure_reason.is_unknown ? <Badge label="Siniflandirilamadi" variant="neutral" /> : null}
                   </div>
                   <p className="text-sm muted-text">{run.failure_reason.summary}</p>

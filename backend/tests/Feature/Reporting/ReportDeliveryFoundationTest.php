@@ -1227,8 +1227,12 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.recipient_group_failure_reason_summary.total_failed_runs', 3)
             ->assertJsonPath('data.recipient_group_failure_reason_summary.classified_failed_runs', 3)
             ->assertJsonPath('data.recipient_group_failure_reason_summary.top_reason_label', 'SMTP Timeout')
+            ->assertJsonPath('data.recipient_group_failure_reason_summary.top_provider_label', 'SMTP')
+            ->assertJsonPath('data.recipient_group_failure_reason_summary.top_stage_label', 'Baglanti')
             ->assertJsonPath('data.recipient_group_failure_reason_summary.top_reason_count', 2)
             ->assertJsonPath('data.recipient_group_failure_reasons.0.reason_code', 'smtp_timeout')
+            ->assertJsonPath('data.recipient_group_failure_reasons.0.provider', 'smtp')
+            ->assertJsonPath('data.recipient_group_failure_reasons.0.delivery_stage', 'connect')
             ->assertJsonPath('data.recipient_group_failure_reasons.0.failed_runs', 2)
             ->assertJsonPath('data.recipient_group_failure_reasons.0.top_group_label', 'Castintech Musteri Grubu')
             ->assertJsonPath('data.recipient_group_failure_reasons.1.reason_code', 'smtp_auth');

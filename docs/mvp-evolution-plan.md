@@ -279,3 +279,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 40. Account ve campaign detail ekranlarindaki teslim profili onerilerini tek tikla uygulanabilir hale getirip suggestion durumunu mevcut profil ile senkronlamak
 41. Recipient group bazli teslim hata nedenlerini siniflandirip reports merkezi ve entity detail ekranlarina tasimak
 42. Onerilen alici grubu secimi ile failure reason dagilimi arasindaki baglantiyi recipient group failure alignment analytics olarak reports merkezine eklemek
+43. Failure reason siniflarini provider ve teslim asamasi metadata'si ile genisletip reports merkezinde daha operasyonel hale getirmek
