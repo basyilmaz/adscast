@@ -34,41 +34,54 @@ Write-Host "1/4 Backend deploy basliyor..." -ForegroundColor Cyan
 
 Write-Host "2/4 Frontend static build basliyor..." -ForegroundColor Cyan
 
-Push-Location $frontendDir
+$qualityBuildRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("adscast-frontend-deploy-" + [System.Guid]::NewGuid().ToString("N"))
+$qualityFrontend = Join-Path $qualityBuildRoot "frontend"
+$outDir = Join-Path $qualityFrontend "out"
+
 try {
     if (-not (Test-Path (Join-Path $frontendDir "node_modules"))) {
-        npm ci
+        Push-Location $frontendDir
+        try {
+            npm ci
+            if ($LASTEXITCODE -ne 0) {
+                throw "Frontend bagimliliklari kurulurken hata olustu."
+            }
+        }
+        finally {
+            Pop-Location
+        }
     }
 
-    $env:NEXT_PUBLIC_API_BASE_URL = "/api/v1"
-    if (Test-Path ".next") {
-        Remove-Item ".next" -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Path $qualityFrontend -Force | Out-Null
+
+    $robocopyArgs = @(
+        $frontendDir,
+        $qualityFrontend,
+        "/MIR",
+        "/XD", "node_modules", ".next", ".next-quality", "out"
+    )
+
+    & robocopy @robocopyArgs | Out-Null
+    if ($LASTEXITCODE -gt 7) {
+        throw "Frontend deploy build icin gecici kopya olusturulamadi."
     }
-    if (Test-Path "out") {
-        Remove-Item "out" -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    npm run build
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Ilk build denemesi basarisiz. Temizleyip tekrar deneniyor..." -ForegroundColor DarkYellow
-        Start-Sleep -Seconds 1
-        if (Test-Path ".next") {
-            Remove-Item ".next" -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        if (Test-Path "out") {
-            Remove-Item "out" -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        npm run build
+
+    New-Item -ItemType Junction -Path (Join-Path $qualityFrontend "node_modules") -Target (Join-Path $frontendDir "node_modules") -Force | Out-Null
+
+    Push-Location $qualityFrontend
+    try {
+        $env:NEXT_PUBLIC_API_BASE_URL = "/api/v1"
+        npm run build -- --webpack
         if ($LASTEXITCODE -ne 0) {
             throw "Frontend build basarisiz."
         }
     }
-}
-finally {
-    Remove-Item Env:\NEXT_PUBLIC_API_BASE_URL -ErrorAction SilentlyContinue
-    Pop-Location
+    finally {
+        Remove-Item Env:\NEXT_PUBLIC_API_BASE_URL -ErrorAction SilentlyContinue
+        Pop-Location
+    }
 }
 
-$outDir = Join-Path $frontendDir "out"
 if (-not (Test-Path $outDir)) {
     throw "Static export cikti dizini bulunamadi: $outDir"
 }
@@ -179,5 +192,8 @@ try {
 finally {
     if (Test-Path $bundlePath) {
         Remove-Item $bundlePath -Force
+    }
+    if (Test-Path $qualityBuildRoot) {
+        Remove-Item $qualityBuildRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
