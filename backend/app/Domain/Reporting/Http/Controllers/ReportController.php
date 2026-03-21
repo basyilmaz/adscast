@@ -3,6 +3,7 @@
 namespace App\Domain\Reporting\Http\Controllers;
 
 use App\Domain\Reporting\Http\Requests\StoreReportSnapshotRequest;
+use App\Domain\Reporting\Http\Requests\StoreReportContactRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliverySetupRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportRecipientPresetRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliveryScheduleRequest;
@@ -11,6 +12,7 @@ use App\Domain\Reporting\Http\Requests\StoreReportTemplateRequest;
 use App\Domain\Reporting\Http\Requests\ToggleReportDeliveryProfileRequest;
 use App\Domain\Reporting\Http\Requests\UpsertReportDeliveryProfileRequest;
 use App\Domain\Reporting\Services\ReportBuilderService;
+use App\Domain\Reporting\Services\ReportContactService;
 use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
 use App\Domain\Reporting\Services\ReportDeliverySetupService;
@@ -33,6 +35,7 @@ class ReportController
         private readonly ReportBuilderService $reportBuilderService,
         private readonly ReportSnapshotService $reportSnapshotService,
         private readonly ReportTemplateService $reportTemplateService,
+        private readonly ReportContactService $reportContactService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
         private readonly ReportDeliveryScheduleService $reportDeliveryScheduleService,
@@ -46,6 +49,7 @@ class ReportController
         $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
         $snapshotIndex = $this->reportSnapshotService->index($workspaceId);
         $templateIndex = $this->reportTemplateService->index($workspaceId);
+        $contactIndex = $this->reportContactService->index($workspaceId);
         $presetIndex = $this->reportRecipientPresetService->index($workspaceId);
         $profileIndex = $this->reportDeliveryProfileService->index($workspaceId);
         $deliveryIndex = $this->reportDeliveryScheduleService->index($workspaceId);
@@ -57,6 +61,8 @@ class ReportController
                 [
                     'template_summary' => $templateIndex['summary'],
                     'templates' => $templateIndex['items'],
+                    'contact_summary' => $contactIndex['summary'],
+                    'contacts' => $contactIndex['items'],
                     'recipient_preset_summary' => $presetIndex['summary'],
                     'recipient_presets' => $presetIndex['items'],
                     'delivery_profile_summary' => $profileIndex['summary'],
@@ -85,6 +91,78 @@ class ReportController
             'message' => 'Kayitli alici listesi olusturuldu.',
             'data' => $preset,
         ], 201);
+    }
+
+    public function storeContact(StoreReportContactRequest $request): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $contact = $this->reportContactService->store(
+            workspace: $workspace,
+            payload: $request->validated(),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Kisi havuzu kaydi olusturuldu.',
+            'data' => $contact,
+        ], 201);
+    }
+
+    public function updateContact(StoreReportContactRequest $request, string $contactId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $contact = $this->reportContactService->update(
+            workspace: $workspace,
+            contactId: $contactId,
+            payload: $request->validated(),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Kisi havuzu kaydi guncellendi.',
+            'data' => $contact,
+        ]);
+    }
+
+    public function toggleContact(Request $request, string $contactId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+        $validated = $request->validate([
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $contact = $this->reportContactService->toggle(
+            workspace: $workspace,
+            contactId: $contactId,
+            isActive: $validated['is_active'] ?? null,
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Kisi havuzu durumu guncellendi.',
+            'data' => $contact,
+        ]);
+    }
+
+    public function deleteContact(Request $request, string $contactId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $this->reportContactService->delete(
+            workspace: $workspace,
+            contactId: $contactId,
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Kisi havuzu kaydi silindi.',
+        ]);
     }
 
     public function updateRecipientPreset(StoreReportRecipientPresetRequest $request, string $presetId): JsonResponse

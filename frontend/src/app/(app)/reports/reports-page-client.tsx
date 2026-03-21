@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
+import { ReportContactForm } from "@/components/reports/report-contact-form";
+import { ReportContactManager } from "@/components/reports/report-contact-manager";
 import { ReportDeliverySetupForm } from "@/components/reports/report-delivery-setup-form";
 import { ReportRecipientPresetManager } from "@/components/reports/report-recipient-preset-manager";
 import { ReportRecipientPresetForm } from "@/components/reports/report-recipient-preset-form";
@@ -139,6 +141,7 @@ export default function ReportsPage() {
         <MetricCard label="Account Snapshot" value={data?.summary.account_snapshots ?? 0} />
         <MetricCard label="Campaign Snapshot" value={data?.summary.campaign_snapshots ?? 0} />
         <MetricCard label="Kayitli Sablon" value={data?.template_summary.total_templates ?? 0} />
+        <MetricCard label="Kisi Havuzu" value={data?.contact_summary.total_contacts ?? 0} />
         <MetricCard label="Alici Preseti" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
         <MetricCard label="Aktif Schedule" value={data?.delivery_summary.active_schedules ?? 0} />
@@ -155,6 +158,7 @@ export default function ReportsPage() {
             <ReportDeliverySetupForm
               builders={data?.builders ?? { accounts: [], campaigns: [] }}
               deliveryCapabilities={data?.delivery_capabilities ?? null}
+              contacts={data?.contacts ?? []}
               recipientPresets={data?.recipient_presets ?? []}
               deliveryProfiles={data?.delivery_profiles ?? []}
               onCreated={reload}
@@ -179,19 +183,35 @@ export default function ReportsPage() {
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
         <Card>
+          <CardTitle>Musteri Kisi Havuzu</CardTitle>
+          <p className="mt-2 text-sm muted-text">
+            Musteri ve marka tarafindaki kisileri merkezi olarak tutun. Daha sonra preset ve schedule akislarinda bu havuzdan alici ekleyin.
+          </p>
+          <div className="mt-4">
+            <ReportContactForm onCreated={reload} />
+          </div>
+
+          <div className="mt-4">
+            <ReportContactManager contacts={data?.contacts ?? []} onChanged={reload} />
+          </div>
+        </Card>
+
+        <Card>
           <CardTitle>Kayitli Alici Listeleri</CardTitle>
           <p className="mt-2 text-sm muted-text">
             Sik kullanilan musteri ve ekip alicilarini bir kez kaydedin. Hizli teslim formunda tekrar secerek kullanin.
           </p>
           <div className="mt-4">
-            <ReportRecipientPresetForm onCreated={reload} />
+            <ReportRecipientPresetForm contacts={data?.contacts ?? []} onCreated={reload} />
           </div>
 
           <div className="mt-4">
             <ReportRecipientPresetManager presets={data?.recipient_presets ?? []} onChanged={reload} />
           </div>
         </Card>
+      </section>
 
+      <section className="grid grid-cols-1 gap-4">
         <Card>
           <CardTitle>Varsayilan Teslim Profilleri</CardTitle>
           <p className="mt-2 text-sm muted-text">

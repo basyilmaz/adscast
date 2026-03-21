@@ -3,11 +3,12 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
-import { ReportDeliveryProfileListItem, ReportIndexResponse } from "@/lib/types";
+import { ReportContactListItem, ReportDeliveryProfileListItem, ReportIndexResponse } from "@/lib/types";
 
 type Props = {
   builders: ReportIndexResponse["data"]["builders"];
   deliveryCapabilities: ReportIndexResponse["data"]["delivery_capabilities"] | null;
+  contacts: ReportContactListItem[];
   recipientPresets: ReportIndexResponse["data"]["recipient_presets"];
   deliveryProfiles: ReportIndexResponse["data"]["delivery_profiles"];
   onCreated?: () => Promise<void> | void;
@@ -26,6 +27,7 @@ const WEEKDAY_OPTIONS = [
 export function ReportDeliverySetupForm({
   builders,
   deliveryCapabilities,
+  contacts,
   recipientPresets,
   deliveryProfiles,
   onCreated,
@@ -357,6 +359,41 @@ export function ReportDeliverySetupForm({
           placeholder="musteri@ornek.com, ekip@ornek.com"
         />
       </Field>
+
+      {contacts.filter((item) => item.is_active).length > 0 ? (
+        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+          <p className="font-semibold">Kisi Havuzundan Alici Ekle</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {contacts
+              .filter((item) => item.is_active)
+              .slice(0, 10)
+              .map((contact) => (
+                <button
+                  key={contact.id}
+                  type="button"
+                  className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-medium hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  onClick={() => {
+                    const existing = recipients
+                      .split(/[\n,;]+/)
+                      .map((item) => item.trim().toLowerCase())
+                      .filter(Boolean);
+
+                    if (existing.includes(contact.email.toLowerCase())) {
+                      return;
+                    }
+
+                    setRecipients((current) => {
+                      const normalized = current.trim();
+                      return normalized === "" ? contact.email : `${normalized}, ${contact.email}`;
+                    });
+                  }}
+                >
+                  {contact.name}
+                </button>
+              ))}
+          </div>
+        </div>
+      ) : null}
 
       {selectedProfile ? (
         <div className="rounded-lg border border-[var(--border)] p-3 text-sm">

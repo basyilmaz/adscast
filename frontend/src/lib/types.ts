@@ -805,6 +805,21 @@ export type ReportRecipientPresetListItem = {
   updated_at: string | null;
 };
 
+export type ReportContactListItem = {
+  id: string;
+  name: string;
+  email: string;
+  company_name: string | null;
+  role_label: string | null;
+  tags: string[];
+  notes: string | null;
+  is_primary: boolean;
+  is_active: boolean;
+  last_used_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type ReportDeliveryProfileListItem = {
   id: string;
   entity_type: "account" | "campaign" | string;
@@ -944,6 +959,12 @@ export type ReportIndexResponse = {
       active_templates: number;
       templates_with_schedules: number;
     };
+    contact_summary: {
+      total_contacts: number;
+      active_contacts: number;
+      primary_contacts: number;
+      tagged_contacts: number;
+    };
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -973,6 +994,7 @@ export type ReportIndexResponse = {
     };
     items: ReportSnapshotListItem[];
     templates: ReportTemplateListItem[];
+    contacts: ReportContactListItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_schedules: ReportDeliveryScheduleListItem[];

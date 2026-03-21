@@ -28,6 +28,10 @@ Base path: `/api/v1`
 - `POST /reports/snapshots`
 - `POST /reports/snapshots/{snapshotId}/share-links` (`settings.manage`)
 - `POST /reports/templates` (`settings.manage`)
+- `POST /reports/contacts` (`settings.manage`)
+- `PUT /reports/contacts/{contactId}` (`settings.manage`)
+- `POST /reports/contacts/{contactId}/toggle` (`settings.manage`)
+- `DELETE /reports/contacts/{contactId}` (`settings.manage`)
 - `POST /reports/recipient-presets` (`settings.manage`)
 - `PUT /reports/recipient-presets/{presetId}` (`settings.manage`)
 - `POST /reports/recipient-presets/{presetId}/toggle` (`settings.manage`)

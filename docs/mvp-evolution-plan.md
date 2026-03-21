@@ -9,7 +9,8 @@ Bu plan, AdsCast'i teknik olarak calisan bir MVP'den kullanici tarafinda anlasil
 - Tamamlandi: Faz 3 - Campaign Drill-Down
 - Tamamlandi: Faz 4 - Alert ve Oneri Deneyimi
 - Tamamlandi: Faz 5 - Musteri Raporlama
-- Devam Ediyor: Faz 6 - Kullanilabilirlik ve Kurumsallasma
+- Tamamlandi: Faz 6 - Kullanilabilirlik ve Kurumsallasma
+- Devam Ediyor: Faz 7 - Rapor Teslim Operasyonlari ve Musteri Iletisim Katmani
 
 ## Planlama Ilkeleri
 
@@ -186,6 +187,35 @@ Amac: Urunun gunluk operasyon araci gibi kullanilmasi.
 - Urun operator tarafinda gunluk kullanim icin yeterince anlasilir olur.
 - Temel musteri raporlama ihtiyaci sistem icinden karsilanir.
 
+## Faz 7 - Rapor Teslim Operasyonlari ve Musteri Iletisim Katmani
+
+Amac: Musteri raporlarini yalnizca uretmek degil, dogru kisilere, dogru ritimde ve operasyonel izlenebilirlikle teslim etmek.
+
+### Is Listesi
+
+1. Musteri kisi havuzu / contact book ekle.
+2. Kisi kayitlarina su alanlari ekle:
+   - ad
+   - e-posta
+   - marka / sirket
+   - rol
+   - etiketler
+   - primary isareti
+3. Reports ekraninda kisi havuzu CRUD akisini ekle.
+4. Hizli teslim ve alici preset formlarinda kisi havuzundan alici ekleme yardimi ekle.
+5. Delivery history merkezini zenginlestir:
+   - basarili teslim
+   - basarisiz teslim
+   - hata nedeni
+   - retry aksiyonu
+6. Schedule kurulumunu kisi havuzu etiketleriyle secilebilir hale getir.
+
+### Kabul Kriterleri
+
+- Operator musteri kisilerini tek havuzdan yonetebilir.
+- Alici preset ve hizli teslim formu kisi havuzunu kullanabilir.
+- Bir teslim aksami oldugunda neden oldugu ve ne yapilacagi sistem icinde gorulebilir.
+
 ## Uygulama Sirasi
 
 En dusuk riskli ve en yuksek etkili ilerleme sirasi:
@@ -224,3 +254,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 23. Kayitli alici listeleri ve entity bazli varsayilan teslim profilleri eklemek
 24. Kayitli alici listeleri icin duzenle/pasife al/sil akisini ve detail ekranlarinda teslim profili gorunurlugunu eklemek
 25. Hesap ve kampanya detail ekranlarina inline varsayilan teslim profili yonetimini eklemek
+26. Faz 7'yi resmi backlog olarak acip workspace bazli musteri kisi havuzu / contact book temelini eklemek
