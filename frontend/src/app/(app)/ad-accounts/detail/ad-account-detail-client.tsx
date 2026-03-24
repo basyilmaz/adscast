@@ -13,6 +13,7 @@ import { NextBestActionsPanel } from "@/components/operations/next-best-actions-
 import { ReportDeliveryProfileManager } from "@/components/reports/report-delivery-profile-manager";
 import { ReportFailureResolutionActionsCard } from "@/components/reports/report-failure-resolution-actions-card";
 import { ReportDeliveryProfileSuggestionCard } from "@/components/reports/report-delivery-profile-suggestion-card";
+import { ReportDeliveryRetryRecommendationsPanel } from "@/components/reports/report-delivery-retry-recommendations-panel";
 import { ReportRecipientGroupEntityInsightsPanel } from "@/components/reports/report-recipient-group-entity-insights-panel";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
@@ -408,6 +409,12 @@ export function AdAccountDetailClient() {
             actions={data.failure_resolution_actions}
             onReload={reload}
             onFocusDeliveryProfile={() => setActiveTab("overview")}
+          />
+
+          <ReportDeliveryRetryRecommendationsPanel
+            summary={data.retry_recommendation_summary}
+            items={data.retry_recommendations}
+            entityLabel={data.ad_account.name}
           />
 
           <ReportDeliveryProfileSuggestionCard

@@ -333,6 +333,56 @@ class ReportDeliveryFoundationTest extends TestCase
         ]);
     }
 
+    public function test_entity_failure_resolution_action_does_not_retry_recipient_rejected_runs(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Recipient Reject Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 14,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $schedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $template->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 2,
+            'send_time' => '09:30',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['invalid@castintech.com'],
+            'configuration' => [],
+            'is_active' => true,
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'failed',
+            'recipients' => ['invalid@castintech.com'],
+            'prepared_at' => now()->subMinutes(30),
+            'trigger_mode' => 'manual',
+            'error_message' => 'Recipient rejected',
+            'metadata' => [],
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/failure-resolution-actions/account/{$account->id}/retry_failed_runs");
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('errors.action_code.0', 'Tekrar denenebilecek basarisiz teslim kaydi bulunamadi.');
+
+        $this->assertSame(1, ReportDeliveryRun::query()->where('report_delivery_schedule_id', $schedule->id)->count());
+    }
+
     public function test_quick_delivery_setup_creates_campaign_scoped_schedule_with_recipients(): void
     {
         [$workspace, $token, , $campaign] = $this->seedReportFixture('agency.admin@adscast.test');

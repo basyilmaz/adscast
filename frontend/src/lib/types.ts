@@ -197,6 +197,8 @@ export type AdAccountDetailResponse = {
     recipient_group_failure_alignment: ReportRecipientGroupFailureAlignmentItem[];
     recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
+    retry_recommendation_summary: ReportDeliveryRetryRecommendationSummary;
+    retry_recommendations: ReportDeliveryRetryRecommendationItem[];
     failure_resolution_summary: ReportFailureResolutionSummary;
     failure_resolution_actions: ReportFailureResolutionActionItem[];
     suggested_recipient_groups: RecipientGroupCatalogItem[];
@@ -342,6 +344,8 @@ export type CampaignDetailResponse = {
     recipient_group_failure_alignment: ReportRecipientGroupFailureAlignmentItem[];
     recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
+    retry_recommendation_summary: ReportDeliveryRetryRecommendationSummary;
+    retry_recommendations: ReportDeliveryRetryRecommendationItem[];
     failure_resolution_summary: ReportFailureResolutionSummary;
     failure_resolution_actions: ReportFailureResolutionActionItem[];
     suggested_recipient_groups: RecipientGroupCatalogItem[];
@@ -1345,6 +1349,33 @@ export type ReportRecipientGroupFailureReasonItem = {
     context_label: string | null;
     failed_runs: number;
   }>;
+};
+
+export type ReportDeliveryRetryRecommendationSummary = {
+  total_recommendations: number;
+  auto_retry_recommendations: number;
+  manual_retry_recommendations: number;
+  retry_after_fix_recommendations: number;
+  blocked_retry_recommendations: number;
+  top_policy_label: string | null;
+};
+
+export type ReportDeliveryRetryRecommendationItem = {
+  reason_code: string;
+  label: string;
+  provider: string;
+  provider_label: string;
+  delivery_stage: string;
+  delivery_stage_label: string;
+  severity: string;
+  failed_runs: number;
+  retry_policy: string;
+  retry_policy_label: string;
+  primary_action_code: string;
+  recommended_wait_minutes: number | null;
+  recommended_max_attempts: number;
+  operator_note: string;
+  summary: string;
 };
 
 export type ReportFailureResolutionSummary = {

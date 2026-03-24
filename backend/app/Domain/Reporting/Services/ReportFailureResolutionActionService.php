@@ -15,6 +15,7 @@ class ReportFailureResolutionActionService
 {
     public function __construct(
         private readonly ReportDeliveryFailureReasonClassifier $reportDeliveryFailureReasonClassifier,
+        private readonly ReportDeliveryRetryRecommendationService $reportDeliveryRetryRecommendationService,
         private readonly AuditLogService $auditLogService,
     ) {
     }
@@ -39,26 +40,20 @@ class ReportFailureResolutionActionService
                 'error_message',
             ]);
 
-        $classified = $failedRuns->map(function (ReportDeliveryRun $run): array {
-            return $this->reportDeliveryFailureReasonClassifier->classify(
-                $run->error_message,
-                is_array($run->metadata ?? null) ? $run->metadata : [],
-                $run->delivery_channel,
-            );
-        });
-
-        $reasonCodes = $classified
-            ->pluck('code')
+        $classifiedRuns = $this->classifiedRuns($failedRuns);
+        $reasonCodes = $classifiedRuns
+            ->pluck('failure_reason.code')
             ->filter(fn ($value): bool => is_string($value) && $value !== '')
             ->values();
 
-        $topReason = $classified
+        $topReason = $classifiedRuns
+            ->pluck('failure_reason')
             ->groupBy('code')
             ->sortByDesc(fn (Collection $items): int => $items->count())
             ->map(fn (Collection $items): array => $items->first())
             ->first();
 
-        $retryableRuns = $failedRuns->filter(fn (ReportDeliveryRun $run): bool => $this->canRetry($run));
+        $retryableRuns = $this->retryEligibleRuns($classifiedRuns);
         $items = collect();
 
         if ($retryableRuns->isNotEmpty()) {
@@ -67,7 +62,7 @@ class ReportFailureResolutionActionService
                 'code' => 'retry_failed_runs',
                 'label' => 'Basarisiz teslimleri tekrar dene',
                 'detail' => sprintf(
-                    'Bu kayit icin tekrar denenebilir %d basarisiz teslim var.',
+                    'Bu kayit icin retry politikasi uygun %d basarisiz teslim var.',
                     $retryableRuns->count(),
                 ),
                 'severity' => $retryableRuns->count() > 1 ? 'critical' : 'warning',
@@ -78,7 +73,16 @@ class ReportFailureResolutionActionService
                 'target_tab' => 'reports',
                 'metadata' => [
                     'retryable_runs' => $retryableRuns->count(),
-                    'affected_reason_codes' => $reasonCodes->unique()->values()->all(),
+                    'affected_reason_codes' => $retryableRuns
+                        ->map(fn (ReportDeliveryRun $run): array => $this->reportDeliveryFailureReasonClassifier->classify(
+                            $run->error_message,
+                            is_array($run->metadata ?? null) ? $run->metadata : [],
+                            $run->delivery_channel,
+                        ))
+                        ->pluck('code')
+                        ->unique()
+                        ->values()
+                        ->all(),
                     'latest_failed_at' => $retryableRuns->max(
                         fn (ReportDeliveryRun $run): ?string => $run->prepared_at?->toDateTimeString(),
                     ),
@@ -86,16 +90,12 @@ class ReportFailureResolutionActionService
             ]);
         }
 
-        if ($reasonCodes->contains(fn (string $code): bool => in_array($code, [
-            'invalid_configuration',
-            'share_delivery_failure',
-            'snapshot_export_failure',
-        ], true))) {
+        if ($this->hasPrimaryAction($classifiedRuns, 'focus_delivery_profile')) {
             $items->push([
                 'id' => 'focus_delivery_profile',
                 'code' => 'focus_delivery_profile',
                 'label' => 'Teslim profilini duzelt',
-                'detail' => 'Paylasim, export veya konfigurasyon kaynakli sorunlar icin teslim profilini gozden gecirin.',
+                'detail' => 'Paylasim, export, kanal veya konfigurasyon kaynakli sorunlar icin teslim profilini gozden gecirin.',
                 'severity' => 'warning',
                 'action_kind' => 'focus_tab',
                 'button_label' => 'Teslim Profiline Git',
@@ -103,19 +103,18 @@ class ReportFailureResolutionActionService
                 'route' => null,
                 'target_tab' => 'overview',
                 'metadata' => [
-                    'affected_reason_codes' => $reasonCodes
-                        ->filter(fn (string $code): bool => in_array($code, [
-                            'invalid_configuration',
-                            'share_delivery_failure',
-                            'snapshot_export_failure',
-                        ], true))
+                    'affected_reason_codes' => $classifiedRuns
+                        ->filter(fn (array $item): bool => ($item['recommendation']['primary_action_code'] ?? null) === 'focus_delivery_profile')
+                        ->pluck('failure_reason.code')
+                        ->filter(fn ($value): bool => is_string($value) && $value !== '')
+                        ->unique()
                         ->values()
                         ->all(),
                 ],
             ]);
         }
 
-        if ($reasonCodes->contains('recipient_rejected')) {
+        if ($this->hasPrimaryAction($classifiedRuns, 'review_contact_book')) {
             $items->push([
                 'id' => 'review_contact_book',
                 'code' => 'review_contact_book',
@@ -128,7 +127,13 @@ class ReportFailureResolutionActionService
                 'route' => '/reports',
                 'target_tab' => null,
                 'metadata' => [
-                    'affected_reason_codes' => ['recipient_rejected'],
+                    'affected_reason_codes' => $classifiedRuns
+                        ->filter(fn (array $item): bool => ($item['recommendation']['primary_action_code'] ?? null) === 'review_contact_book')
+                        ->pluck('failure_reason.code')
+                        ->filter(fn ($value): bool => is_string($value) && $value !== '')
+                        ->unique()
+                        ->values()
+                        ->all(),
                 ],
             ]);
         }
@@ -182,7 +187,7 @@ class ReportFailureResolutionActionService
         ?User $actor = null,
         ?Request $request = null,
     ): array {
-        $retryableRuns = $this->entityRunQuery($workspace->id, $entityType, $entityId)
+        $failedRuns = $this->entityRunQuery($workspace->id, $entityType, $entityId)
             ->where('status', 'failed')
             ->with(['schedule.template', 'schedule.workspace'])
             ->latest('prepared_at')
@@ -196,7 +201,9 @@ class ReportFailureResolutionActionService
                 'metadata',
                 'error_message',
             ])
-            ->filter(fn (ReportDeliveryRun $run): bool => $this->canRetry($run));
+            ->values();
+
+        $retryableRuns = $this->retryEligibleRuns($this->classifiedRuns($failedRuns));
 
         if ($retryableRuns->isEmpty()) {
             throw ValidationException::withMessages([
@@ -260,6 +267,56 @@ class ReportFailureResolutionActionService
             && $run->report_delivery_schedule_id !== null
             && $run->schedule !== null
             && $run->schedule->template !== null;
+    }
+
+    /**
+     * @param  Collection<int, ReportDeliveryRun>  $failedRuns
+     * @return Collection<int, array{run: ReportDeliveryRun, failure_reason: array<string, mixed>, recommendation: array<string, mixed>}>
+     */
+    private function classifiedRuns(Collection $failedRuns): Collection
+    {
+        return $failedRuns->map(function (ReportDeliveryRun $run): array {
+            $failureReason = $this->reportDeliveryFailureReasonClassifier->classify(
+                $run->error_message,
+                is_array($run->metadata ?? null) ? $run->metadata : [],
+                $run->delivery_channel,
+            );
+
+            return [
+                'run' => $run,
+                'failure_reason' => $failureReason,
+                'recommendation' => $this->reportDeliveryRetryRecommendationService->recommendationForFailureReason($failureReason),
+            ];
+        });
+    }
+
+    /**
+     * @param  Collection<int, array{run: ReportDeliveryRun, failure_reason: array<string, mixed>, recommendation: array<string, mixed>}>  $classifiedRuns
+     * @return Collection<int, ReportDeliveryRun>
+     */
+    private function retryEligibleRuns(Collection $classifiedRuns): Collection
+    {
+        return $classifiedRuns
+            ->filter(function (array $item): bool {
+                $retryPolicy = $item['recommendation']['retry_policy'] ?? null;
+                $primaryActionCode = $item['recommendation']['primary_action_code'] ?? null;
+
+                return $this->canRetry($item['run'])
+                    && in_array($retryPolicy, ['auto_retry', 'manual_retry'], true)
+                    && $primaryActionCode === 'retry_failed_runs';
+            })
+            ->pluck('run')
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, array{run: ReportDeliveryRun, failure_reason: array<string, mixed>, recommendation: array<string, mixed>}>  $classifiedRuns
+     */
+    private function hasPrimaryAction(Collection $classifiedRuns, string $actionCode): bool
+    {
+        return $classifiedRuns->contains(
+            fn (array $item): bool => ($item['recommendation']['primary_action_code'] ?? null) === $actionCode,
+        );
     }
 
     private function entityRunQuery(string $workspaceId, string $entityType, string $entityId)

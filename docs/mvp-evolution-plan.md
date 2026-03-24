@@ -282,4 +282,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 43. Failure reason siniflarini provider ve teslim asamasi metadata'si ile genisletip reports merkezinde daha operasyonel hale getirmek
 44. Account ve campaign detail ekranlarina failure alignment ozetini tasiyip report sekmesini secim kaynakli teslim risklerini gosterecek sekilde genisletmek
 45. Failure reason bazli tek tik duzeltme aksiyonlarini entity detail ekranlarina tasiyip retry uygun run'lar icin bulk retry akisi eklemek
-45. Failure reason bazli tek tik duzeltme aksiyonlarini entity detail ekranlarina tasiyip retry uygun run'lar icin bulk retry akisi eklemek
+46. Provider ve teslim asamasi bazli retry onerilerini entity detail ekranlarina tasiyip failure resolution aksiyonlarini sadece retry-safe reason'larda acik tutmak

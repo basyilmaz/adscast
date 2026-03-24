@@ -27,6 +27,7 @@ class CampaignQueryService
         private readonly ReportRecipientGroupAlignmentAnalyticsService $reportRecipientGroupAlignmentAnalyticsService,
         private readonly ReportRecipientGroupFailureAlignmentAnalyticsService $reportRecipientGroupFailureAlignmentAnalyticsService,
         private readonly ReportRecipientGroupFailureReasonAnalyticsService $reportRecipientGroupFailureReasonAnalyticsService,
+        private readonly ReportDeliveryRetryRecommendationService $reportDeliveryRetryRecommendationService,
     ) {
     }
 
@@ -320,6 +321,9 @@ class CampaignQueryService
             'campaign',
             $campaign->id,
         );
+        $retryRecommendations = $this->reportDeliveryRetryRecommendationService->fromFailureReasonItems(
+            $recipientGroupFailureReasons['items'],
+        );
         $recipientGroupFailureAlignment = $this->reportRecipientGroupFailureAlignmentAnalyticsService->forEntity(
             $campaign->workspace_id,
             'campaign',
@@ -375,6 +379,8 @@ class CampaignQueryService
             'recipient_group_failure_alignment' => $recipientGroupFailureAlignment['items'],
             'recipient_group_failure_reason_summary' => $recipientGroupFailureReasons['summary'],
             'recipient_group_failure_reasons' => $recipientGroupFailureReasons['items'],
+            'retry_recommendation_summary' => $retryRecommendations['summary'],
+            'retry_recommendations' => $retryRecommendations['items'],
             'failure_resolution_summary' => $failureResolutionActions['summary'],
             'failure_resolution_actions' => $failureResolutionActions['items'],
             'suggested_recipient_groups' => $this->reportRecipientGroupAdvisorService->suggestForEntity(
