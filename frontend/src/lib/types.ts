@@ -1400,6 +1400,8 @@ export type ReportFailureResolutionActionItem = {
     retryable_runs?: number;
     affected_reason_codes?: string[];
     latest_failed_at?: string | null;
+    sample_recipients?: string[];
+    affected_group_labels?: string[];
   } | null;
 };
 

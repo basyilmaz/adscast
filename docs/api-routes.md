@@ -25,6 +25,7 @@ Base path: `/api/v1`
   - `retry_recommendation_summary` ve `retry_recommendations[]` ile provider/asama bazli retry politikasini doner
   - `recipient_group_failure_alignment_summary` ve `recipient_group_failure_alignment[]` ile kampanya scope'unda failure reason dagiliminin onerilen grup mu yoksa override secimi mi tarafinda biriktigini doner
   - `failure_resolution_summary` ve `failure_resolution_actions[]` ile tek tik duzeltme aksiyonlarini doner
+  - `failure_resolution_actions[]` route tabanli `review_contact_book` ve `review_recipient_groups` aksiyonlari icin etkilenen alici/grup metadata'si tasiyabilir
   - `recipient_group_failure_reason_summary` ve `recipient_group_failure_reasons[]` ile kampanya scope'unda teslim hata siniflarini doner
 - `GET /ad-sets/{adSetId}`
 - `GET /ads/{adId}`
@@ -97,6 +98,7 @@ Base path: `/api/v1`
   - `retry_recommendation_summary` ve `retry_recommendations[]` ile provider/asama bazli retry politikasini doner
   - `recipient_group_failure_alignment_summary` ve `recipient_group_failure_alignment[]` ile hesap scope'unda failure reason dagiliminin onerilen grup mu yoksa override secimi mi tarafinda biriktigini doner
   - `failure_resolution_summary` ve `failure_resolution_actions[]` ile tek tik duzeltme aksiyonlarini doner
+  - `failure_resolution_actions[]` route tabanli `review_contact_book` ve `review_recipient_groups` aksiyonlari icin etkilenen alici/grup metadata'si tasiyabilir
   - `recipient_group_failure_reason_summary` ve `recipient_group_failure_reasons[]` ile hesap scope'unda teslim hata siniflarini doner
 - `POST /meta/connections/{connectionId}/sync-assets`
 - `POST /meta/connections/{connectionId}/sync-insights`

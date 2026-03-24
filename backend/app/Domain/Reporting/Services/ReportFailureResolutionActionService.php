@@ -36,6 +36,7 @@ class ReportFailureResolutionActionService
                 'delivery_channel',
                 'status',
                 'prepared_at',
+                'recipients',
                 'metadata',
                 'error_message',
             ]);
@@ -115,16 +116,22 @@ class ReportFailureResolutionActionService
         }
 
         if ($this->hasPrimaryAction($classifiedRuns, 'review_contact_book')) {
+            $recipientReviewRuns = $this->runsForPrimaryAction($classifiedRuns, 'review_contact_book');
+            $recipientReviewContext = $this->recipientReviewContext($recipientReviewRuns);
+
             $items->push([
                 'id' => 'review_contact_book',
                 'code' => 'review_contact_book',
-                'label' => 'Alici listesini temizle',
-                'detail' => 'Reddedilen e-posta adreslerini contact book ve alici gruplarindan temizleyin.',
+                'label' => 'Alici kisilerini kontrol et',
+                'detail' => sprintf(
+                    'Reddedilen veya sorunlu %d aliciyi contact book icinde kontrol edin ve gecersiz kayitlari pasife alin.',
+                    max(1, count($recipientReviewContext['sample_recipients'])),
+                ),
                 'severity' => 'warning',
                 'action_kind' => 'route',
-                'button_label' => 'Rapor Merkezini Ac',
+                'button_label' => 'Kisi Havuzunu Ac',
                 'is_available' => true,
-                'route' => '/reports',
+                'route' => '/reports#contacts',
                 'target_tab' => null,
                 'metadata' => [
                     'affected_reason_codes' => $classifiedRuns
@@ -134,8 +141,30 @@ class ReportFailureResolutionActionService
                         ->unique()
                         ->values()
                         ->all(),
+                    'sample_recipients' => $recipientReviewContext['sample_recipients'],
+                    'affected_group_labels' => $recipientReviewContext['affected_group_labels'],
                 ],
             ]);
+
+            if ($recipientReviewContext['affected_group_labels'] !== []) {
+                $items->push([
+                    'id' => 'review_recipient_groups',
+                    'code' => 'review_recipient_groups',
+                    'label' => 'Alici grubunu duzelt',
+                    'detail' => 'Bu hata, kayitli alici gruplarindan geliyor. Grup sablonunu veya etiket cozumlemesini duzeltin.',
+                    'severity' => 'warning',
+                    'action_kind' => 'route',
+                    'button_label' => 'Alici Gruplarina Git',
+                    'is_available' => true,
+                    'route' => '/reports#recipient-groups',
+                    'target_tab' => null,
+                    'metadata' => [
+                        'affected_reason_codes' => ['recipient_rejected'],
+                        'sample_recipients' => $recipientReviewContext['sample_recipients'],
+                        'affected_group_labels' => $recipientReviewContext['affected_group_labels'],
+                    ],
+                ]);
+            }
         }
 
         return [
@@ -198,6 +227,7 @@ class ReportFailureResolutionActionService
                 'delivery_channel',
                 'status',
                 'prepared_at',
+                'recipients',
                 'metadata',
                 'error_message',
             ])
@@ -317,6 +347,59 @@ class ReportFailureResolutionActionService
         return $classifiedRuns->contains(
             fn (array $item): bool => ($item['recommendation']['primary_action_code'] ?? null) === $actionCode,
         );
+    }
+
+    /**
+     * @param  Collection<int, array{run: ReportDeliveryRun, failure_reason: array<string, mixed>, recommendation: array<string, mixed>}>  $classifiedRuns
+     * @return Collection<int, ReportDeliveryRun>
+     */
+    private function runsForPrimaryAction(Collection $classifiedRuns, string $actionCode): Collection
+    {
+        return $classifiedRuns
+            ->filter(fn (array $item): bool => ($item['recommendation']['primary_action_code'] ?? null) === $actionCode)
+            ->pluck('run')
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, ReportDeliveryRun>  $runs
+     * @return array{sample_recipients: array<int, string>, affected_group_labels: array<int, string>}
+     */
+    private function recipientReviewContext(Collection $runs): array
+    {
+        $sampleRecipients = $runs
+            ->flatMap(function (ReportDeliveryRun $run): array {
+                return collect($run->recipients ?? [])
+                    ->filter(fn ($value): bool => is_string($value) && $value !== '')
+                    ->values()
+                    ->all();
+            })
+            ->unique()
+            ->take(3)
+            ->values()
+            ->all();
+
+        $affectedGroupLabels = $runs
+            ->map(function (ReportDeliveryRun $run): ?string {
+                $groupLabel = data_get($run->metadata, 'recipient_group_summary.label');
+
+                if (is_string($groupLabel) && $groupLabel !== '') {
+                    return $groupLabel;
+                }
+
+                $selectionName = data_get($run->metadata, 'recipient_group_selection.name');
+
+                return is_string($selectionName) && $selectionName !== '' ? $selectionName : null;
+            })
+            ->filter(fn ($value): bool => is_string($value) && $value !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        return [
+            'sample_recipients' => $sampleRecipients,
+            'affected_group_labels' => $affectedGroupLabels,
+        ];
     }
 
     private function entityRunQuery(string $workspaceId, string $entityType, string $entityId)

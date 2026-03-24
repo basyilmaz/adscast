@@ -237,7 +237,7 @@ export default function ReportsPage() {
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
-        <Card>
+        <Card id="contacts" className="scroll-mt-24">
           <CardTitle>Musteri Kisi Havuzu</CardTitle>
           <p className="mt-2 text-sm muted-text">
             Musteri ve marka tarafindaki kisileri merkezi olarak tutun. Daha sonra preset ve schedule akislarinda bu havuzdan alici ekleyin.
@@ -251,7 +251,7 @@ export default function ReportsPage() {
           </div>
         </Card>
 
-        <Card>
+        <Card id="recipient-groups" className="scroll-mt-24">
           <CardTitle>Kayitli Alici Grubu Sablonlari</CardTitle>
           <p className="mt-2 text-sm muted-text">
             Alici gruplarini tek sefer tanimlayin; kayit tipi, marka eslesmesi ve oncelik kurallariyla katalogu daha akilli hale getirin.

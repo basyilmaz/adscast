@@ -113,6 +113,18 @@ export function ReportFailureResolutionActionsCard({
               </p>
             ) : null}
 
+            {action.metadata?.sample_recipients?.length ? (
+              <p className="mt-2 text-xs muted-text">
+                Ornek alicilar: {action.metadata.sample_recipients.join(", ")}
+              </p>
+            ) : null}
+
+            {action.metadata?.affected_group_labels?.length ? (
+              <p className="mt-2 text-xs muted-text">
+                Etkilenen gruplar: {action.metadata.affected_group_labels.join(", ")}
+              </p>
+            ) : null}
+
             <div className="mt-3">
               {action.action_kind === "api" ? (
                 <Button

@@ -264,6 +264,96 @@ class CampaignDrillDownTest extends TestCase
             ]);
     }
 
+    public function test_campaign_detail_surfaces_recipient_specific_resolution_actions_for_rejected_recipients(): void
+    {
+        [$workspace, $token, $campaign] = $this->seedDrillDownFixture();
+        $presetId = (string) Str::uuid();
+
+        ReportContact::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Rejected Recipient',
+            'email' => 'rejected@castintech.com',
+            'company_name' => 'Castintech',
+            'tags' => ['rejected-group'],
+            'is_primary' => false,
+            'is_active' => true,
+        ]);
+
+        $selectionPayload = [
+            'id' => sprintf('preset:%s', $presetId),
+            'source_type' => 'preset',
+            'source_subtype' => 'preset_plus_segment',
+            'source_id' => $presetId,
+            'name' => 'Recipient Reject Group',
+        ];
+
+        $template = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Recipient Reject Campaign Template',
+            'entity_type' => 'campaign',
+            'entity_id' => $campaign->id,
+            'report_type' => 'client_campaign_summary_v1',
+            'default_range_days' => 7,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $schedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $template->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 2,
+            'send_time' => '09:15',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['rejected@castintech.com'],
+            'configuration' => [
+                'recipient_group_selection' => $selectionPayload,
+                'recipient_group_summary' => [
+                    'label' => 'Recipient Reject Group',
+                ],
+            ],
+            'is_active' => true,
+            'next_run_at' => now()->addDay(),
+            'last_status' => 'failed',
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $schedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'failed',
+            'recipients' => ['rejected@castintech.com'],
+            'prepared_at' => now()->subMinutes(20),
+            'trigger_mode' => 'scheduled',
+            'error_message' => 'Recipient rejected',
+            'metadata' => [
+                'recipient_group_selection' => $selectionPayload,
+                'recipient_group_summary' => [
+                    'label' => 'Recipient Reject Group',
+                ],
+            ],
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson("/api/v1/campaigns/{$campaign->id}?start_date=2026-03-10&end_date=2026-03-16");
+
+        $response->assertOk()
+            ->assertJsonPath('data.retry_recommendation_summary.total_recommendations', 1)
+            ->assertJsonPath('data.retry_recommendation_summary.blocked_retry_recommendations', 1)
+            ->assertJsonPath('data.retry_recommendations.0.reason_code', 'recipient_rejected')
+            ->assertJsonPath('data.retry_recommendations.0.primary_action_code', 'review_contact_book')
+            ->assertJsonPath('data.failure_resolution_summary.total_actions', 2)
+            ->assertJsonPath('data.failure_resolution_actions.0.code', 'review_contact_book')
+            ->assertJsonPath('data.failure_resolution_actions.0.route', '/reports#contacts')
+            ->assertJsonPath('data.failure_resolution_actions.0.metadata.sample_recipients.0', 'rejected@castintech.com')
+            ->assertJsonPath('data.failure_resolution_actions.0.metadata.affected_group_labels.0', 'Recipient Reject Group')
+            ->assertJsonPath('data.failure_resolution_actions.1.code', 'review_recipient_groups')
+            ->assertJsonPath('data.failure_resolution_actions.1.route', '/reports#recipient-groups')
+            ->assertJsonMissingPath('data.failure_resolution_actions.2.code');
+    }
+
     public function test_campaign_list_supports_account_and_status_filters(): void
     {
         [$workspace, $token, $campaign] = $this->seedDrillDownFixture();
