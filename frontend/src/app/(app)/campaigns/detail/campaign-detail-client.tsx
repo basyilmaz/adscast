@@ -522,6 +522,10 @@ export function CampaignDetailClient() {
             entityLabel={data.campaign.name}
             entityType="campaign"
             entityId={data.campaign.id}
+            featuredRecommendation={data.featured_failure_resolution}
+            focusActionCode={focusActionCode}
+            focusReasonCode={focusReasonCode}
+            focusSource={focusSource}
             onApplied={reload}
           />
 

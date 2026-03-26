@@ -4,7 +4,14 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/api";
-import { ReportDeliveryProfileSuggestion } from "@/lib/types";
+import {
+  actionLabelForCode,
+  deliveryProfileSuggestionExplanation,
+  focusSourceLabel,
+  isFocusedDeliveryProfileSuggestion,
+  reasonLabelForCode,
+} from "@/lib/report-failure-focus";
+import { ReportDeliveryProfileSuggestion, ReportFeaturedFailureResolution } from "@/lib/types";
 
 type Props = {
   suggestion: ReportDeliveryProfileSuggestion | null;
@@ -12,6 +19,10 @@ type Props = {
   entityType: "account" | "campaign";
   entityId: string;
   onApplied?: () => Promise<void> | void;
+  featuredRecommendation?: ReportFeaturedFailureResolution | null;
+  focusActionCode?: string | null;
+  focusReasonCode?: string | null;
+  focusSource?: string | null;
 };
 
 const CHANGE_LABELS: Record<string, string> = {
@@ -31,6 +42,10 @@ export function ReportDeliveryProfileSuggestionCard({
   entityType,
   entityId,
   onApplied,
+  featuredRecommendation,
+  focusActionCode,
+  focusReasonCode,
+  focusSource,
 }: Props) {
   const [isApplying, setIsApplying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -46,6 +61,14 @@ export function ReportDeliveryProfileSuggestionCard({
       </div>
     );
   }
+
+  const isFocused = isFocusedDeliveryProfileSuggestion(
+    suggestion,
+    focusActionCode,
+    focusReasonCode,
+    featuredRecommendation,
+  );
+  const isFeaturedAligned = featuredRecommendation?.action_code === "focus_delivery_profile";
 
   const handleApply = async () => {
     if (!suggestion.can_apply) {
@@ -80,16 +103,53 @@ export function ReportDeliveryProfileSuggestionCard({
   };
 
   return (
-    <div className="rounded-lg border border-[var(--border)] p-4">
+    <div
+      className={`rounded-lg border p-4 ${
+        isFocused
+          ? "border-[var(--accent)] bg-[var(--accent)]/10"
+          : isFeaturedAligned
+            ? "border-[var(--accent)]/40 bg-[var(--accent)]/5"
+            : "border-[var(--border)]"
+      }`}
+    >
       <div className="flex flex-wrap gap-2">
         <Badge label={suggestion.status_label} variant={suggestion.status === "already_applied" ? "success" : "warning"} />
         <Badge label={suggestion.template_profile.kind_label} variant="neutral" />
         <Badge label={suggestion.template_profile.priority_label} variant="neutral" />
         {suggestion.recommendation_label ? <Badge label={suggestion.recommendation_label} variant="neutral" /> : null}
+        {isFocused ? <Badge label="Odakta" variant="warning" /> : null}
+        {!isFocused && isFeaturedAligned ? <Badge label="Featured ile hizali" variant="success" /> : null}
       </div>
 
       <p className="mt-3 text-sm font-semibold">{suggestion.recipient_preset_name}</p>
       <p className="mt-1 text-sm muted-text">{suggestion.reason}</p>
+
+      {(focusActionCode || focusReasonCode) ? (
+        <div className="mt-3 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/5 px-3 py-2 text-sm">
+          <p className="font-semibold">Rapor merkezinden odaklandi</p>
+          <p className="mt-1 muted-text">
+            {focusReasonCode ? `Hata nedeni: ${reasonLabelForCode(focusReasonCode)}` : "Belirli profil odagi"}
+            {focusActionCode ? ` / Aksiyon: ${actionLabelForCode(focusActionCode)}` : ""}
+            {focusSource ? ` / Kaynak: ${focusSourceLabel(focusSource)}` : ""}
+          </p>
+        </div>
+      ) : null}
+
+      {(isFocused || isFeaturedAligned) ? (
+        <div className="mt-3 rounded-md border border-[var(--accent)]/30 bg-[var(--surface-2)] px-3 py-2 text-sm">
+          <p className="font-semibold">Bu profil onerisi neden odakta?</p>
+          <p className="mt-1 muted-text">
+            {deliveryProfileSuggestionExplanation(
+              suggestion,
+              focusActionCode,
+              focusReasonCode,
+              focusSource,
+              featuredRecommendation,
+            )}
+          </p>
+        </div>
+      ) : null}
+
       {error ? <p className="mt-2 text-sm text-[var(--danger)]">{error}</p> : null}
       {message ? <p className="mt-2 text-sm text-[var(--accent)]">{message}</p> : null}
 

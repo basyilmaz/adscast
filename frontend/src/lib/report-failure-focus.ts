@@ -1,4 +1,5 @@
 import {
+  ReportDeliveryProfileSuggestion,
   ReportDeliveryRetryRecommendationItem,
   ReportFailureResolutionActionItem,
   ReportFeaturedFailureResolution,
@@ -179,4 +180,69 @@ export function prioritizeFocusedRetryRecommendations(
 
     return leftFocused ? -1 : 1;
   });
+}
+
+const DELIVERY_PROFILE_RELEVANT_CHANGES_BY_REASON: Record<string, string[]> = {
+  smtp_auth: ["recipient_group", "share_delivery"],
+  smtp_tls: ["send_time", "share_delivery"],
+  sender_rejected: ["recipient_group", "share_delivery"],
+  invalid_configuration: ["recipient_group", "cadence", "schedule_slot", "send_time", "range", "layout", "share_delivery"],
+  share_delivery_failure: ["share_delivery"],
+  snapshot_export_failure: ["layout", "range", "share_delivery"],
+  recipient_rejected: ["recipient_group", "contact_tags"],
+};
+
+export function isFocusedDeliveryProfileSuggestion(
+  suggestion: ReportDeliveryProfileSuggestion,
+  focusActionCode?: string | null,
+  focusReasonCode?: string | null,
+  featuredRecommendation?: ReportFeaturedFailureResolution | null,
+): boolean {
+  if (focusActionCode === "focus_delivery_profile" || featuredRecommendation?.action_code === "focus_delivery_profile") {
+    return true;
+  }
+
+  if (!focusReasonCode) {
+    return false;
+  }
+
+  const relevantChanges = DELIVERY_PROFILE_RELEVANT_CHANGES_BY_REASON[focusReasonCode] ?? [];
+  return suggestion.changes.some((change) => relevantChanges.includes(change));
+}
+
+export function deliveryProfileSuggestionExplanation(
+  suggestion: ReportDeliveryProfileSuggestion,
+  focusActionCode?: string | null,
+  focusReasonCode?: string | null,
+  focusSource?: string | null,
+  featuredRecommendation?: ReportFeaturedFailureResolution | null,
+): string {
+  const sourceLabel = focusSourceLabel(focusSource);
+  const reasonLabel = focusReasonCode ? reasonLabelForCode(focusReasonCode) : null;
+  const actionMatches = focusActionCode === "focus_delivery_profile";
+  const featuredMatches = featuredRecommendation?.action_code === "focus_delivery_profile";
+  const relevantChanges = focusReasonCode ? DELIVERY_PROFILE_RELEVANT_CHANGES_BY_REASON[focusReasonCode] ?? [] : [];
+  const reasonMatches = focusReasonCode ? suggestion.changes.some((change) => relevantChanges.includes(change)) : false;
+
+  if (actionMatches && reasonMatches && reasonLabel) {
+    return `${sourceLabel}, ${reasonLabel} akisi icin teslim profilini duzeltmeyi odaga aldi. Bu onerilen profil ayni problemi recipient grubu, zamanlama veya paylasim ayari uzerinden toparlamak icin one cikiyor.`;
+  }
+
+  if (actionMatches) {
+    return `${sourceLabel}, secili aksiyon olarak teslim profilini duzeltmeyi one cikardi. Bu kart profili tek adimda yeni odaga hizalamak icin gosteriliyor.`;
+  }
+
+  if (featuredMatches && reasonMatches && reasonLabel) {
+    return `Featured fix, ${reasonLabel} icin teslim profiline mudahaleyi destekliyor. Bu onerilen profil ayni hata akisini kuralli bir profil degisikligiyle kapatmayi hedefliyor.`;
+  }
+
+  if (reasonMatches && reasonLabel) {
+    return `${reasonLabel} icin secili odak, teslim profili degisiklikleriyle de iyilesebiliyor. Bu oneride ayni problemi etkileyen profil farklari one cikarildi.`;
+  }
+
+  if (featuredMatches) {
+    return "Featured fix akisi teslim profili duzeltmesini destekliyor. Bu onerilen profil, mevcut karar yuzeyleriyle ayni operasyonel yone hizalaniyor.";
+  }
+
+  return "Bu onerilen profil, mevcut teslim ayarlarini daha guvenli ve tutarli bir profile cekmek icin sistemin onerdigi kural setidir.";
 }

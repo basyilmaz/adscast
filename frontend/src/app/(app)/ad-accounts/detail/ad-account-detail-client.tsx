@@ -433,6 +433,10 @@ export function AdAccountDetailClient() {
             entityLabel={data.ad_account.name}
             entityType="account"
             entityId={data.ad_account.id}
+            featuredRecommendation={data.featured_failure_resolution}
+            focusActionCode={focusActionCode}
+            focusReasonCode={focusReasonCode}
+            focusSource={focusSource}
             onApplied={reload}
           />
 
