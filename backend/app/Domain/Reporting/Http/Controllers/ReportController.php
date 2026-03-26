@@ -16,6 +16,7 @@ use App\Domain\Reporting\Services\ReportBuilderService;
 use App\Domain\Reporting\Services\ReportContactService;
 use App\Domain\Reporting\Services\ReportFailureResolutionActionService;
 use App\Domain\Reporting\Services\ReportFailureResolutionActionAnalyticsService;
+use App\Domain\Reporting\Services\ReportFailureResolutionEffectivenessAnalyticsService;
 use App\Domain\Reporting\Services\ReportRecipientGroupAdvisorService;
 use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
@@ -47,6 +48,7 @@ class ReportController
         private readonly ReportContactService $reportContactService,
         private readonly ReportFailureResolutionActionService $reportFailureResolutionActionService,
         private readonly ReportFailureResolutionActionAnalyticsService $reportFailureResolutionActionAnalyticsService,
+        private readonly ReportFailureResolutionEffectivenessAnalyticsService $reportFailureResolutionEffectivenessAnalyticsService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
@@ -77,6 +79,7 @@ class ReportController
         $recipientGroupFailureAlignment = $this->reportRecipientGroupFailureAlignmentAnalyticsService->index($workspaceId);
         $recipientGroupFailureReasons = $this->reportRecipientGroupFailureReasonAnalyticsService->index($workspaceId);
         $failureResolutionActionAnalytics = $this->reportFailureResolutionActionAnalyticsService->index($workspaceId);
+        $failureResolutionEffectiveness = $this->reportFailureResolutionEffectivenessAnalyticsService->index($workspaceId);
         $shareSummary = $this->reportShareLinkService->summary($workspaceId);
 
         return new JsonResponse([
@@ -105,6 +108,8 @@ class ReportController
                     'recipient_group_failure_reasons' => $recipientGroupFailureReasons['items'],
                     'failure_resolution_action_analytics_summary' => $failureResolutionActionAnalytics['summary'],
                     'failure_resolution_action_analytics' => $failureResolutionActionAnalytics['items'],
+                    'failure_resolution_effectiveness_summary' => $failureResolutionEffectiveness['summary'],
+                    'failure_resolution_effectiveness' => $failureResolutionEffectiveness['items'],
                     'delivery_profile_summary' => $profileIndex['summary'],
                     'delivery_profiles' => $profileIndex['items'],
                     'delivery_summary' => $deliveryIndex['summary'],

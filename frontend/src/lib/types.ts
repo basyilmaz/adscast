@@ -1452,6 +1452,66 @@ export type ReportFailureResolutionActionAnalyticsItem = {
   }>;
 };
 
+export type ReportFailureResolutionEffectivenessSummary = {
+  total_reasons: number;
+  reasons_with_observed_fix: number;
+  working_recommended_fixes: number;
+  manual_followup_reasons: number;
+  stalled_recommended_fixes: number;
+  top_working_fix_label: string | null;
+  window_days: number;
+};
+
+export type ReportFailureResolutionEffectivenessItem = {
+  reason_code: string;
+  label: string;
+  provider: string;
+  provider_label: string;
+  delivery_stage: string;
+  delivery_stage_label: string;
+  failed_runs: number;
+  recommended_action: {
+    code: string;
+    label: string;
+    retry_policy: string;
+    retry_policy_label: string;
+    operator_note: string;
+    recommended_wait_minutes: number | null;
+    recommended_max_attempts: number;
+  };
+  observed_actions: number;
+  top_observed_action: {
+    code: string;
+    label: string;
+    action_kind: string;
+    observed_uses: number;
+    success_rate: number | null;
+  } | null;
+  recommended_action_metrics: {
+    observed_uses: number;
+    api_attempts: number;
+    successful_executions: number;
+    partial_executions: number;
+    failed_executions: number;
+    success_rate: number | null;
+  } | null;
+  effectiveness_status: string;
+  effectiveness_label: string;
+  effectiveness_summary: string;
+  actions: Array<{
+    action_code: string;
+    label: string;
+    action_kind: string;
+    observed_uses: number;
+    api_attempts: number;
+    successful_executions: number;
+    partial_executions: number;
+    failed_executions: number;
+    success_rate: number | null;
+    last_seen_at: string | null;
+  }>;
+};
+
 export type ReportDeliveryProfileSuggestion = {
   status: string;
   status_label: string;
@@ -1667,6 +1727,7 @@ export type ReportIndexResponse = {
     recipient_group_failure_alignment_summary: ReportRecipientGroupFailureAlignmentSummary;
     recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
     failure_resolution_action_analytics_summary: ReportFailureResolutionActionAnalyticsSummary;
+    failure_resolution_effectiveness_summary: ReportFailureResolutionEffectivenessSummary;
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1715,6 +1776,7 @@ export type ReportIndexResponse = {
     recipient_group_failure_alignment: ReportRecipientGroupFailureAlignmentItem[];
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
     failure_resolution_action_analytics: ReportFailureResolutionActionAnalyticsItem[];
+    failure_resolution_effectiveness: ReportFailureResolutionEffectivenessItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];

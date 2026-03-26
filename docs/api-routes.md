@@ -38,6 +38,7 @@ Base path: `/api/v1`
   - `recipient_group_correlation_summary` ve `recipient_group_correlation[]` ile onerilen grup uyumu ile gercek teslim basarisi arasindaki korelasyonu doner
   - `recipient_group_failure_reason_summary` ve `recipient_group_failure_reasons[]` ile recipient group bazli teslim hata tiplerini, etkiledigi grup/entity yayilimini ve onerilen aksiyonu doner
   - `failure_resolution_action_analytics_summary` ve `failure_resolution_action_analytics[]` ile hizli duzeltme aksiyonlarinin kullanim ve sonuc verisini doner
+  - `failure_resolution_effectiveness_summary` ve `failure_resolution_effectiveness[]` ile hata nedeni bazinda onerilen fix'in gercekten ise yarayip yaramadigini doner
   - her failure reason item'i provider (`provider_label`) ve teslim asamasi (`delivery_stage_label`) metadata'si da tasir
   - `recipient_preset_summary.managed_templates` ve `recipient_preset_summary.recommended_default_presets` ile kural yonetilen grup sablonlarini ozetler
   - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner

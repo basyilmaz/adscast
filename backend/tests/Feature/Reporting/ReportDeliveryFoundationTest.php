@@ -517,6 +517,124 @@ class ReportDeliveryFoundationTest extends TestCase
         ]);
     }
 
+    public function test_reports_index_includes_failure_resolution_effectiveness_summary(): void
+    {
+        [$workspace, $token, $account, $campaign] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $accountTemplate = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Effectiveness Account Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 14,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $accountSchedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $accountTemplate->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 2,
+            'send_time' => '09:30',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['client@castintech.com'],
+            'configuration' => [],
+            'is_active' => true,
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $accountSchedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(30),
+            'trigger_mode' => 'manual',
+            'error_message' => 'SMTP timeout',
+            'metadata' => [],
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/failure-resolution-actions/account/{$account->id}/retry_failed_runs/track")
+            ->assertOk();
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/failure-resolution-actions/account/{$account->id}/retry_failed_runs")
+            ->assertOk();
+
+        $campaignTemplate = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Effectiveness Campaign Template',
+            'entity_type' => 'campaign',
+            'entity_id' => $campaign->id,
+            'report_type' => 'client_campaign_summary_v1',
+            'default_range_days' => 7,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $campaignSchedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $campaignTemplate->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 4,
+            'send_time' => '11:00',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['rejected@castintech.com'],
+            'configuration' => [],
+            'is_active' => true,
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $campaignSchedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'failed',
+            'recipients' => ['rejected@castintech.com'],
+            'prepared_at' => now()->subMinutes(20),
+            'trigger_mode' => 'manual',
+            'error_message' => 'Recipient rejected',
+            'metadata' => [
+                'recipient_group_summary' => [
+                    'label' => 'Recipient Reject Group',
+                ],
+            ],
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/failure-resolution-actions/campaign/{$campaign->id}/review_contact_book/track")
+            ->assertOk();
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.total_reasons', 2)
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.reasons_with_observed_fix', 2)
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.working_recommended_fixes', 1)
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.manual_followup_reasons', 1)
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.stalled_recommended_fixes', 0)
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.top_working_fix_label', 'Basarisiz teslimleri tekrar dene');
+
+        $effectiveness = collect($indexResponse->json('data.failure_resolution_effectiveness'))->keyBy('reason_code');
+
+        $this->assertSame('working_well', data_get($effectiveness->get('smtp_timeout'), 'effectiveness_status'));
+        $this->assertSame('retry_failed_runs', data_get($effectiveness->get('smtp_timeout'), 'recommended_action.code'));
+        $this->assertEquals(100.0, data_get($effectiveness->get('smtp_timeout'), 'recommended_action_metrics.success_rate'));
+        $this->assertSame('manual_followup_active', data_get($effectiveness->get('recipient_rejected'), 'effectiveness_status'));
+        $this->assertSame('review_contact_book', data_get($effectiveness->get('recipient_rejected'), 'recommended_action.code'));
+        $this->assertSame('review_contact_book', data_get($effectiveness->get('recipient_rejected'), 'top_observed_action.code'));
+        $this->assertSame(1, data_get($effectiveness->get('recipient_rejected'), 'top_observed_action.observed_uses'));
+    }
+
     public function test_quick_delivery_setup_creates_campaign_scoped_schedule_with_recipients(): void
     {
         [$workspace, $token, , $campaign] = $this->seedReportFixture('agency.admin@adscast.test');
