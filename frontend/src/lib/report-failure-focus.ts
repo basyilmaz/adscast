@@ -5,6 +5,8 @@ import {
   ReportFeaturedFailureResolution,
 } from "@/lib/types";
 
+export type ReportDecisionSurfaceKey = "featured_fix" | "retry" | "profile";
+
 export function reasonLabelForCode(value?: string | null): string {
   switch (value) {
     case "smtp_timeout":
@@ -56,6 +58,10 @@ export function focusSourceLabel(value?: string | null): string {
     default:
       return value ?? "Rapor merkezi";
   }
+}
+
+export function reportDecisionSurfaceId(key: ReportDecisionSurfaceKey): string {
+  return `report-decision-surface-${key}`;
 }
 
 export function focusedActionExplanation(

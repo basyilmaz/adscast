@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
 import {
@@ -10,7 +11,9 @@ import {
   focusedRetryExplanation,
   isFocusedDeliveryProfileSuggestion,
   prioritizeFocusedRetryRecommendations,
+  reportDecisionSurfaceId,
   reasonLabelForCode,
+  ReportDecisionSurfaceKey,
 } from "@/lib/report-failure-focus";
 import {
   ReportDeliveryProfileSuggestion,
@@ -68,6 +71,18 @@ export function ReportOperationalDecisionSummaryCard({
 
   const primaryDecision = decisions.sort((left, right) => right.priority - left.priority)[0] ?? null;
 
+  const scrollToSurface = (key: ReportDecisionSurfaceKey) => {
+    const surfaceId = reportDecisionSurfaceId(key);
+    const target = document.getElementById(surfaceId);
+
+    if (!target) {
+      return;
+    }
+
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.history.replaceState(null, "", `#${surfaceId}`);
+  };
+
   return (
     <Card>
       <CardTitle>Operasyon Karari Ozeti</CardTitle>
@@ -97,6 +112,11 @@ export function ReportOperationalDecisionSummaryCard({
           </div>
           <p className="mt-3 text-base font-semibold">{primaryDecision.title}</p>
           <p className="mt-2 text-sm muted-text">{primaryDecision.detail}</p>
+          <div className="mt-3">
+            <Button type="button" size="sm" variant="secondary" onClick={() => scrollToSurface(primaryDecision.key)}>
+              Ilgili karta git
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="mt-4 rounded-lg border border-[var(--border)] px-4 py-3 text-sm muted-text">
@@ -106,19 +126,25 @@ export function ReportOperationalDecisionSummaryCard({
 
       <div className="mt-4 grid gap-3 xl:grid-cols-3">
         <SurfaceSummary
+          surfaceKey="featured_fix"
           title="Hizli Duzeltme"
           value={featuredRecommendation?.action_label ?? "Kayitli featured fix yok"}
           note={featuredRecommendation?.reason_label ?? "Failure reason odagi yok"}
+          onJump={scrollToSurface}
         />
         <SurfaceSummary
+          surfaceKey="retry"
           title="Retry Rehberi"
           value={topRetryItem ? `${topRetryItem.label} / ${topRetryItem.retry_policy_label}` : "Kayitli retry karari yok"}
           note={topRetryItem?.operator_note ?? "Retry odagi yok"}
+          onJump={scrollToSurface}
         />
         <SurfaceSummary
+          surfaceKey="profile"
           title="Profil Onerisi"
           value={suggestion?.recipient_preset_name ?? "Kayitli profil onerisi yok"}
           note={suggestion?.reason ?? "Profil odagi yok"}
+          onJump={scrollToSurface}
         />
       </div>
     </Card>
@@ -262,12 +288,29 @@ function buildProfileDecision(
   };
 }
 
-function SurfaceSummary({ title, value, note }: { title: string; value: string; note: string }) {
+function SurfaceSummary({
+  surfaceKey,
+  title,
+  value,
+  note,
+  onJump,
+}: {
+  surfaceKey: ReportDecisionSurfaceKey;
+  title: string;
+  value: string;
+  note: string;
+  onJump: (key: ReportDecisionSurfaceKey) => void;
+}) {
   return (
     <div className="rounded-lg border border-[var(--border)] px-4 py-3">
       <p className="text-xs font-semibold uppercase tracking-wide muted-text">{title}</p>
       <p className="mt-2 text-sm font-semibold">{value}</p>
       <p className="mt-2 text-xs muted-text">{note}</p>
+      <div className="mt-3">
+        <Button type="button" size="sm" variant="secondary" onClick={() => onJump(surfaceKey)}>
+          Yuzeye git
+        </Button>
+      </div>
     </div>
   );
 }

@@ -19,6 +19,7 @@ import { ReportRecipientGroupEntityInsightsPanel } from "@/components/reports/re
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
 import { buildApiPathWithFilters, buildHrefWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
+import { reportDecisionSurfaceId } from "@/lib/report-failure-focus";
 import { AdAccountDetailResponse } from "@/lib/types";
 
 const SpendResultChart = dynamic(
@@ -417,40 +418,46 @@ export function AdAccountDetailClient() {
             focusSource={focusSource}
           />
 
-          <ReportFailureResolutionActionsCard
-            entityType="account"
-            entityId={data.ad_account.id}
-            summary={data.failure_resolution_summary}
-            actions={data.failure_resolution_actions}
-            featuredRecommendation={data.featured_failure_resolution}
-            focusActionCode={focusActionCode}
-            focusReasonCode={focusReasonCode}
-            focusSource={focusSource}
-            onReload={reload}
-            onFocusDeliveryProfile={() => setActiveTab("overview")}
-          />
+          <div id={reportDecisionSurfaceId("featured_fix")} className="scroll-mt-24">
+            <ReportFailureResolutionActionsCard
+              entityType="account"
+              entityId={data.ad_account.id}
+              summary={data.failure_resolution_summary}
+              actions={data.failure_resolution_actions}
+              featuredRecommendation={data.featured_failure_resolution}
+              focusActionCode={focusActionCode}
+              focusReasonCode={focusReasonCode}
+              focusSource={focusSource}
+              onReload={reload}
+              onFocusDeliveryProfile={() => setActiveTab("overview")}
+            />
+          </div>
 
-          <ReportDeliveryRetryRecommendationsPanel
-            summary={data.retry_recommendation_summary}
-            items={data.retry_recommendations}
-            entityLabel={data.ad_account.name}
-            featuredRecommendation={data.featured_failure_resolution}
-            focusActionCode={focusActionCode}
-            focusReasonCode={focusReasonCode}
-            focusSource={focusSource}
-          />
+          <div id={reportDecisionSurfaceId("retry")} className="scroll-mt-24">
+            <ReportDeliveryRetryRecommendationsPanel
+              summary={data.retry_recommendation_summary}
+              items={data.retry_recommendations}
+              entityLabel={data.ad_account.name}
+              featuredRecommendation={data.featured_failure_resolution}
+              focusActionCode={focusActionCode}
+              focusReasonCode={focusReasonCode}
+              focusSource={focusSource}
+            />
+          </div>
 
-          <ReportDeliveryProfileSuggestionCard
-            suggestion={data.suggested_delivery_profile}
-            entityLabel={data.ad_account.name}
-            entityType="account"
-            entityId={data.ad_account.id}
-            featuredRecommendation={data.featured_failure_resolution}
-            focusActionCode={focusActionCode}
-            focusReasonCode={focusReasonCode}
-            focusSource={focusSource}
-            onApplied={reload}
-          />
+          <div id={reportDecisionSurfaceId("profile")} className="scroll-mt-24">
+            <ReportDeliveryProfileSuggestionCard
+              suggestion={data.suggested_delivery_profile}
+              entityLabel={data.ad_account.name}
+              entityType="account"
+              entityId={data.ad_account.id}
+              featuredRecommendation={data.featured_failure_resolution}
+              focusActionCode={focusActionCode}
+              focusReasonCode={focusReasonCode}
+              focusSource={focusSource}
+              onApplied={reload}
+            />
+          </div>
 
           <ReportRecipientGroupEntityInsightsPanel
             analyticsSummary={data.recipient_group_analytics_summary}
