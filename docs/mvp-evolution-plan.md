@@ -303,3 +303,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 64. Decision surface durumlarini reports merkezine workspace-scope operasyon kuyrugu olarak tasiyip hangi account/campaign'de hangi karar yuzeyinin bekledigini tek ekranda gostermek
 65. Reports merkezindeki operasyon kuyruguna bulk filtre, gorunenleri secme ve toplu durum guncelleme ekleyip operatorun birden cok karar yuzeyini tek akista kapatabilmesini saglamak
 66. Operasyon kuyruguna operator notu ve erteleme nedeni ekleyip neden bekliyor bilgisini reports merkezinden toplu yonetilebilir hale getirmek
+67. Operasyon kuyruguna not/reason bazli filtre ve blok nedeni gruplama ekleyip hangi islerin neden takildigini reports merkezinde ust seviyede gorunur hale getirmek

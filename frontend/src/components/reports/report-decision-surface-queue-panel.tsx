@@ -53,6 +53,18 @@ const SURFACE_FILTER_OPTIONS = [
   { value: "profile", label: "Profil Onerisi" },
 ] as const;
 
+const REASON_FILTER_OPTIONS = [
+  { value: "all", label: "Tum Blok Nedenleri" },
+  { value: "none", label: "Nedeni Girilmemis" },
+  ...DEFER_REASON_OPTIONS.filter((option) => option.value !== ""),
+] as const;
+
+const NOTE_FILTER_OPTIONS = [
+  { value: "all", label: "Tum Not Durumlari" },
+  { value: "with_note", label: "Not Girilenler" },
+  { value: "without_note", label: "Not Girilmeyenler" },
+] as const;
+
 const OPEN_STATUSES = new Set(["pending", "reviewed", "deferred"]);
 
 export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, onChanged }: Props) {
@@ -62,6 +74,10 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
     useState<(typeof ENTITY_FILTER_OPTIONS)[number]["value"]>("all");
   const [surfaceFilter, setSurfaceFilter] =
     useState<(typeof SURFACE_FILTER_OPTIONS)[number]["value"]>("all");
+  const [reasonFilter, setReasonFilter] =
+    useState<(typeof REASON_FILTER_OPTIONS)[number]["value"]>("all");
+  const [noteFilter, setNoteFilter] =
+    useState<(typeof NOTE_FILTER_OPTIONS)[number]["value"]>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [activeBulkStatus, setActiveBulkStatus] = useState<string | null>(null);
@@ -90,6 +106,28 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
         return false;
       }
 
+      if (reasonFilter !== "all") {
+        if (item.status !== "deferred") {
+          return false;
+        }
+
+        if (reasonFilter === "none") {
+          if (item.defer_reason_code !== null) {
+            return false;
+          }
+        } else if (item.defer_reason_code !== reasonFilter) {
+          return false;
+        }
+      }
+
+      if (noteFilter === "with_note" && !item.operator_note) {
+        return false;
+      }
+
+      if (noteFilter === "without_note" && item.operator_note) {
+        return false;
+      }
+
       if (!normalizedSearchTerm) {
         return true;
       }
@@ -106,7 +144,7 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
 
       return searchHaystack.includes(normalizedSearchTerm);
     });
-  }, [entityFilter, items, normalizedSearchTerm, statusFilter, surfaceFilter]);
+  }, [entityFilter, items, normalizedSearchTerm, noteFilter, reasonFilter, statusFilter, surfaceFilter]);
 
   const filteredKeySet = useMemo(
     () => new Set(filteredItems.map((item) => queueItemKey(item))),
@@ -237,6 +275,78 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
   };
 
   const filteredOpenItems = filteredItems.filter((item) => OPEN_STATUSES.has(item.status)).length;
+  const filteredDeferredItems = filteredItems.filter((item) => item.status === "deferred");
+  const filteredItemsWithNotes = filteredItems.filter((item) => item.operator_note).length;
+  const deferredWithoutReasonCount = filteredDeferredItems.filter((item) => item.defer_reason_code === null).length;
+  const deferredReasonGroups = useMemo(
+    () =>
+      Array.from(
+        filteredDeferredItems.reduce(
+          (groups, item) => {
+            const groupKey = item.defer_reason_code ?? "none";
+            const current = groups.get(groupKey) ?? {
+              key: groupKey,
+              label: item.defer_reason_label ?? "Erteleme Nedeni Girilmemis",
+              count: 0,
+              entities: new Set<string>(),
+              notes: 0,
+            };
+
+            current.count += 1;
+            current.entities.add(`${item.entity_type}:${item.entity_id}`);
+            current.notes += item.operator_note ? 1 : 0;
+            groups.set(groupKey, current);
+            return groups;
+          },
+          new Map<string, { key: string; label: string; count: number; entities: Set<string>; notes: number }>(),
+        ).values(),
+      )
+        .map((group) => ({
+          key: group.key,
+          label: group.label,
+          count: group.count,
+          entities: group.entities.size,
+          notes: group.notes,
+        }))
+        .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "tr")),
+    [filteredDeferredItems],
+  );
+  const groupedItems = useMemo<Array<{
+    key: string;
+    label: string;
+    tone: "warning" | "neutral";
+    items: ReportDecisionSurfaceQueueItem[];
+  }>>(() => {
+    const deferredGroups: Array<{
+      key: string;
+      label: string;
+      tone: "warning" | "neutral";
+      items: ReportDecisionSurfaceQueueItem[];
+    }> = deferredReasonGroups.map((group) => ({
+      key: `deferred:${group.key}`,
+      label: group.label,
+      tone: "warning" as const,
+      items: filteredItems.filter((item) =>
+        item.status === "deferred"
+          ? group.key === "none"
+            ? item.defer_reason_code === null
+            : item.defer_reason_code === group.key
+          : false,
+      ),
+    }));
+
+    const nonDeferredItems = filteredItems.filter((item) => item.status !== "deferred");
+    if (nonDeferredItems.length > 0) {
+      deferredGroups.push({
+        key: "other-statuses",
+        label: "Erteleme Disi Kararlar",
+        tone: "neutral" as const,
+        items: nonDeferredItems,
+      });
+    }
+
+    return deferredGroups.filter((group) => group.items.length > 0);
+  }, [deferredReasonGroups, filteredItems]);
 
   return (
     <Card>
@@ -253,7 +363,7 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
         <span>Tamamlanan: {summary?.completed_items ?? 0}</span>
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <label className="space-y-1 text-sm">
           <span className="block font-medium">Durum</span>
           <select
@@ -309,6 +419,70 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
             placeholder="Entity veya baglam ara"
           />
         </label>
+
+        <label className="space-y-1 text-sm">
+          <span className="block font-medium">Blok Nedeni</span>
+          <select
+            className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+            value={reasonFilter}
+            onChange={(event) => setReasonFilter(event.target.value as (typeof REASON_FILTER_OPTIONS)[number]["value"])}
+          >
+            {REASON_FILTER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1 text-sm">
+          <span className="block font-medium">Not Durumu</span>
+          <select
+            className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+            value={noteFilter}
+            onChange={(event) => setNoteFilter(event.target.value as (typeof NOTE_FILTER_OPTIONS)[number]["value"])}
+          >
+            {NOTE_FILTER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
+        <div className="flex flex-wrap gap-3 text-sm muted-text">
+          <span>Blokta kalan: {filteredDeferredItems.length}</span>
+          <span>Not girilen: {filteredItemsWithNotes}</span>
+          <span>Nedensiz erteleme: {deferredWithoutReasonCount}</span>
+          <span>Blok nedeni tipi: {deferredReasonGroups.length}</span>
+        </div>
+
+        {deferredReasonGroups.length > 0 ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {deferredReasonGroups.map((group) => (
+              <button
+                key={group.key}
+                type="button"
+                className="rounded-lg border border-[var(--border)] bg-white p-3 text-left hover:bg-[var(--surface-2)]"
+                onClick={() => setReasonFilter(group.key as (typeof REASON_FILTER_OPTIONS)[number]["value"])}
+              >
+                <div className="flex flex-wrap gap-2">
+                  <Badge label={group.label} variant="warning" />
+                  <Badge label={`${group.count} yuzey`} variant="neutral" />
+                </div>
+                <p className="mt-2 text-xs muted-text">
+                  {group.entities} entity / {group.notes} notlu kayit
+                </p>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm muted-text">
+            Mevcut filtrelerle blok nedeni gorunurlugu yok.
+          </p>
+        )}
       </div>
 
       <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
@@ -382,60 +556,69 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
         {error ? <p className="mt-2 text-sm text-[var(--danger)]">{error}</p> : null}
       </div>
 
-      <div className="mt-4 space-y-3">
-        {filteredItems.map((item) => {
-          const itemKey = queueItemKey(item);
+      <div className="mt-4 space-y-4">
+        {groupedItems.map((group) => (
+          <div key={group.key} className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge label={group.label} variant={group.tone === "warning" ? "warning" : "neutral"} />
+              <Badge label={`${group.items.length} kayit`} variant="neutral" />
+            </div>
 
-          return (
-            <div key={itemKey} className="rounded-lg border border-[var(--border)] p-4">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                <div className="flex gap-3">
-                  <label className="mt-1 flex items-start">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border border-[var(--border)]"
-                      checked={selectedKeys.includes(itemKey)}
-                      onChange={(event) => handleToggleItem(itemKey, event.target.checked)}
-                      disabled={activeBulkStatus !== null}
-                      aria-label={`${item.entity_label ?? "Bilinmeyen varlik"} sec`}
-                    />
-                  </label>
+            {group.items.map((item) => {
+              const itemKey = queueItemKey(item);
 
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge label={item.surface_label} variant="neutral" />
-                      <Badge label={item.status_label} variant={variantForStatus(item.status)} />
-                      <Badge label={entityTypeLabel(item.entity_type)} variant="neutral" />
+              return (
+                <div key={itemKey} className="rounded-lg border border-[var(--border)] p-4">
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="flex gap-3">
+                      <label className="mt-1 flex items-start">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border border-[var(--border)]"
+                          checked={selectedKeys.includes(itemKey)}
+                          onChange={(event) => handleToggleItem(itemKey, event.target.checked)}
+                          disabled={activeBulkStatus !== null}
+                          aria-label={`${item.entity_label ?? "Bilinmeyen varlik"} sec`}
+                        />
+                      </label>
+
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge label={item.surface_label} variant="neutral" />
+                          <Badge label={item.status_label} variant={variantForStatus(item.status)} />
+                          <Badge label={entityTypeLabel(item.entity_type)} variant="neutral" />
+                        </div>
+                        <p className="mt-3 text-sm font-semibold">{item.entity_label ?? "Bilinmeyen varlik"}</p>
+                        <p className="mt-1 text-xs muted-text">
+                          {item.context_label ?? "-"}
+                          {item.updated_at ? ` / Son guncelleme: ${item.updated_at}` : " / Henuz operator isareti yok"}
+                          {item.updated_by_name ? ` / ${item.updated_by_name}` : ""}
+                        </p>
+                        {item.defer_reason_label ? (
+                          <p className="mt-2 text-xs muted-text">Erteleme nedeni: {item.defer_reason_label}</p>
+                        ) : null}
+                        {item.operator_note ? (
+                          <p className="mt-1 text-xs muted-text">Not: {item.operator_note}</p>
+                        ) : null}
+                      </div>
                     </div>
-                    <p className="mt-3 text-sm font-semibold">{item.entity_label ?? "Bilinmeyen varlik"}</p>
-                    <p className="mt-1 text-xs muted-text">
-                      {item.context_label ?? "-"}
-                      {item.updated_at ? ` / Son guncelleme: ${item.updated_at}` : " / Henuz operator isareti yok"}
-                      {item.updated_by_name ? ` / ${item.updated_by_name}` : ""}
-                    </p>
-                    {item.defer_reason_label ? (
-                      <p className="mt-2 text-xs muted-text">Erteleme nedeni: {item.defer_reason_label}</p>
-                    ) : null}
-                    {item.operator_note ? (
-                      <p className="mt-1 text-xs muted-text">Not: {item.operator_note}</p>
-                    ) : null}
+
+                    <div className="flex flex-wrap gap-2">
+                      {item.route ? (
+                        <Link
+                          href={routeBuilder(item.route)}
+                          className="inline-flex h-10 items-center rounded-md border border-[var(--border)] px-4 text-sm font-semibold hover:bg-[var(--surface-2)]"
+                        >
+                          Detaya git
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {item.route ? (
-                    <Link
-                      href={routeBuilder(item.route)}
-                      className="inline-flex h-10 items-center rounded-md border border-[var(--border)] px-4 text-sm font-semibold hover:bg-[var(--surface-2)]"
-                    >
-                      Detaya git
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        ))}
 
         {filteredItems.length === 0 ? (
           <p className="text-sm muted-text">
