@@ -292,3 +292,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 53. Featured failure resolution secimini entity bazli takip ve basari verisiyle adaptif hale getirip detail ekraninda statik kural yerine gozlenen sonuc kalitesine gore guncellemek
 54. Reports merkezine featured karar mantigi paneli ekleyip effectiveness ve featured analytics verisini birlestirerek hangi fix'in neden one cikarildigini aciklanabilir hale getirmek
 55. Featured karar panelinden ilgili account/campaign detail ekranina derin link verip operatoru analytics'ten dogrudan aksiyona tasimak
+56. Featured karar panelinden gelen reason/action odagini detail ekraninda ilgili rapor sekmesi ve hizli duzeltme aksiyonu uzerine tasimak

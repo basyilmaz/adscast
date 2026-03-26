@@ -57,8 +57,11 @@ function variantFor(value: string) {
 export function AdAccountDetailClient() {
   const searchParams = useSearchParams();
   const adAccountId = searchParams.get("id");
+  const focusReasonCode = searchParams.get("focus_reason_code");
+  const focusActionCode = searchParams.get("focus_action_code");
+  const focusSource = searchParams.get("focus_source");
   const hasAdAccountId = Boolean(adAccountId);
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useState<TabId>(() => (focusReasonCode || focusActionCode ? "reports" : "overview"));
 
   const {
     data,
@@ -408,6 +411,9 @@ export function AdAccountDetailClient() {
             summary={data.failure_resolution_summary}
             actions={data.failure_resolution_actions}
             featuredRecommendation={data.featured_failure_resolution}
+            focusActionCode={focusActionCode}
+            focusReasonCode={focusReasonCode}
+            focusSource={focusSource}
             onReload={reload}
             onFocusDeliveryProfile={() => setActiveTab("overview")}
           />

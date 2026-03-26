@@ -64,7 +64,7 @@ export function ReportFeaturedFailureResolutionDecisionPanel({ summary, items }:
                       {item.primary_entity.context_label ? ` / ${item.primary_entity.context_label}` : ""}
                     </span>
                     <Link
-                      href={item.primary_entity.route}
+                      href={buildFocusedDetailHref(item)}
                       className="inline-flex items-center rounded-md border border-[var(--border)] px-2 py-1 font-semibold hover:bg-[var(--surface-2)]"
                     >
                       Detaya Git
@@ -89,6 +89,31 @@ export function ReportFeaturedFailureResolutionDecisionPanel({ summary, items }:
       </div>
     </div>
   );
+}
+
+function buildFocusedDetailHref(item: ReportFeaturedFailureResolutionDecisionItem): string {
+  const baseRoute = item.primary_entity?.route;
+
+  if (!baseRoute) {
+    return "#";
+  }
+
+  const [pathname, rawQuery = ""] = baseRoute.split("?");
+  const params = new URLSearchParams(rawQuery);
+
+  if (item.reason_code) {
+    params.set("focus_reason_code", item.reason_code);
+  }
+
+  if (item.selected_action_code) {
+    params.set("focus_action_code", item.selected_action_code);
+  }
+
+  params.set("focus_source", "featured_decision");
+
+  const query = params.toString();
+
+  return query ? `${pathname}?${query}` : pathname;
 }
 
 function decisionVariant(value: string): "success" | "warning" | "danger" | "neutral" {

@@ -69,8 +69,11 @@ function targetingLabel(item: CampaignDetailResponse["data"]["ad_sets"][number])
 export function CampaignDetailClient() {
   const searchParams = useSearchParams();
   const campaignId = searchParams.get("id");
+  const focusReasonCode = searchParams.get("focus_reason_code");
+  const focusActionCode = searchParams.get("focus_action_code");
+  const focusSource = searchParams.get("focus_source");
   const hasCampaignId = Boolean(campaignId);
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useState<TabId>(() => (focusReasonCode || focusActionCode ? "report" : "overview"));
 
   const { data, error, isLoading, isRefreshing, reload } = useApiQuery<CampaignDetailResponse, CampaignDetailResponse["data"]>(
     buildApiPathWithFilters(`/campaigns/${campaignId ?? ""}`, searchParams, GLOBAL_DATE_FILTER_KEYS),
@@ -497,6 +500,9 @@ export function CampaignDetailClient() {
             summary={data.failure_resolution_summary}
             actions={data.failure_resolution_actions}
             featuredRecommendation={data.featured_failure_resolution}
+            focusActionCode={focusActionCode}
+            focusReasonCode={focusReasonCode}
+            focusSource={focusSource}
             onReload={reload}
             onFocusDeliveryProfile={() => setActiveTab("overview")}
           />

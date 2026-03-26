@@ -20,6 +20,9 @@ type Props = {
   featuredRecommendation?: ReportFeaturedFailureResolution | null;
   onReload?: () => Promise<void> | void;
   onFocusDeliveryProfile?: () => void;
+  focusActionCode?: string | null;
+  focusReasonCode?: string | null;
+  focusSource?: string | null;
 };
 
 function variantForSeverity(value: string) {
@@ -38,6 +41,9 @@ export function ReportFailureResolutionActionsCard({
   featuredRecommendation,
   onReload,
   onFocusDeliveryProfile,
+  focusActionCode,
+  focusReasonCode,
+  focusSource,
 }: Props) {
   const router = useRouter();
   const [activeActionCode, setActiveActionCode] = useState<string | null>(null);
@@ -111,6 +117,17 @@ export function ReportFailureResolutionActionsCard({
         Bu kayittaki teslim sorunlarini tek tikla toparlamak icin onerilen operator aksiyonlari.
       </p>
 
+      {(focusActionCode || focusReasonCode) ? (
+        <div className="mt-3 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/5 px-3 py-2 text-sm">
+          <p className="font-semibold">Rapor merkezinden odaklandi</p>
+          <p className="mt-1 muted-text">
+            {focusReasonCode ? `Hata nedeni: ${focusReasonCode}` : "Belirli aksiyon odagi"} 
+            {focusActionCode ? ` / Aksiyon: ${focusActionCode}` : ""}
+            {focusSource ? ` / Kaynak: ${focusSource}` : ""}
+          </p>
+        </div>
+      ) : null}
+
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Metric label="Aksiyon" value={summary.total_actions} />
         <Metric label="Retry Uygun" value={summary.retryable_runs} />
@@ -145,18 +162,25 @@ export function ReportFailureResolutionActionsCard({
       {message ? <p className="mt-4 text-sm text-[var(--accent)]">{message}</p> : null}
 
       <div className="mt-4 space-y-3">
-        {actions.map((action) => (
+        {prioritizeFocusedActions(actions, focusActionCode, focusReasonCode).map((action) => {
+          const isFocusedAction = action.code === focusActionCode
+            || (focusReasonCode ? action.metadata?.affected_reason_codes?.includes(focusReasonCode) : false);
+
+          return (
           <div
             key={action.id}
             className={`rounded-lg border p-4 ${
-              featuredRecommendation?.action_code === action.code
-                ? "border-[var(--accent)] bg-[var(--accent)]/5"
+              isFocusedAction
+                ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                : featuredRecommendation?.action_code === action.code
+                  ? "border-[var(--accent)] bg-[var(--accent)]/5"
                 : "border-[var(--border)]"
             }`}
           >
             <div className="flex flex-wrap items-center gap-2">
               <Badge label={action.label} variant={variantForSeverity(action.severity)} />
               <Badge label={action.action_kind} variant="neutral" />
+              {isFocusedAction ? <Badge label="Odakta" variant="warning" /> : null}
               {featuredRecommendation?.action_code === action.code ? <Badge label="Onerilen" variant="success" /> : null}
               {action.metadata?.retryable_runs ? (
                 <Badge label={`${action.metadata.retryable_runs} retry`} variant="neutral" />
@@ -209,7 +233,8 @@ export function ReportFailureResolutionActionsCard({
               ) : null}
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {actions.length === 0 ? (
           <p className="text-sm muted-text">Bu kayit icin otomatik onerilen hizli duzeltme aksiyonu yok.</p>
@@ -217,6 +242,29 @@ export function ReportFailureResolutionActionsCard({
       </div>
     </Card>
   );
+}
+
+function prioritizeFocusedActions(
+  actions: ReportFailureResolutionActionItem[],
+  focusActionCode?: string | null,
+  focusReasonCode?: string | null,
+) {
+  if (!focusActionCode && !focusReasonCode) {
+    return actions;
+  }
+
+  return [...actions].sort((left, right) => {
+    const leftFocused = left.code === focusActionCode
+      || (focusReasonCode ? left.metadata?.affected_reason_codes?.includes(focusReasonCode) : false);
+    const rightFocused = right.code === focusActionCode
+      || (focusReasonCode ? right.metadata?.affected_reason_codes?.includes(focusReasonCode) : false);
+
+    if (leftFocused === rightFocused) {
+      return 0;
+    }
+
+    return leftFocused ? -1 : 1;
+  });
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
