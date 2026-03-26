@@ -792,9 +792,13 @@ class ReportDeliveryFoundationTest extends TestCase
         $this->assertSame('Alici grubunu duzelt', data_get($analytics->get('recipient_rejected'), 'top_override_action_label'));
         $this->assertSame('working_featured', data_get($decisions->get('smtp_timeout'), 'decision_status'));
         $this->assertSame('retry_failed_runs', data_get($decisions->get('smtp_timeout'), 'selected_action_code'));
+        $this->assertSame($account->id, data_get($decisions->get('smtp_timeout'), 'primary_entity.entity_id'));
+        $this->assertSame('/ad-accounts/detail?id='.$account->id, data_get($decisions->get('smtp_timeout'), 'primary_entity.route'));
         $this->assertSame('analytics_override_preferred', data_get($decisions->get('recipient_rejected'), 'decision_status'));
         $this->assertSame('review_recipient_groups', data_get($decisions->get('recipient_rejected'), 'selected_action_code'));
         $this->assertSame('Alici grubunu duzelt', data_get($decisions->get('recipient_rejected'), 'selected_action_label'));
+        $this->assertSame($campaign->id, data_get($decisions->get('recipient_rejected'), 'primary_entity.entity_id'));
+        $this->assertSame('/campaigns/detail?id='.$campaign->id, data_get($decisions->get('recipient_rejected'), 'primary_entity.route'));
     }
 
     public function test_quick_delivery_setup_creates_campaign_scoped_schedule_with_recipients(): void

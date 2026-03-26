@@ -1633,6 +1633,14 @@ export type ReportFeaturedFailureResolutionDecisionItem = {
   tracked_interactions: number;
   featured_interactions: number;
   override_interactions: number;
+  primary_entity: {
+    entity_type: string | null;
+    entity_id: string | null;
+    label: string | null;
+    context_label: string | null;
+    route: string | null;
+    uses_count: number;
+  } | null;
   why_selected: string;
 };
 

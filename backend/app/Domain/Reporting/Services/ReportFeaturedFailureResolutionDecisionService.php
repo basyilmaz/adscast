@@ -125,6 +125,16 @@ class ReportFeaturedFailureResolutionDecisionService
             'tracked_interactions' => (int) ($analytics['tracked_interactions'] ?? 0),
             'featured_interactions' => (int) ($analytics['featured_interactions'] ?? 0),
             'override_interactions' => (int) ($analytics['override_interactions'] ?? 0),
+            'primary_entity' => is_array($analytics['top_entity'] ?? null)
+                ? [
+                    'entity_type' => $analytics['top_entity']['entity_type'] ?? null,
+                    'entity_id' => $analytics['top_entity']['entity_id'] ?? null,
+                    'label' => $analytics['top_entity']['label'] ?? null,
+                    'context_label' => $analytics['top_entity']['context_label'] ?? null,
+                    'route' => $analytics['top_entity']['route'] ?? null,
+                    'uses_count' => (int) ($analytics['top_entity']['uses_count'] ?? 0),
+                ]
+                : null,
             'why_selected' => $whySelected,
         ];
     }

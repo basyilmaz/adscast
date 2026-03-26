@@ -3,10 +3,16 @@
 namespace App\Domain\Reporting\Services;
 
 use App\Models\AuditLog;
+use App\Support\Operations\EntityContextResolver;
 use Illuminate\Support\Collection;
 
 class ReportFeaturedFailureResolutionAnalyticsService
 {
+    public function __construct(
+        private readonly EntityContextResolver $entityContextResolver,
+    ) {
+    }
+
     /**
      * @return array{summary: array<string, mixed>, items: array<int, array<string, mixed>>}
      */
@@ -48,6 +54,7 @@ class ReportFeaturedFailureResolutionAnalyticsService
             'occurred_at',
         ]);
 
+        $contexts = $this->resolveContexts($workspaceId, $trackedLogs, $executedLogs);
         $items = [];
 
         foreach ($trackedLogs as $log) {
@@ -93,6 +100,12 @@ class ReportFeaturedFailureResolutionAnalyticsService
             } elseif ($actionKind === 'focus_tab') {
                 $record['focus_interactions']++;
             }
+
+            $this->attachEntity(
+                $record,
+                $this->entityPayload($log->target_type, $log->target_id, $contexts),
+                1,
+            );
 
             $items[$key] = $record;
         }
@@ -142,6 +155,12 @@ class ReportFeaturedFailureResolutionAnalyticsService
                     $record['logged_failed_override_executions']++;
                 }
             }
+
+            $this->attachEntity(
+                $record,
+                $this->entityPayload($log->target_type, $log->target_id, $contexts),
+                1,
+            );
 
             $items[$key] = $record;
         }
@@ -238,6 +257,7 @@ class ReportFeaturedFailureResolutionAnalyticsService
             'logged_failed_override_executions' => 0,
             'last_seen_at' => null,
             'override_action_index' => [],
+            'entity_index' => [],
         ];
     }
 
@@ -274,8 +294,21 @@ class ReportFeaturedFailureResolutionAnalyticsService
             : null;
 
         $topOverrideActionLabel = $this->topLabel($record['override_action_index']);
+        $topEntities = collect($record['entity_index'])
+            ->sort(function (array $left, array $right): int {
+                $usesComparison = ($right['uses_count'] ?? 0) <=> ($left['uses_count'] ?? 0);
 
-        unset($record['override_action_index']);
+                if ($usesComparison !== 0) {
+                    return $usesComparison;
+                }
+
+                return strcmp((string) ($left['label'] ?? ''), (string) ($right['label'] ?? ''));
+            })
+            ->take(3)
+            ->values()
+            ->all();
+
+        unset($record['override_action_index'], $record['entity_index']);
 
         return array_merge($record, [
             'featured_api_attempts' => $featuredApiAttempts,
@@ -286,6 +319,8 @@ class ReportFeaturedFailureResolutionAnalyticsService
             'featured_success_rate' => $featuredSuccessRate,
             'override_success_rate' => $overrideSuccessRate,
             'top_override_action_label' => $topOverrideActionLabel,
+            'top_entity' => $topEntities[0] ?? null,
+            'entities' => $topEntities,
             'usage_summary' => $this->usageSummary(
                 featuredInteractions: (int) $record['featured_interactions'],
                 overrideInteractions: (int) $record['override_interactions'],
@@ -375,6 +410,75 @@ class ReportFeaturedFailureResolutionAnalyticsService
         }
 
         return strcmp($left, $right) >= 0 ? $left : $right;
+    }
+
+    /**
+     * @param  array<string, mixed>  $record
+     * @param  array<string, mixed>|null  $entity
+     */
+    private function attachEntity(array &$record, ?array $entity, int $weight): void
+    {
+        if ($entity === null || ! filled($entity['entity_type'] ?? null) || ! filled($entity['entity_id'] ?? null)) {
+            return;
+        }
+
+        $key = sprintf('%s:%s', $entity['entity_type'], $entity['entity_id']);
+        $current = $record['entity_index'][$key] ?? [
+            'entity_type' => $entity['entity_type'],
+            'entity_id' => $entity['entity_id'],
+            'label' => $entity['label'],
+            'context_label' => $entity['context_label'],
+            'route' => $entity['route'],
+            'uses_count' => 0,
+        ];
+        $current['uses_count'] += $weight;
+        $record['entity_index'][$key] = $current;
+    }
+
+    /**
+     * @param  Collection<int, AuditLog>  $trackedLogs
+     * @param  Collection<int, AuditLog>  $executedLogs
+     * @return array<string, array{entity_type?: string|null, entity_label?: string|null, context_label?: string|null, route?: string|null}>
+     */
+    private function resolveContexts(string $workspaceId, Collection $trackedLogs, Collection $executedLogs): array
+    {
+        return $this->entityContextResolver->resolveMany(
+            $workspaceId,
+            $trackedLogs
+                ->merge($executedLogs)
+                ->map(fn (AuditLog $log): array => [
+                    'type' => $log->target_type,
+                    'id' => $log->target_id,
+                ])
+                ->filter(fn (array $reference): bool => filled($reference['type']) && filled($reference['id']))
+                ->values()
+                ->all(),
+        );
+    }
+
+    /**
+     * @param  array<string, array{entity_type?: string|null, entity_label?: string|null, context_label?: string|null, route?: string|null}>  $contexts
+     * @return array<string, string|null>|null
+     */
+    private function entityPayload(?string $entityType, ?string $entityId, array $contexts): ?array
+    {
+        if (! filled($entityType) || ! filled($entityId)) {
+            return null;
+        }
+
+        $context = $contexts[$this->entityContextResolver->key($entityType, $entityId)] ?? null;
+
+        if (! is_array($context)) {
+            return null;
+        }
+
+        return [
+            'entity_type' => $context['entity_type'] ?? $entityType,
+            'entity_id' => $entityId,
+            'label' => $context['entity_label'] ?? null,
+            'context_label' => $context['context_label'] ?? null,
+            'route' => $context['route'] ?? null,
+        ];
     }
 
     private function usageSummary(

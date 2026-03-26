@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
   ReportFeaturedFailureResolutionDecisionItem,
@@ -55,6 +56,21 @@ export function ReportFeaturedFailureResolutionDecisionPanel({ summary, items }:
                   {item.top_observed_action_label ? ` / En cok gozlenen: ${item.top_observed_action_label}` : ""}
                   {item.top_override_action_label ? ` / Override: ${item.top_override_action_label}` : ""}
                 </p>
+
+                {item.primary_entity?.route ? (
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="muted-text">
+                      Odak entity: {item.primary_entity.label ?? "Bilinmeyen varlik"}
+                      {item.primary_entity.context_label ? ` / ${item.primary_entity.context_label}` : ""}
+                    </span>
+                    <Link
+                      href={item.primary_entity.route}
+                      className="inline-flex items-center rounded-md border border-[var(--border)] px-2 py-1 font-semibold hover:bg-[var(--surface-2)]"
+                    >
+                      Detaya Git
+                    </Link>
+                  </div>
+                ) : null}
               </div>
 
               <div className="xl:w-[360px]">

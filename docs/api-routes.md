@@ -42,7 +42,7 @@ Base path: `/api/v1`
   - `failure_resolution_action_analytics_summary` ve `failure_resolution_action_analytics[]` ile hizli duzeltme aksiyonlarinin kullanim ve sonuc verisini doner
   - `failure_resolution_effectiveness_summary` ve `failure_resolution_effectiveness[]` ile hata nedeni bazinda onerilen fix'in gercekten ise yarayip yaramadigini doner
   - `featured_failure_resolution_analytics_summary` ve `featured_failure_resolution_analytics[]` ile sistemin one cikardigi duzeltmenin takip edilip edilmedigini ve override/featured sonuc farkini doner
-  - `featured_failure_resolution_decision_summary` ve `featured_failure_resolution_decisions[]` ile sistemin hangi fix'i neden one cikardigini aciklanabilir karar katmani olarak doner
+  - `featured_failure_resolution_decision_summary` ve `featured_failure_resolution_decisions[]` ile sistemin hangi fix'i neden one cikardigini aciklanabilir karar katmani olarak doner; item bazinda `primary_entity.route` ile operator ilgili account/campaign detail ekranina gidebilir
   - her failure reason item'i provider (`provider_label`) ve teslim asamasi (`delivery_stage_label`) metadata'si da tasir
   - `recipient_preset_summary.managed_templates` ve `recipient_preset_summary.recommended_default_presets` ile kural yonetilen grup sablonlarini ozetler
   - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner
