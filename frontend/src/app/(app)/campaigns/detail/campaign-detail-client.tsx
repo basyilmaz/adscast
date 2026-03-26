@@ -511,6 +511,10 @@ export function CampaignDetailClient() {
             summary={data.retry_recommendation_summary}
             items={data.retry_recommendations}
             entityLabel={data.campaign.name}
+            featuredRecommendation={data.featured_failure_resolution}
+            focusActionCode={focusActionCode}
+            focusReasonCode={focusReasonCode}
+            focusSource={focusSource}
           />
 
           <ReportDeliveryProfileSuggestionCard

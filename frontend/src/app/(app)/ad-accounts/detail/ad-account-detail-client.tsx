@@ -422,6 +422,10 @@ export function AdAccountDetailClient() {
             summary={data.retry_recommendation_summary}
             items={data.retry_recommendations}
             entityLabel={data.ad_account.name}
+            featuredRecommendation={data.featured_failure_resolution}
+            focusActionCode={focusActionCode}
+            focusReasonCode={focusReasonCode}
+            focusSource={focusSource}
           />
 
           <ReportDeliveryProfileSuggestionCard

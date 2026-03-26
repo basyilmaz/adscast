@@ -294,3 +294,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 55. Featured karar panelinden ilgili account/campaign detail ekranina derin link verip operatoru analytics'ten dogrudan aksiyona tasimak
 56. Featured karar panelinden gelen reason/action odagini detail ekraninda ilgili rapor sekmesi ve hizli duzeltme aksiyonu uzerine tasimak
 57. Focus ile acilan detail ekraninda hizli duzeltme kartinin aciklamasini hata nedeni ve aksiyon baglamina gore context-aware hale getirmek
+58. Detail ekraninda retry rehberi ve featured fix yuzeyini de ayni focus baglamina hizalayip tek bir operasyonel odak dili olusturmak
