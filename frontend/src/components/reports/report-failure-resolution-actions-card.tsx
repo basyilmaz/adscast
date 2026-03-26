@@ -121,9 +121,9 @@ export function ReportFailureResolutionActionsCard({
         <div className="mt-3 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/5 px-3 py-2 text-sm">
           <p className="font-semibold">Rapor merkezinden odaklandi</p>
           <p className="mt-1 muted-text">
-            {focusReasonCode ? `Hata nedeni: ${focusReasonCode}` : "Belirli aksiyon odagi"} 
-            {focusActionCode ? ` / Aksiyon: ${focusActionCode}` : ""}
-            {focusSource ? ` / Kaynak: ${focusSource}` : ""}
+            {focusReasonCode ? `Hata nedeni: ${reasonLabelForCode(focusReasonCode)}` : "Belirli aksiyon odagi"}
+            {focusActionCode ? ` / Aksiyon: ${actionLabelForCode(focusActionCode)}` : ""}
+            {focusSource ? ` / Kaynak: ${focusSourceLabel(focusSource)}` : ""}
           </p>
         </div>
       ) : null}
@@ -189,9 +189,18 @@ export function ReportFailureResolutionActionsCard({
 
             <p className="mt-3 text-sm">{action.detail}</p>
 
+            {isFocusedAction ? (
+              <div className="mt-3 rounded-md border border-[var(--accent)]/30 bg-[var(--surface-2)] px-3 py-2 text-sm">
+                <p className="font-semibold">Bu aksiyon neden odakta?</p>
+                <p className="mt-1 muted-text">
+                  {focusedActionExplanation(action, focusActionCode, focusReasonCode, focusSource)}
+                </p>
+              </div>
+            ) : null}
+
             {action.metadata?.affected_reason_codes?.length ? (
               <p className="mt-2 text-xs muted-text">
-                Etkilenen nedenler: {action.metadata.affected_reason_codes.join(", ")}
+                Etkilenen nedenler: {action.metadata.affected_reason_codes.map(reasonLabelForCode).join(", ")}
               </p>
             ) : null}
 
@@ -265,6 +274,85 @@ function prioritizeFocusedActions(
 
     return leftFocused ? -1 : 1;
   });
+}
+
+function reasonLabelForCode(value: string): string {
+  switch (value) {
+    case "smtp_timeout":
+      return "SMTP Timeout";
+    case "smtp_auth":
+      return "SMTP Kimlik Dogrulama";
+    case "smtp_connectivity":
+      return "SMTP Baglanti Sorunu";
+    case "smtp_tls":
+      return "SMTP TLS Sorunu";
+    case "recipient_rejected":
+      return "Alici Reddi";
+    case "sender_rejected":
+      return "Gonderici Reddi";
+    case "share_delivery_failure":
+      return "Paylasim Linki Teslim Sorunu";
+    case "snapshot_export_failure":
+      return "Rapor Export Sorunu";
+    case "manual_retry_pending":
+      return "Manuel Retry Bekliyor";
+    case "invalid_configuration":
+      return "Gecersiz Konfigurasyon";
+    case "unknown_failure":
+      return "Bilinmeyen Hata";
+    default:
+      return value;
+  }
+}
+
+function actionLabelForCode(value: string): string {
+  switch (value) {
+    case "retry_failed_runs":
+      return "Basarisiz teslimleri tekrar dene";
+    case "review_contact_book":
+      return "Alici kisilerini kontrol et";
+    case "review_recipient_groups":
+      return "Alici grubunu duzelt";
+    case "focus_delivery_profile":
+      return "Teslim profilini duzelt";
+    default:
+      return value;
+  }
+}
+
+function focusSourceLabel(value: string): string {
+  switch (value) {
+    case "featured_decision":
+      return "Featured Karar";
+    default:
+      return value;
+  }
+}
+
+function focusedActionExplanation(
+  action: ReportFailureResolutionActionItem,
+  focusActionCode?: string | null,
+  focusReasonCode?: string | null,
+  focusSource?: string | null,
+): string {
+  const reasonLabel = focusReasonCode ? reasonLabelForCode(focusReasonCode) : null;
+  const sourceLabel = focusSource ? focusSourceLabel(focusSource) : "Rapor merkezi";
+  const reasonMatch = focusReasonCode ? action.metadata?.affected_reason_codes?.includes(focusReasonCode) : false;
+  const actionMatch = focusActionCode ? action.code === focusActionCode : false;
+
+  if (actionMatch && reasonMatch) {
+    return `${sourceLabel}, ${reasonLabel} icin bu aksiyonu dogrudan one cikardi. Bu nedenle kart odaga alindi ve once gosteriliyor.`;
+  }
+
+  if (actionMatch) {
+    return `${sourceLabel}, secili aksiyon olarak bu kaydi one cikardi. Ilgili hata akisini bu karttan yonetebilirsin.`;
+  }
+
+  if (reasonMatch) {
+    return `${reasonLabel} bu aksiyonun etkiledigi hata nedenleri arasinda. Aksiyon secilmis olmasa da ayni problemi cozen yakin bir secenek olarak odaga alindi.`;
+  }
+
+  return "Bu kart rapor merkezinden gelen odaga en yakin duzeltme aksiyonudur.";
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
