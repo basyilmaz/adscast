@@ -21,7 +21,7 @@ class CampaignQueryService
         private readonly ActionFeedService $actionFeedService,
         private readonly ReportFailureResolutionActionService $reportFailureResolutionActionService,
         private readonly ReportFailureResolutionEffectivenessAnalyticsService $reportFailureResolutionEffectivenessAnalyticsService,
-        private readonly ReportFeaturedFailureResolutionService $reportFeaturedFailureResolutionService,
+        private readonly ReportAdaptiveFeaturedFailureResolutionService $reportAdaptiveFeaturedFailureResolutionService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
         private readonly ReportDeliveryProfileSuggestionService $reportDeliveryProfileSuggestionService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
@@ -341,7 +341,10 @@ class CampaignQueryService
             entityType: 'campaign',
             entityId: $campaign->id,
         );
-        $featuredFailureResolution = $this->reportFeaturedFailureResolutionService->recommend(
+        $featuredFailureResolution = $this->reportAdaptiveFeaturedFailureResolutionService->recommendForEntity(
+            workspaceId: $campaign->workspace_id,
+            entityType: 'campaign',
+            entityId: $campaign->id,
             actions: $failureResolutionActions['items'],
             retryRecommendations: $retryRecommendations['items'],
             effectivenessItems: $failureResolutionEffectiveness['items'],

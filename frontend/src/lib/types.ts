@@ -1433,6 +1433,11 @@ export type ReportFeaturedFailureResolution = {
   effectiveness_status: string | null;
   effectiveness_label: string | null;
   summary: string;
+  analytics_follow_rate?: number | null;
+  analytics_featured_success_rate?: number | null;
+  analytics_override_success_rate?: number | null;
+  analytics_override_action_label?: string | null;
+  analytics_guidance?: string | null;
   metadata: {
     retryable_runs?: number;
     affected_reason_codes?: string[];

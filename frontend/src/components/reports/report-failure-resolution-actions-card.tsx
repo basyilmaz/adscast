@@ -135,6 +135,9 @@ export function ReportFailureResolutionActionsCard({
             {featuredRecommendation.provider_label ? ` / ${featuredRecommendation.provider_label}` : ""}
             {featuredRecommendation.delivery_stage_label ? ` / ${featuredRecommendation.delivery_stage_label}` : ""}
           </p>
+          {featuredRecommendation.analytics_guidance ? (
+            <p className="mt-2 text-xs muted-text">{featuredRecommendation.analytics_guidance}</p>
+          ) : null}
         </div>
       ) : null}
 

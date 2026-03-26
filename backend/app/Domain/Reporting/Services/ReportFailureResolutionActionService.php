@@ -18,7 +18,7 @@ class ReportFailureResolutionActionService
         private readonly ReportDeliveryRetryRecommendationService $reportDeliveryRetryRecommendationService,
         private readonly ReportRecipientGroupFailureReasonAnalyticsService $reportRecipientGroupFailureReasonAnalyticsService,
         private readonly ReportFailureResolutionEffectivenessAnalyticsService $reportFailureResolutionEffectivenessAnalyticsService,
-        private readonly ReportFeaturedFailureResolutionService $reportFeaturedFailureResolutionService,
+        private readonly ReportAdaptiveFeaturedFailureResolutionService $reportAdaptiveFeaturedFailureResolutionService,
         private readonly AuditLogService $auditLogService,
     ) {
     }
@@ -587,7 +587,10 @@ class ReportFailureResolutionActionService
         $effectiveness = $this->reportFailureResolutionEffectivenessAnalyticsService
             ->index($workspaceId, 90, $entityType, $entityId);
 
-        return $this->reportFeaturedFailureResolutionService->recommend(
+        return $this->reportAdaptiveFeaturedFailureResolutionService->recommendForEntity(
+            workspaceId: $workspaceId,
+            entityType: $entityType,
+            entityId: $entityId,
             actions: $actions,
             retryRecommendations: $retryRecommendations['items'],
             effectivenessItems: $effectiveness['items'],

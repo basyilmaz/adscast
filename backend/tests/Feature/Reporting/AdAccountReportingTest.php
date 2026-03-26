@@ -416,6 +416,18 @@ class AdAccountReportingTest extends TestCase
                 'action_kind' => 'api',
                 'severity' => 'warning',
                 'affected_reason_codes' => ['smtp_timeout'],
+                'featured_failure_resolution_available' => true,
+                'matches_featured_failure_resolution' => true,
+                'is_featured_failure_resolution' => true,
+                'featured_failure_resolution_status' => 'working_fix',
+                'featured_failure_resolution_status_label' => 'Calisan Duzeltme',
+                'featured_failure_resolution_source' => 'effectiveness',
+                'featured_failure_resolution_action_code' => 'retry_failed_runs',
+                'featured_failure_resolution_action_label' => 'Basarisiz teslimleri tekrar dene',
+                'featured_failure_resolution_reason_code' => 'smtp_timeout',
+                'featured_failure_resolution_reason_label' => 'SMTP Timeout',
+                'featured_failure_resolution_provider_label' => 'SMTP',
+                'featured_failure_resolution_delivery_stage_label' => 'Baglanti',
             ],
             'occurred_at' => now()->subMinutes(20),
         ]);
@@ -436,6 +448,18 @@ class AdAccountReportingTest extends TestCase
                 'outcome_status' => 'success',
                 'retried_runs' => 1,
                 'failed_retries' => 0,
+                'featured_failure_resolution_available' => true,
+                'matches_featured_failure_resolution' => true,
+                'is_featured_failure_resolution' => true,
+                'featured_failure_resolution_status' => 'working_fix',
+                'featured_failure_resolution_status_label' => 'Calisan Duzeltme',
+                'featured_failure_resolution_source' => 'effectiveness',
+                'featured_failure_resolution_action_code' => 'retry_failed_runs',
+                'featured_failure_resolution_action_label' => 'Basarisiz teslimleri tekrar dene',
+                'featured_failure_resolution_reason_code' => 'smtp_timeout',
+                'featured_failure_resolution_reason_label' => 'SMTP Timeout',
+                'featured_failure_resolution_provider_label' => 'SMTP',
+                'featured_failure_resolution_delivery_stage_label' => 'Baglanti',
             ],
             'occurred_at' => now()->subMinutes(18),
         ]);
@@ -534,6 +558,10 @@ class AdAccountReportingTest extends TestCase
             ->assertJsonPath('data.featured_failure_resolution.status', 'working_fix')
             ->assertJsonPath('data.featured_failure_resolution.action_code', 'retry_failed_runs')
             ->assertJsonPath('data.featured_failure_resolution.reason_code', 'smtp_timeout')
+            ->assertJsonPath('data.featured_failure_resolution.analytics_follow_rate', 100)
+            ->assertJsonPath('data.featured_failure_resolution.analytics_featured_success_rate', 100)
+            ->assertJsonPath('data.featured_failure_resolution.analytics_override_success_rate', null)
+            ->assertJsonPath('data.featured_failure_resolution.analytics_guidance', '1 etkileşim izlendi / takip %100.0 / onerilen basari %100.0')
             ->assertJsonPath('data.retry_recommendation_summary.total_recommendations', 1)
             ->assertJsonPath('data.retry_recommendation_summary.auto_retry_recommendations', 1)
             ->assertJsonPath('data.retry_recommendation_summary.blocked_retry_recommendations', 0)

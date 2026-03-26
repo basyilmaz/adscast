@@ -21,7 +21,7 @@ class AdAccountQueryService
         private readonly ActionFeedService $actionFeedService,
         private readonly ReportFailureResolutionActionService $reportFailureResolutionActionService,
         private readonly ReportFailureResolutionEffectivenessAnalyticsService $reportFailureResolutionEffectivenessAnalyticsService,
-        private readonly ReportFeaturedFailureResolutionService $reportFeaturedFailureResolutionService,
+        private readonly ReportAdaptiveFeaturedFailureResolutionService $reportAdaptiveFeaturedFailureResolutionService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
         private readonly ReportDeliveryProfileSuggestionService $reportDeliveryProfileSuggestionService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
@@ -322,7 +322,10 @@ class AdAccountQueryService
             entityType: 'account',
             entityId: $account->id,
         );
-        $featuredFailureResolution = $this->reportFeaturedFailureResolutionService->recommend(
+        $featuredFailureResolution = $this->reportAdaptiveFeaturedFailureResolutionService->recommendForEntity(
+            workspaceId: $account->workspace_id,
+            entityType: 'account',
+            entityId: $account->id,
             actions: $failureResolutionActions['items'],
             retryRecommendations: $retryRecommendations['items'],
             effectivenessItems: $failureResolutionEffectiveness['items'],

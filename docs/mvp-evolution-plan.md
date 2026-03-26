@@ -289,3 +289,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 50. Failure resolution effectiveness ozetini account ve campaign detail ekranlarinin report sekmesine tasiyip entity scope'unda gorunur hale getirmek
 51. Effectiveness, retry policy ve mevcut action inventory verisini birlestirip entity detail ekranlarinda otomatik one cikan duzeltme aksiyonunu secmek ve vurgulamak
 52. Entity detail ekranlarinda one cikan duzeltmenin gercekte takip edilip edilmedigini ve featured/override sonuc farkini reports merkezinde analytics olarak geri beslemek
+53. Featured failure resolution secimini entity bazli takip ve basari verisiyle adaptif hale getirip detail ekraninda statik kural yerine gozlenen sonuc kalitesine gore guncellemek
