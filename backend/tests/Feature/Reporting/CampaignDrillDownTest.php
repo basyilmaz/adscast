@@ -61,6 +61,31 @@ class CampaignDrillDownTest extends TestCase
             'is_encrypted' => false,
         ]);
 
+        Setting::query()->create([
+            'workspace_id' => $workspace->id,
+            'key' => 'reports.decision_surface_statuses',
+            'value' => [[
+                'id' => (string) Str::uuid(),
+                'entity_type' => 'campaign',
+                'entity_id' => $campaign->id,
+                'surface_key' => 'featured_fix',
+                'status' => 'deferred',
+                'created_at' => now()->subHours(2)->toDateTimeString(),
+                'updated_at' => now()->subHour()->toDateTimeString(),
+                'updated_by_name' => 'Campaign Manager',
+            ], [
+                'id' => (string) Str::uuid(),
+                'entity_type' => 'campaign',
+                'entity_id' => $campaign->id,
+                'surface_key' => 'profile',
+                'status' => 'reviewed',
+                'created_at' => now()->subHours(2)->toDateTimeString(),
+                'updated_at' => now()->subMinutes(30)->toDateTimeString(),
+                'updated_by_name' => 'Campaign Manager',
+            ]],
+            'is_encrypted' => false,
+        ]);
+
         ReportContact::query()->create([
             'workspace_id' => $workspace->id,
             'name' => 'Lead Engine Client',
@@ -222,6 +247,18 @@ class CampaignDrillDownTest extends TestCase
             ->assertJsonPath('data.failure_resolution_effectiveness_summary.total_reasons', 0)
             ->assertJsonPath('data.failure_resolution_effectiveness_summary.reasons_with_observed_fix', 0)
             ->assertJsonCount(0, 'data.failure_resolution_effectiveness')
+            ->assertJsonPath('data.decision_surface_status_summary.total_surfaces', 3)
+            ->assertJsonPath('data.decision_surface_status_summary.pending_surfaces', 1)
+            ->assertJsonPath('data.decision_surface_status_summary.reviewed_surfaces', 1)
+            ->assertJsonPath('data.decision_surface_status_summary.completed_surfaces', 0)
+            ->assertJsonPath('data.decision_surface_status_summary.deferred_surfaces', 1)
+            ->assertJsonPath('data.decision_surface_status_summary.tracked_surfaces', 2)
+            ->assertJsonPath('data.decision_surface_statuses.0.surface_key', 'featured_fix')
+            ->assertJsonPath('data.decision_surface_statuses.0.status', 'deferred')
+            ->assertJsonPath('data.decision_surface_statuses.1.surface_key', 'retry')
+            ->assertJsonPath('data.decision_surface_statuses.1.status', 'pending')
+            ->assertJsonPath('data.decision_surface_statuses.2.surface_key', 'profile')
+            ->assertJsonPath('data.decision_surface_statuses.2.status', 'reviewed')
             ->assertJsonPath('data.featured_failure_resolution', null)
             ->assertJsonPath('data.retry_recommendation_summary.total_recommendations', 0)
             ->assertJsonPath('data.retry_recommendation_summary.auto_retry_recommendations', 0)

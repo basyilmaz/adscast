@@ -281,6 +281,31 @@ class AdAccountReportingTest extends TestCase
             'is_encrypted' => false,
         ]);
 
+        Setting::query()->create([
+            'workspace_id' => $workspace->id,
+            'key' => 'reports.decision_surface_statuses',
+            'value' => [[
+                'id' => (string) Str::uuid(),
+                'entity_type' => 'account',
+                'entity_id' => $account->id,
+                'surface_key' => 'featured_fix',
+                'status' => 'completed',
+                'created_at' => now()->subHours(2)->toDateTimeString(),
+                'updated_at' => now()->subHour()->toDateTimeString(),
+                'updated_by_name' => 'Account Manager',
+            ], [
+                'id' => (string) Str::uuid(),
+                'entity_type' => 'account',
+                'entity_id' => $account->id,
+                'surface_key' => 'retry',
+                'status' => 'reviewed',
+                'created_at' => now()->subHours(2)->toDateTimeString(),
+                'updated_at' => now()->subMinutes(45)->toDateTimeString(),
+                'updated_by_name' => 'Account Manager',
+            ]],
+            'is_encrypted' => false,
+        ]);
+
         ReportContact::query()->create([
             'workspace_id' => $workspace->id,
             'name' => 'Main Contact',
@@ -562,6 +587,18 @@ class AdAccountReportingTest extends TestCase
             ->assertJsonPath('data.featured_failure_resolution.analytics_featured_success_rate', 100)
             ->assertJsonPath('data.featured_failure_resolution.analytics_override_success_rate', null)
             ->assertJsonPath('data.featured_failure_resolution.analytics_guidance', '1 etkileşim izlendi / takip %100.0 / onerilen basari %100.0')
+            ->assertJsonPath('data.decision_surface_status_summary.total_surfaces', 3)
+            ->assertJsonPath('data.decision_surface_status_summary.pending_surfaces', 1)
+            ->assertJsonPath('data.decision_surface_status_summary.reviewed_surfaces', 1)
+            ->assertJsonPath('data.decision_surface_status_summary.completed_surfaces', 1)
+            ->assertJsonPath('data.decision_surface_status_summary.deferred_surfaces', 0)
+            ->assertJsonPath('data.decision_surface_status_summary.tracked_surfaces', 2)
+            ->assertJsonPath('data.decision_surface_statuses.0.surface_key', 'featured_fix')
+            ->assertJsonPath('data.decision_surface_statuses.0.status', 'completed')
+            ->assertJsonPath('data.decision_surface_statuses.1.surface_key', 'retry')
+            ->assertJsonPath('data.decision_surface_statuses.1.status', 'reviewed')
+            ->assertJsonPath('data.decision_surface_statuses.2.surface_key', 'profile')
+            ->assertJsonPath('data.decision_surface_statuses.2.status', 'pending')
             ->assertJsonPath('data.retry_recommendation_summary.total_recommendations', 1)
             ->assertJsonPath('data.retry_recommendation_summary.auto_retry_recommendations', 1)
             ->assertJsonPath('data.retry_recommendation_summary.blocked_retry_recommendations', 0)

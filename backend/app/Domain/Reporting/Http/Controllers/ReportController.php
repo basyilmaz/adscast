@@ -7,6 +7,7 @@ use App\Domain\Reporting\Http\Requests\StoreReportContactRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliverySetupRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportRecipientPresetRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliveryScheduleRequest;
+use App\Domain\Reporting\Http\Requests\UpsertReportDecisionSurfaceStatusRequest;
 use App\Domain\Reporting\Http\Requests\ResolveReportRecipientGroupSuggestionsRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportShareLinkRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportTemplateRequest;
@@ -19,6 +20,7 @@ use App\Domain\Reporting\Services\ReportFailureResolutionActionAnalyticsService;
 use App\Domain\Reporting\Services\ReportFailureResolutionEffectivenessAnalyticsService;
 use App\Domain\Reporting\Services\ReportFeaturedFailureResolutionAnalyticsService;
 use App\Domain\Reporting\Services\ReportFeaturedFailureResolutionDecisionService;
+use App\Domain\Reporting\Services\ReportDecisionSurfaceStatusService;
 use App\Domain\Reporting\Services\ReportRecipientGroupAdvisorService;
 use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
@@ -53,6 +55,7 @@ class ReportController
         private readonly ReportFailureResolutionEffectivenessAnalyticsService $reportFailureResolutionEffectivenessAnalyticsService,
         private readonly ReportFeaturedFailureResolutionAnalyticsService $reportFeaturedFailureResolutionAnalyticsService,
         private readonly ReportFeaturedFailureResolutionDecisionService $reportFeaturedFailureResolutionDecisionService,
+        private readonly ReportDecisionSurfaceStatusService $reportDecisionSurfaceStatusService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
@@ -329,6 +332,30 @@ class ReportController
         return new JsonResponse([
             'message' => 'Varsayilan teslim profili kaydedildi.',
             'data' => $profile,
+        ]);
+    }
+
+    public function upsertDecisionSurfaceStatus(
+        UpsertReportDecisionSurfaceStatusRequest $request,
+        string $entityType,
+        string $entityId,
+        string $surfaceKey,
+    ): JsonResponse {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $status = $this->reportDecisionSurfaceStatusService->upsert(
+            workspace: $workspace,
+            entityType: $entityType,
+            entityId: $entityId,
+            surfaceKey: $surfaceKey,
+            status: $request->validated('status'),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Decision surface durumu kaydedildi.',
+            'data' => $status,
         ]);
     }
 

@@ -200,6 +200,8 @@ export type AdAccountDetailResponse = {
     failure_resolution_effectiveness_summary: ReportFailureResolutionEffectivenessSummary;
     failure_resolution_effectiveness: ReportFailureResolutionEffectivenessItem[];
     featured_failure_resolution: ReportFeaturedFailureResolution | null;
+    decision_surface_status_summary: ReportDecisionSurfaceStatusSummary;
+    decision_surface_statuses: ReportDecisionSurfaceStatusItem[];
     retry_recommendation_summary: ReportDeliveryRetryRecommendationSummary;
     retry_recommendations: ReportDeliveryRetryRecommendationItem[];
     failure_resolution_summary: ReportFailureResolutionSummary;
@@ -350,6 +352,8 @@ export type CampaignDetailResponse = {
     failure_resolution_effectiveness_summary: ReportFailureResolutionEffectivenessSummary;
     failure_resolution_effectiveness: ReportFailureResolutionEffectivenessItem[];
     featured_failure_resolution: ReportFeaturedFailureResolution | null;
+    decision_surface_status_summary: ReportDecisionSurfaceStatusSummary;
+    decision_surface_statuses: ReportDecisionSurfaceStatusItem[];
     retry_recommendation_summary: ReportDeliveryRetryRecommendationSummary;
     retry_recommendations: ReportDeliveryRetryRecommendationItem[];
     failure_resolution_summary: ReportFailureResolutionSummary;
@@ -1364,6 +1368,32 @@ export type ReportDeliveryRetryRecommendationSummary = {
   retry_after_fix_recommendations: number;
   blocked_retry_recommendations: number;
   top_policy_label: string | null;
+};
+
+export type ReportDecisionSurfaceKey = "featured_fix" | "retry" | "profile";
+
+export type ReportDecisionSurfaceStatusSummary = {
+  total_surfaces: number;
+  pending_surfaces: number;
+  reviewed_surfaces: number;
+  completed_surfaces: number;
+  deferred_surfaces: number;
+  tracked_surfaces: number;
+};
+
+export type ReportDecisionSurfaceStatusItem = {
+  id: string;
+  entity_type: "account" | "campaign" | string;
+  entity_id: string;
+  surface_key: ReportDecisionSurfaceKey | string;
+  surface_label: string;
+  status: "pending" | "reviewed" | "completed" | "deferred" | string;
+  status_label: string;
+  is_default: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+  updated_by_user_id: string | null;
+  updated_by_name: string | null;
 };
 
 export type ReportDeliveryRetryRecommendationItem = {

@@ -87,6 +87,8 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('workspace.permission:settings.manage');
             Route::put('/reports/delivery-profiles/{entityType}/{entityId}', [ReportController::class, 'upsertDeliveryProfile'])
                 ->middleware('workspace.permission:settings.manage');
+            Route::put('/reports/decision-surface-statuses/{entityType}/{entityId}/{surfaceKey}', [ReportController::class, 'upsertDecisionSurfaceStatus'])
+                ->middleware('workspace.permission:settings.manage');
             Route::post('/reports/delivery-profiles/{entityType}/{entityId}/toggle', [ReportController::class, 'toggleDeliveryProfile'])
                 ->middleware('workspace.permission:settings.manage');
             Route::delete('/reports/delivery-profiles/{entityType}/{entityId}', [ReportController::class, 'deleteDeliveryProfile'])

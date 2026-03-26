@@ -18,6 +18,7 @@ use App\Models\ReportDeliverySchedule;
 use App\Models\ReportShareLink;
 use App\Models\ReportSnapshot;
 use App\Models\ReportTemplate;
+use App\Models\Setting;
 use App\Models\Workspace;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\TenantSeeder;
@@ -2161,6 +2162,43 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.delivery_profiles.0.resolved_recipients_count', 1)
             ->assertJsonPath('data.delivery_profiles.0.recipient_group_summary.mode', 'segment')
             ->assertJsonPath('data.delivery_profiles.0.recipient_group_summary.dynamic_contacts_count', 1);
+    }
+
+    public function test_decision_surface_status_can_be_saved_for_entity(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+        $expectedActorName = \App\Models\User::query()
+            ->where('email', 'agency.admin@adscast.test')
+            ->value('name');
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->putJson("/api/v1/reports/decision-surface-statuses/account/{$account->id}/featured_fix", [
+                'status' => 'completed',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.entity_type', 'account')
+            ->assertJsonPath('data.entity_id', $account->id)
+            ->assertJsonPath('data.surface_key', 'featured_fix')
+            ->assertJsonPath('data.status', 'completed')
+            ->assertJsonPath('data.status_label', 'Tamamlandi')
+            ->assertJsonPath('data.updated_by_name', $expectedActorName);
+
+        $setting = Setting::query()
+            ->where('workspace_id', $workspace->id)
+            ->where('key', 'reports.decision_surface_statuses')
+            ->first();
+
+        $this->assertNotNull($setting);
+        $this->assertSame('featured_fix', data_get($setting?->value, '0.surface_key'));
+        $this->assertSame('completed', data_get($setting?->value, '0.status'));
+
+        $this->assertDatabaseHas('audit_logs', [
+            'workspace_id' => $workspace->id,
+            'action' => 'report_decision_surface_status_upserted',
+            'target_type' => 'report_decision_surface_status',
+        ]);
     }
 
     /**

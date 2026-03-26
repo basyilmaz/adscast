@@ -110,6 +110,11 @@ export function AdAccountDetailClient() {
     ];
   }, [data]);
 
+  const decisionSurfaceStatusMap = useMemo(
+    () => new Map(data?.decision_surface_statuses.map((item) => [item.surface_key, item]) ?? []),
+    [data],
+  );
+
   if (!hasAdAccountId) {
     return <PageErrorState title="Reklam hesabi acilamadi" detail="Reklam hesabi id eksik." />;
   }
@@ -413,12 +418,20 @@ export function AdAccountDetailClient() {
             retrySummary={data.retry_recommendation_summary}
             retryItems={data.retry_recommendations}
             suggestion={data.suggested_delivery_profile}
+            decisionSurfaceStatusSummary={data.decision_surface_status_summary}
+            decisionSurfaceStatuses={data.decision_surface_statuses}
             focusActionCode={focusActionCode}
             focusReasonCode={focusReasonCode}
             focusSource={focusSource}
           />
 
-          <ReportDecisionSurfaceSection surfaceKey="featured_fix">
+          <ReportDecisionSurfaceSection
+            surfaceKey="featured_fix"
+            entityType="account"
+            entityId={data.ad_account.id}
+            statusItem={decisionSurfaceStatusMap.get("featured_fix") ?? null}
+            onStatusChanged={reload}
+          >
             <ReportFailureResolutionActionsCard
               entityType="account"
               entityId={data.ad_account.id}
@@ -433,7 +446,13 @@ export function AdAccountDetailClient() {
             />
           </ReportDecisionSurfaceSection>
 
-          <ReportDecisionSurfaceSection surfaceKey="retry">
+          <ReportDecisionSurfaceSection
+            surfaceKey="retry"
+            entityType="account"
+            entityId={data.ad_account.id}
+            statusItem={decisionSurfaceStatusMap.get("retry") ?? null}
+            onStatusChanged={reload}
+          >
             <ReportDeliveryRetryRecommendationsPanel
               summary={data.retry_recommendation_summary}
               items={data.retry_recommendations}
@@ -445,7 +464,13 @@ export function AdAccountDetailClient() {
             />
           </ReportDecisionSurfaceSection>
 
-          <ReportDecisionSurfaceSection surfaceKey="profile">
+          <ReportDecisionSurfaceSection
+            surfaceKey="profile"
+            entityType="account"
+            entityId={data.ad_account.id}
+            statusItem={decisionSurfaceStatusMap.get("profile") ?? null}
+            onStatusChanged={reload}
+          >
             <ReportDeliveryProfileSuggestionCard
               suggestion={data.suggested_delivery_profile}
               entityLabel={data.ad_account.name}

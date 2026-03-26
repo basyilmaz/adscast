@@ -2,20 +2,33 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { ReportDecisionSurfaceStatusBar } from "@/components/reports/report-decision-surface-status-bar";
 import {
   reportDecisionSurfaceId,
   REPORT_DECISION_SURFACE_FOCUS_EVENT,
   ReportDecisionSurfaceKey,
 } from "@/lib/report-failure-focus";
+import { ReportDecisionSurfaceStatusItem } from "@/lib/types";
 
 type Props = {
   surfaceKey: ReportDecisionSurfaceKey;
+  entityType?: "account" | "campaign";
+  entityId?: string;
+  statusItem?: ReportDecisionSurfaceStatusItem | null;
+  onStatusChanged?: () => Promise<void> | void;
   children: React.ReactNode;
 };
 
 const HIGHLIGHT_DURATION_MS = 2400;
 
-export function ReportDecisionSurfaceSection({ surfaceKey, children }: Props) {
+export function ReportDecisionSurfaceSection({
+  surfaceKey,
+  entityType,
+  entityId,
+  statusItem,
+  onStatusChanged,
+  children,
+}: Props) {
   const [isHighlighted, setIsHighlighted] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const surfaceId = reportDecisionSurfaceId(surfaceKey);
@@ -77,6 +90,15 @@ export function ReportDecisionSurfaceSection({ surfaceKey, children }: Props) {
         <div className="mb-2 flex justify-end">
           <Badge label="Odaklandi" variant="warning" />
         </div>
+      ) : null}
+      {entityType && entityId && statusItem ? (
+        <ReportDecisionSurfaceStatusBar
+          entityType={entityType}
+          entityId={entityId}
+          surfaceKey={surfaceKey}
+          statusItem={statusItem}
+          onChanged={onStatusChanged}
+        />
       ) : null}
       {children}
     </div>

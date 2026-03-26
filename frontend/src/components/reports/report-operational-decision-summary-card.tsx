@@ -17,6 +17,8 @@ import {
 } from "@/lib/report-failure-focus";
 import {
   ReportDeliveryProfileSuggestion,
+  ReportDecisionSurfaceStatusItem,
+  ReportDecisionSurfaceStatusSummary,
   ReportDeliveryRetryRecommendationItem,
   ReportDeliveryRetryRecommendationSummary,
   ReportFeaturedFailureResolution,
@@ -28,6 +30,8 @@ type Props = {
   retrySummary: ReportDeliveryRetryRecommendationSummary;
   retryItems: ReportDeliveryRetryRecommendationItem[];
   suggestion?: ReportDeliveryProfileSuggestion | null;
+  decisionSurfaceStatusSummary: ReportDecisionSurfaceStatusSummary;
+  decisionSurfaceStatuses: ReportDecisionSurfaceStatusItem[];
   focusActionCode?: string | null;
   focusReasonCode?: string | null;
   focusSource?: string | null;
@@ -40,6 +44,7 @@ type SurfaceDecision = {
   detail: string;
   priority: number;
   badges: string[];
+  statusLabel?: string;
 };
 
 export function ReportOperationalDecisionSummaryCard({
@@ -48,6 +53,8 @@ export function ReportOperationalDecisionSummaryCard({
   retrySummary,
   retryItems,
   suggestion,
+  decisionSurfaceStatusSummary,
+  decisionSurfaceStatuses,
   focusActionCode,
   focusReasonCode,
   focusSource,
@@ -62,11 +69,36 @@ export function ReportOperationalDecisionSummaryCard({
   const focusProfile = suggestion
     ? isFocusedDeliveryProfileSuggestion(suggestion, focusActionCode, focusReasonCode, featuredRecommendation)
     : false;
+  const statusMap = new Map(
+    decisionSurfaceStatuses.map((item) => [item.surface_key, item] as const),
+  );
 
   const decisions = [
-    buildFeaturedDecision(featuredRecommendation, focusActionCode, focusReasonCode, focusSource),
-    buildRetryDecision(topRetryItem, retrySummary, focusActionCode, focusReasonCode, focusSource, featuredRecommendation),
-    buildProfileDecision(suggestion, focusProfile, focusActionCode, focusReasonCode, focusSource, featuredRecommendation),
+    buildFeaturedDecision(
+      featuredRecommendation,
+      statusMap.get("featured_fix") ?? null,
+      focusActionCode,
+      focusReasonCode,
+      focusSource,
+    ),
+    buildRetryDecision(
+      topRetryItem,
+      retrySummary,
+      statusMap.get("retry") ?? null,
+      focusActionCode,
+      focusReasonCode,
+      focusSource,
+      featuredRecommendation,
+    ),
+    buildProfileDecision(
+      suggestion,
+      statusMap.get("profile") ?? null,
+      focusProfile,
+      focusActionCode,
+      focusReasonCode,
+      focusSource,
+      featuredRecommendation,
+    ),
   ].filter((value): value is SurfaceDecision => value !== null);
 
   const primaryDecision = decisions.sort((left, right) => right.priority - left.priority)[0] ?? null;
@@ -89,11 +121,19 @@ export function ReportOperationalDecisionSummaryCard({
         </div>
       ) : null}
 
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Beklemede" value={decisionSurfaceStatusSummary.pending_surfaces} />
+        <Metric label="Gozden Gecirildi" value={decisionSurfaceStatusSummary.reviewed_surfaces} />
+        <Metric label="Tamamlandi" value={decisionSurfaceStatusSummary.completed_surfaces} />
+        <Metric label="Ertelendi" value={decisionSurfaceStatusSummary.deferred_surfaces} />
+      </div>
+
       {primaryDecision ? (
         <div className="mt-4 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/5 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge label="Simdi Once" variant="warning" />
             <Badge label={primaryDecision.surfaceLabel} variant="neutral" />
+            {primaryDecision.statusLabel ? <Badge label={primaryDecision.statusLabel} variant="neutral" /> : null}
             {primaryDecision.badges.map((badge) => (
               <Badge key={badge} label={badge} variant="success" />
             ))}
@@ -118,6 +158,7 @@ export function ReportOperationalDecisionSummaryCard({
           title="Hizli Duzeltme"
           value={featuredRecommendation?.action_label ?? "Kayitli featured fix yok"}
           note={featuredRecommendation?.reason_label ?? "Failure reason odagi yok"}
+          statusItem={statusMap.get("featured_fix") ?? null}
           onJump={focusReportDecisionSurface}
         />
         <SurfaceSummary
@@ -125,6 +166,7 @@ export function ReportOperationalDecisionSummaryCard({
           title="Retry Rehberi"
           value={topRetryItem ? `${topRetryItem.label} / ${topRetryItem.retry_policy_label}` : "Kayitli retry karari yok"}
           note={topRetryItem?.operator_note ?? "Retry odagi yok"}
+          statusItem={statusMap.get("retry") ?? null}
           onJump={focusReportDecisionSurface}
         />
         <SurfaceSummary
@@ -132,6 +174,7 @@ export function ReportOperationalDecisionSummaryCard({
           title="Profil Onerisi"
           value={suggestion?.recipient_preset_name ?? "Kayitli profil onerisi yok"}
           note={suggestion?.reason ?? "Profil odagi yok"}
+          statusItem={statusMap.get("profile") ?? null}
           onJump={focusReportDecisionSurface}
         />
       </div>
@@ -141,6 +184,7 @@ export function ReportOperationalDecisionSummaryCard({
 
 function buildFeaturedDecision(
   featuredRecommendation?: ReportFeaturedFailureResolution | null,
+  statusItem?: ReportDecisionSurfaceStatusItem | null,
   focusActionCode?: string | null,
   focusReasonCode?: string | null,
   focusSource?: string | null,
@@ -166,19 +210,23 @@ function buildFeaturedDecision(
     badges.push("Calisiyor");
   }
 
+  const adjusted = withStatusWeight(priority, badges, statusItem);
+
   return {
     key: "featured_fix",
     surfaceLabel: "Featured Fix",
     title: featuredRecommendation.action_label,
     detail: featuredRecommendationExplanation(featuredRecommendation, focusActionCode, focusReasonCode, focusSource),
-    priority,
-    badges,
+    priority: adjusted.priority,
+    badges: adjusted.badges,
+    statusLabel: statusItem?.status_label,
   };
 }
 
 function buildRetryDecision(
   topRetryItem: ReportDeliveryRetryRecommendationItem | null,
   retrySummary: ReportDeliveryRetryRecommendationSummary,
+  statusItem?: ReportDecisionSurfaceStatusItem | null,
   focusActionCode?: string | null,
   focusReasonCode?: string | null,
   focusSource?: string | null,
@@ -211,6 +259,8 @@ function buildRetryDecision(
     priority += 10;
   }
 
+  const adjusted = withStatusWeight(priority, badges, statusItem);
+
   return {
     key: "retry",
     surfaceLabel: "Retry Rehberi",
@@ -222,13 +272,15 @@ function buildRetryDecision(
       focusSource,
       featuredRecommendation,
     ),
-    priority,
-    badges,
+    priority: adjusted.priority,
+    badges: adjusted.badges,
+    statusLabel: statusItem?.status_label,
   };
 }
 
 function buildProfileDecision(
   suggestion: ReportDeliveryProfileSuggestion | null | undefined,
+  statusItem: ReportDecisionSurfaceStatusItem | null | undefined,
   isFocused: boolean,
   focusActionCode?: string | null,
   focusReasonCode?: string | null,
@@ -260,6 +312,8 @@ function buildProfileDecision(
     badges.push("Tek Tikla Uygulanabilir");
   }
 
+  const adjusted = withStatusWeight(priority, badges, statusItem);
+
   return {
     key: "profile",
     surfaceLabel: "Profil Onerisi",
@@ -271,8 +325,9 @@ function buildProfileDecision(
       focusSource,
       featuredRecommendation,
     ),
-    priority,
-    badges,
+    priority: adjusted.priority,
+    badges: adjusted.badges,
+    statusLabel: statusItem?.status_label,
   };
 }
 
@@ -281,19 +336,29 @@ function SurfaceSummary({
   title,
   value,
   note,
+  statusItem,
   onJump,
 }: {
   surfaceKey: ReportDecisionSurfaceKey;
   title: string;
   value: string;
   note: string;
+  statusItem: ReportDecisionSurfaceStatusItem | null;
   onJump: (key: ReportDecisionSurfaceKey) => void;
 }) {
   return (
     <div className="rounded-lg border border-[var(--border)] px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wide muted-text">{title}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide muted-text">{title}</p>
+        {statusItem ? <Badge label={statusItem.status_label} variant="neutral" /> : null}
+      </div>
       <p className="mt-2 text-sm font-semibold">{value}</p>
       <p className="mt-2 text-xs muted-text">{note}</p>
+      {statusItem?.updated_at ? (
+        <p className="mt-2 text-xs muted-text">
+          {statusItem.updated_by_name ?? "Operator"} / {statusItem.updated_at}
+        </p>
+      ) : null}
       <div className="mt-3">
         <Button type="button" size="sm" variant="secondary" onClick={() => onJump(surfaceKey)}>
           Yuzeye git
@@ -301,4 +366,38 @@ function SurfaceSummary({
       </div>
     </div>
   );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] px-3 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide muted-text">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function withStatusWeight(
+  priority: number,
+  badges: string[],
+  statusItem?: ReportDecisionSurfaceStatusItem | null,
+) {
+  if (!statusItem) {
+    return { priority, badges };
+  }
+
+  let nextPriority = priority;
+
+  if (statusItem.status === "reviewed") {
+    nextPriority -= 10;
+  } else if (statusItem.status === "deferred") {
+    nextPriority -= 20;
+  } else if (statusItem.status === "completed") {
+    nextPriority -= 30;
+  }
+
+  return {
+    priority: nextPriority,
+    badges,
+  };
 }

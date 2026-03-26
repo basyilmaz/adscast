@@ -22,6 +22,7 @@ class AdAccountQueryService
         private readonly ReportFailureResolutionActionService $reportFailureResolutionActionService,
         private readonly ReportFailureResolutionEffectivenessAnalyticsService $reportFailureResolutionEffectivenessAnalyticsService,
         private readonly ReportAdaptiveFeaturedFailureResolutionService $reportAdaptiveFeaturedFailureResolutionService,
+        private readonly ReportDecisionSurfaceStatusService $reportDecisionSurfaceStatusService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
         private readonly ReportDeliveryProfileSuggestionService $reportDeliveryProfileSuggestionService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
@@ -330,6 +331,11 @@ class AdAccountQueryService
             retryRecommendations: $retryRecommendations['items'],
             effectivenessItems: $failureResolutionEffectiveness['items'],
         );
+        $decisionSurfaceStatuses = $this->reportDecisionSurfaceStatusService->forEntity(
+            $account->workspace_id,
+            'account',
+            $account->id,
+        );
 
         return [
             'range' => [
@@ -376,6 +382,8 @@ class AdAccountQueryService
             'failure_resolution_effectiveness_summary' => $failureResolutionEffectiveness['summary'],
             'failure_resolution_effectiveness' => $failureResolutionEffectiveness['items'],
             'featured_failure_resolution' => $featuredFailureResolution,
+            'decision_surface_status_summary' => $decisionSurfaceStatuses['summary'],
+            'decision_surface_statuses' => $decisionSurfaceStatuses['items'],
             'retry_recommendation_summary' => $retryRecommendations['summary'],
             'retry_recommendations' => $retryRecommendations['items'],
             'failure_resolution_summary' => $failureResolutionActions['summary'],

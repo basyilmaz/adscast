@@ -24,6 +24,7 @@ Base path: `/api/v1`
   - `suggested_delivery_profile` ile rule-managed template kaynakli varsayilan teslim profili onerisi doner
   - `failure_resolution_effectiveness_summary` ve `failure_resolution_effectiveness[]` ile kampanya scope'unda hangi duzeltmenin gercekten ise yaradigini doner
   - `featured_failure_resolution` ile entity bazinda otomatik olarak one cikarilan duzeltme aksiyonunu doner
+  - `decision_surface_status_summary` ve `decision_surface_statuses[]` ile report sekmesindeki featured fix / retry / profil onerisi yuzeylerinin operator takip durumunu doner
   - `retry_recommendation_summary` ve `retry_recommendations[]` ile provider/asama bazli retry politikasini doner
   - `recipient_group_failure_alignment_summary` ve `recipient_group_failure_alignment[]` ile kampanya scope'unda failure reason dagiliminin onerilen grup mu yoksa override secimi mi tarafinda biriktigini doner
   - `failure_resolution_summary` ve `failure_resolution_actions[]` ile tek tik duzeltme aksiyonlarini doner
@@ -69,6 +70,9 @@ Base path: `/api/v1`
 - `DELETE /reports/recipient-presets/{presetId}` (`settings.manage`)
 - `PUT /reports/delivery-profiles/{entityType}/{entityId}` (`settings.manage`)
   - `recipient_preset_id`, `recipients` ve/veya `contact_tags[]` ile varsayilan teslim profili kaydedilebilir
+- `PUT /reports/decision-surface-statuses/{entityType}/{entityId}/{surfaceKey}` (`settings.manage`)
+  - `status`: `pending|reviewed|completed|deferred`
+  - report sekmesindeki `featured_fix`, `retry` veya `profile` yuzeyi icin operator takip durumunu kaydeder
 - `POST /reports/delivery-profiles/{entityType}/{entityId}/toggle` (`settings.manage`)
 - `DELETE /reports/delivery-profiles/{entityType}/{entityId}` (`settings.manage`)
 - `POST /reports/delivery-setups` (`settings.manage`)
@@ -105,6 +109,7 @@ Base path: `/api/v1`
   - `suggested_delivery_profile` ile rule-managed template kaynakli varsayilan teslim profili onerisi doner
   - `failure_resolution_effectiveness_summary` ve `failure_resolution_effectiveness[]` ile hesap scope'unda hangi duzeltmenin gercekten ise yaradigini doner
   - `featured_failure_resolution` ile entity bazinda otomatik olarak one cikarilan duzeltme aksiyonunu doner
+  - `decision_surface_status_summary` ve `decision_surface_statuses[]` ile report sekmesindeki featured fix / retry / profil onerisi yuzeylerinin operator takip durumunu doner
   - `retry_recommendation_summary` ve `retry_recommendations[]` ile provider/asama bazli retry politikasini doner
   - `recipient_group_failure_alignment_summary` ve `recipient_group_failure_alignment[]` ile hesap scope'unda failure reason dagiliminin onerilen grup mu yoksa override secimi mi tarafinda biriktigini doner
   - `failure_resolution_summary` ve `failure_resolution_actions[]` ile tek tik duzeltme aksiyonlarini doner
