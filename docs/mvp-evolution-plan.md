@@ -296,3 +296,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 57. Focus ile acilan detail ekraninda hizli duzeltme kartinin aciklamasini hata nedeni ve aksiyon baglamina gore context-aware hale getirmek
 58. Detail ekraninda retry rehberi ve featured fix yuzeyini de ayni focus baglamina hizalayip tek bir operasyonel odak dili olusturmak
 59. Ayni focus baglamini delivery profile suggestion kartina da tasiyip detail ekranindaki uc karar yuzeyini tek bir aciklanabilir karar akisinda birlestirmek
+60. Detail ekraninin report sekmesinde uc karar yuzeyini tek bir "once ne yapmaliyim" cevap bloğunda birlestiren operasyon karari ozeti katmani eklemek

@@ -12,6 +12,7 @@ import { PageErrorState, PageLoadingState } from "@/components/ui/page-state";
 import { NextBestActionsPanel } from "@/components/operations/next-best-actions-panel";
 import { ReportDeliveryProfileManager } from "@/components/reports/report-delivery-profile-manager";
 import { ReportFailureResolutionActionsCard } from "@/components/reports/report-failure-resolution-actions-card";
+import { ReportOperationalDecisionSummaryCard } from "@/components/reports/report-operational-decision-summary-card";
 import { ReportDeliveryProfileSuggestionCard } from "@/components/reports/report-delivery-profile-suggestion-card";
 import { ReportDeliveryRetryRecommendationsPanel } from "@/components/reports/report-delivery-retry-recommendations-panel";
 import { ReportRecipientGroupEntityInsightsPanel } from "@/components/reports/report-recipient-group-entity-insights-panel";
@@ -494,6 +495,17 @@ export function CampaignDetailClient() {
 
       {activeTab === "report" ? (
         <section className="space-y-4">
+          <ReportOperationalDecisionSummaryCard
+            entityLabel={data.campaign.name}
+            featuredRecommendation={data.featured_failure_resolution}
+            retrySummary={data.retry_recommendation_summary}
+            retryItems={data.retry_recommendations}
+            suggestion={data.suggested_delivery_profile}
+            focusActionCode={focusActionCode}
+            focusReasonCode={focusReasonCode}
+            focusSource={focusSource}
+          />
+
           <ReportFailureResolutionActionsCard
             entityType="campaign"
             entityId={data.campaign.id}
