@@ -290,3 +290,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 51. Effectiveness, retry policy ve mevcut action inventory verisini birlestirip entity detail ekranlarinda otomatik one cikan duzeltme aksiyonunu secmek ve vurgulamak
 52. Entity detail ekranlarinda one cikan duzeltmenin gercekte takip edilip edilmedigini ve featured/override sonuc farkini reports merkezinde analytics olarak geri beslemek
 53. Featured failure resolution secimini entity bazli takip ve basari verisiyle adaptif hale getirip detail ekraninda statik kural yerine gozlenen sonuc kalitesine gore guncellemek
+54. Reports merkezine featured karar mantigi paneli ekleyip effectiveness ve featured analytics verisini birlestirerek hangi fix'in neden one cikarildigini aciklanabilir hale getirmek

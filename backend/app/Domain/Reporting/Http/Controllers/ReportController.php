@@ -18,6 +18,7 @@ use App\Domain\Reporting\Services\ReportFailureResolutionActionService;
 use App\Domain\Reporting\Services\ReportFailureResolutionActionAnalyticsService;
 use App\Domain\Reporting\Services\ReportFailureResolutionEffectivenessAnalyticsService;
 use App\Domain\Reporting\Services\ReportFeaturedFailureResolutionAnalyticsService;
+use App\Domain\Reporting\Services\ReportFeaturedFailureResolutionDecisionService;
 use App\Domain\Reporting\Services\ReportRecipientGroupAdvisorService;
 use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
@@ -51,6 +52,7 @@ class ReportController
         private readonly ReportFailureResolutionActionAnalyticsService $reportFailureResolutionActionAnalyticsService,
         private readonly ReportFailureResolutionEffectivenessAnalyticsService $reportFailureResolutionEffectivenessAnalyticsService,
         private readonly ReportFeaturedFailureResolutionAnalyticsService $reportFeaturedFailureResolutionAnalyticsService,
+        private readonly ReportFeaturedFailureResolutionDecisionService $reportFeaturedFailureResolutionDecisionService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
@@ -83,6 +85,10 @@ class ReportController
         $failureResolutionActionAnalytics = $this->reportFailureResolutionActionAnalyticsService->index($workspaceId);
         $failureResolutionEffectiveness = $this->reportFailureResolutionEffectivenessAnalyticsService->index($workspaceId);
         $featuredFailureResolutionAnalytics = $this->reportFeaturedFailureResolutionAnalyticsService->index($workspaceId);
+        $featuredFailureResolutionDecisions = $this->reportFeaturedFailureResolutionDecisionService->build(
+            effectivenessItems: $failureResolutionEffectiveness['items'],
+            featuredAnalyticsItems: $featuredFailureResolutionAnalytics['items'],
+        );
         $shareSummary = $this->reportShareLinkService->summary($workspaceId);
 
         return new JsonResponse([
@@ -115,6 +121,8 @@ class ReportController
                     'failure_resolution_effectiveness' => $failureResolutionEffectiveness['items'],
                     'featured_failure_resolution_analytics_summary' => $featuredFailureResolutionAnalytics['summary'],
                     'featured_failure_resolution_analytics' => $featuredFailureResolutionAnalytics['items'],
+                    'featured_failure_resolution_decision_summary' => $featuredFailureResolutionDecisions['summary'],
+                    'featured_failure_resolution_decisions' => $featuredFailureResolutionDecisions['items'],
                     'delivery_profile_summary' => $profileIndex['summary'],
                     'delivery_profiles' => $profileIndex['items'],
                     'delivery_summary' => $deliveryIndex['summary'],

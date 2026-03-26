@@ -1603,6 +1603,39 @@ export type ReportFeaturedFailureResolutionAnalyticsItem = {
   last_seen_at: string | null;
 };
 
+export type ReportFeaturedFailureResolutionDecisionSummary = {
+  total_reasons: number;
+  analytics_override_preferred: number;
+  working_featured: number;
+  manual_followup: number;
+  default_recommendation: number;
+  top_selected_action_label: string | null;
+};
+
+export type ReportFeaturedFailureResolutionDecisionItem = {
+  reason_code: string;
+  reason_label: string;
+  provider_label: string | null;
+  delivery_stage_label: string | null;
+  failed_runs: number;
+  decision_status: string;
+  decision_status_label: string;
+  source: string;
+  selected_action_code: string | null;
+  selected_action_label: string;
+  recommended_action_code: string | null;
+  recommended_action_label: string | null;
+  top_observed_action_label: string | null;
+  follow_rate: number | null;
+  featured_success_rate: number | null;
+  override_success_rate: number | null;
+  top_override_action_label: string | null;
+  tracked_interactions: number;
+  featured_interactions: number;
+  override_interactions: number;
+  why_selected: string;
+};
+
 export type ReportDeliveryProfileSuggestion = {
   status: string;
   status_label: string;
@@ -1820,6 +1853,7 @@ export type ReportIndexResponse = {
     failure_resolution_action_analytics_summary: ReportFailureResolutionActionAnalyticsSummary;
     failure_resolution_effectiveness_summary: ReportFailureResolutionEffectivenessSummary;
     featured_failure_resolution_analytics_summary: ReportFeaturedFailureResolutionAnalyticsSummary;
+    featured_failure_resolution_decision_summary: ReportFeaturedFailureResolutionDecisionSummary;
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1870,6 +1904,7 @@ export type ReportIndexResponse = {
     failure_resolution_action_analytics: ReportFailureResolutionActionAnalyticsItem[];
     failure_resolution_effectiveness: ReportFailureResolutionEffectivenessItem[];
     featured_failure_resolution_analytics: ReportFeaturedFailureResolutionAnalyticsItem[];
+    featured_failure_resolution_decisions: ReportFeaturedFailureResolutionDecisionItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];

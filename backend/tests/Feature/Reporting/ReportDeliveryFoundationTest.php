@@ -731,6 +731,35 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.action_code', 'review_recipient_groups');
 
+        AuditLog::query()->create([
+            'workspace_id' => $workspace->id,
+            'actor_id' => $workspace->users()->where('email', 'agency.admin@adscast.test')->value('users.id'),
+            'action' => 'report_failure_resolution_action_executed',
+            'target_type' => 'campaign',
+            'target_id' => $campaign->id,
+            'occurred_at' => now(),
+            'metadata' => [
+                'action_code' => 'review_recipient_groups',
+                'action_label' => 'Alici grubunu duzelt',
+                'action_kind' => 'route',
+                'severity' => 'warning',
+                'affected_reason_codes' => ['recipient_rejected'],
+                'outcome_status' => 'success',
+                'featured_failure_resolution_available' => true,
+                'matches_featured_failure_resolution' => false,
+                'is_featured_failure_resolution' => false,
+                'featured_failure_resolution_status' => 'blocked_retry',
+                'featured_failure_resolution_status_label' => 'Retry Bloklu',
+                'featured_failure_resolution_source' => 'retry_policy',
+                'featured_failure_resolution_action_code' => 'review_contact_book',
+                'featured_failure_resolution_action_label' => 'Alici kisilerini kontrol et',
+                'featured_failure_resolution_reason_code' => 'recipient_rejected',
+                'featured_failure_resolution_reason_label' => 'Alici Reddi',
+                'featured_failure_resolution_provider_label' => 'SMTP',
+                'featured_failure_resolution_delivery_stage_label' => 'Alici Dogrulama',
+            ],
+        ]);
+
         $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspace->id)
             ->getJson('/api/v1/reports');
@@ -743,9 +772,14 @@ class ReportDeliveryFoundationTest extends TestCase
             ->assertJsonPath('data.featured_failure_resolution_analytics_summary.successful_featured_executions', 1)
             ->assertJsonPath('data.featured_failure_resolution_analytics_summary.failed_featured_executions', 0)
             ->assertJsonPath('data.featured_failure_resolution_analytics_summary.failed_override_executions', 0)
-            ->assertJsonPath('data.featured_failure_resolution_analytics_summary.best_followed_featured_action_label', 'Basarisiz teslimleri tekrar dene');
+            ->assertJsonPath('data.featured_failure_resolution_analytics_summary.best_followed_featured_action_label', 'Basarisiz teslimleri tekrar dene')
+            ->assertJsonPath('data.featured_failure_resolution_decision_summary.total_reasons', 2)
+            ->assertJsonPath('data.featured_failure_resolution_decision_summary.analytics_override_preferred', 1)
+            ->assertJsonPath('data.featured_failure_resolution_decision_summary.working_featured', 1)
+            ->assertJsonPath('data.featured_failure_resolution_decision_summary.top_selected_action_label', 'Alici grubunu duzelt');
 
         $analytics = collect($indexResponse->json('data.featured_failure_resolution_analytics'))->keyBy('reason_code');
+        $decisions = collect($indexResponse->json('data.featured_failure_resolution_decisions'))->keyBy('reason_code');
 
         $this->assertSame(2, $analytics->count());
         $this->assertSame('retry_failed_runs', data_get($analytics->get('smtp_timeout'), 'featured_action_code'));
@@ -756,6 +790,11 @@ class ReportDeliveryFoundationTest extends TestCase
         $this->assertSame(0, data_get($analytics->get('recipient_rejected'), 'featured_interactions'));
         $this->assertSame(1, data_get($analytics->get('recipient_rejected'), 'override_interactions'));
         $this->assertSame('Alici grubunu duzelt', data_get($analytics->get('recipient_rejected'), 'top_override_action_label'));
+        $this->assertSame('working_featured', data_get($decisions->get('smtp_timeout'), 'decision_status'));
+        $this->assertSame('retry_failed_runs', data_get($decisions->get('smtp_timeout'), 'selected_action_code'));
+        $this->assertSame('analytics_override_preferred', data_get($decisions->get('recipient_rejected'), 'decision_status'));
+        $this->assertSame('review_recipient_groups', data_get($decisions->get('recipient_rejected'), 'selected_action_code'));
+        $this->assertSame('Alici grubunu duzelt', data_get($decisions->get('recipient_rejected'), 'selected_action_label'));
     }
 
     public function test_quick_delivery_setup_creates_campaign_scoped_schedule_with_recipients(): void

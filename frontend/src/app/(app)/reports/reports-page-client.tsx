@@ -10,6 +10,7 @@ import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery
 import { ReportFailureResolutionActionAnalyticsPanel } from "@/components/reports/report-failure-resolution-action-analytics-panel";
 import { ReportFailureResolutionEffectivenessPanel } from "@/components/reports/report-failure-resolution-effectiveness-panel";
 import { ReportFeaturedFailureResolutionAnalyticsPanel } from "@/components/reports/report-featured-failure-resolution-analytics-panel";
+import { ReportFeaturedFailureResolutionDecisionPanel } from "@/components/reports/report-featured-failure-resolution-decision-panel";
 import { ReportRecipientGroupAnalyticsPanel } from "@/components/reports/report-recipient-group-analytics-panel";
 import { ReportRecipientGroupAlignmentPanel } from "@/components/reports/report-recipient-group-alignment-panel";
 import { ReportRecipientGroupCorrelationPanel } from "@/components/reports/report-recipient-group-correlation-panel";
@@ -394,6 +395,25 @@ export default function ReportsPage() {
           <ReportFailureResolutionEffectivenessPanel
             summary={data?.failure_resolution_effectiveness_summary ?? null}
             items={data?.failure_resolution_effectiveness ?? []}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Featured Karar Mantigi</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Sistem hangi fix&apos;i neden one cikardigini burada aciklar. Statik oneriyi mi koruyor, analytics override mi yapiyor, yoksa manuel takip mi istiyor tek listede gorulur.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
+          <span>Hata tipi: {data?.featured_failure_resolution_decision_summary.total_reasons ?? 0}</span>
+          <span>Analytics override: {data?.featured_failure_resolution_decision_summary.analytics_override_preferred ?? 0}</span>
+          <span>Calisan featured: {data?.featured_failure_resolution_decision_summary.working_featured ?? 0}</span>
+          <span>En cok secilen: {data?.featured_failure_resolution_decision_summary.top_selected_action_label ?? "-"}</span>
+        </div>
+        <div className="mt-4">
+          <ReportFeaturedFailureResolutionDecisionPanel
+            summary={data?.featured_failure_resolution_decision_summary ?? null}
+            items={data?.featured_failure_resolution_decisions ?? []}
           />
         </div>
       </Card>
