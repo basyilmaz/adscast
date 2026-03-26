@@ -37,6 +37,7 @@ Base path: `/api/v1`
   - `recipient_group_failure_alignment_summary` ve `recipient_group_failure_alignment[]` ile failure reason dagiliminin onerilen grup mu yoksa override secimi mi tarafinda biriktigini doner
   - `recipient_group_correlation_summary` ve `recipient_group_correlation[]` ile onerilen grup uyumu ile gercek teslim basarisi arasindaki korelasyonu doner
   - `recipient_group_failure_reason_summary` ve `recipient_group_failure_reasons[]` ile recipient group bazli teslim hata tiplerini, etkiledigi grup/entity yayilimini ve onerilen aksiyonu doner
+  - `failure_resolution_action_analytics_summary` ve `failure_resolution_action_analytics[]` ile hizli duzeltme aksiyonlarinin kullanim ve sonuc verisini doner
   - her failure reason item'i provider (`provider_label`) ve teslim asamasi (`delivery_stage_label`) metadata'si da tasir
   - `recipient_preset_summary.managed_templates` ve `recipient_preset_summary.recommended_default_presets` ile kural yonetilen grup sablonlarini ozetler
   - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner
@@ -72,6 +73,8 @@ Base path: `/api/v1`
 - `POST /reports/delivery-schedules/{scheduleId}/toggle` (`settings.manage`)
 - `POST /reports/delivery-schedules/{scheduleId}/run-now` (`settings.manage`)
 - `POST /reports/delivery-runs/{runId}/retry` (`settings.manage`)
+- `POST /reports/failure-resolution-actions/{entityType}/{entityId}/{actionCode}/track` (`settings.manage`)
+  - route, focus ve api tabanli failure resolution aksiyonlarini analytics icin izler
 - `POST /reports/failure-resolution-actions/{entityType}/{entityId}/{actionCode}` (`settings.manage`)
   - Ilk desteklenen aksiyon: `retry_failed_runs`
 - `POST /reports/share-links/{shareLinkId}/revoke` (`settings.manage`)

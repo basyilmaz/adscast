@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,9 +33,21 @@ export function ReportFailureResolutionActionsCard({
   onReload,
   onFocusDeliveryProfile,
 }: Props) {
+  const router = useRouter();
   const [activeActionCode, setActiveActionCode] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const trackAction = async (action: ReportFailureResolutionActionItem) => {
+    try {
+      await apiRequest(`/reports/failure-resolution-actions/${entityType}/${entityId}/${action.code}/track`, {
+        method: "POST",
+        requireWorkspace: true,
+      });
+    } catch {
+      // Analytics track failure should not block the operator action itself.
+    }
+  };
 
   const handleApiAction = async (action: ReportFailureResolutionActionItem) => {
     setActiveActionCode(action.code);
@@ -43,6 +55,8 @@ export function ReportFailureResolutionActionsCard({
     setError(null);
 
     try {
+      await trackAction(action);
+
       const response = await apiRequest<{
         data: {
           retried_runs?: number;
@@ -68,10 +82,20 @@ export function ReportFailureResolutionActionsCard({
     }
   };
 
-  const handleFocusAction = (action: ReportFailureResolutionActionItem) => {
+  const handleFocusAction = async (action: ReportFailureResolutionActionItem) => {
+    await trackAction(action);
     setError(null);
     setMessage(`${action.label} icin teslim profili editoru acildi.`);
     onFocusDeliveryProfile?.();
+  };
+
+  const handleRouteAction = async (action: ReportFailureResolutionActionItem) => {
+    if (!action.route) {
+      return;
+    }
+
+    await trackAction(action);
+    router.push(action.route);
   };
 
   return (
@@ -139,17 +163,15 @@ export function ReportFailureResolutionActionsCard({
               ) : null}
 
               {action.action_kind === "focus_tab" ? (
-                <Button type="button" size="sm" variant="secondary" onClick={() => handleFocusAction(action)}>
+                <Button type="button" size="sm" variant="secondary" onClick={() => void handleFocusAction(action)}>
                   {action.button_label}
                 </Button>
               ) : null}
 
               {action.action_kind === "route" && action.route ? (
-                <Link href={action.route} className="inline-flex">
-                  <Button type="button" size="sm" variant="secondary">
-                    {action.button_label}
-                  </Button>
-                </Link>
+                <Button type="button" size="sm" variant="secondary" onClick={() => void handleRouteAction(action)}>
+                  {action.button_label}
+                </Button>
               ) : null}
             </div>
           </div>

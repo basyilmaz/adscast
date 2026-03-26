@@ -1405,6 +1405,53 @@ export type ReportFailureResolutionActionItem = {
   } | null;
 };
 
+export type ReportFailureResolutionActionAnalyticsSummary = {
+  observed_actions: number;
+  tracked_interactions: number;
+  api_attempts: number;
+  route_interactions: number;
+  focus_interactions: number;
+  successful_executions: number;
+  partial_executions: number;
+  failed_executions: number;
+  most_used_action_label: string | null;
+  best_success_action_label: string | null;
+  window_days: number;
+};
+
+export type ReportFailureResolutionActionAnalyticsItem = {
+  action_code: string;
+  label: string;
+  action_kind: string;
+  severity: string;
+  observed_uses: number;
+  tracked_interactions: number;
+  api_interactions: number;
+  route_interactions: number;
+  focus_interactions: number;
+  api_attempts: number;
+  executions_count: number;
+  successful_executions: number;
+  partial_executions: number;
+  failed_executions: number;
+  success_rate: number | null;
+  last_tracked_at: string | null;
+  last_executed_at: string | null;
+  top_reason_code: string | null;
+  top_reason_count: number;
+  unique_entities_count: number;
+  health_status: string;
+  health_summary: string;
+  outcome_summary: string;
+  entities: Array<{
+    entity_type: string;
+    entity_id: string;
+    label: string | null;
+    context_label: string | null;
+    uses_count: number;
+  }>;
+};
+
 export type ReportDeliveryProfileSuggestion = {
   status: string;
   status_label: string;
@@ -1619,6 +1666,7 @@ export type ReportIndexResponse = {
     recipient_group_correlation_summary: ReportRecipientGroupCorrelationSummary;
     recipient_group_failure_alignment_summary: ReportRecipientGroupFailureAlignmentSummary;
     recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
+    failure_resolution_action_analytics_summary: ReportFailureResolutionActionAnalyticsSummary;
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1666,6 +1714,7 @@ export type ReportIndexResponse = {
     recipient_group_correlation: ReportRecipientGroupCorrelationItem[];
     recipient_group_failure_alignment: ReportRecipientGroupFailureAlignmentItem[];
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
+    failure_resolution_action_analytics: ReportFailureResolutionActionAnalyticsItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];

@@ -15,6 +15,7 @@ use App\Domain\Reporting\Http\Requests\UpsertReportDeliveryProfileRequest;
 use App\Domain\Reporting\Services\ReportBuilderService;
 use App\Domain\Reporting\Services\ReportContactService;
 use App\Domain\Reporting\Services\ReportFailureResolutionActionService;
+use App\Domain\Reporting\Services\ReportFailureResolutionActionAnalyticsService;
 use App\Domain\Reporting\Services\ReportRecipientGroupAdvisorService;
 use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
@@ -45,6 +46,7 @@ class ReportController
         private readonly ReportTemplateService $reportTemplateService,
         private readonly ReportContactService $reportContactService,
         private readonly ReportFailureResolutionActionService $reportFailureResolutionActionService,
+        private readonly ReportFailureResolutionActionAnalyticsService $reportFailureResolutionActionAnalyticsService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
@@ -74,6 +76,7 @@ class ReportController
         $recipientGroupCorrelation = $this->reportRecipientGroupCorrelationAnalyticsService->index($workspaceId);
         $recipientGroupFailureAlignment = $this->reportRecipientGroupFailureAlignmentAnalyticsService->index($workspaceId);
         $recipientGroupFailureReasons = $this->reportRecipientGroupFailureReasonAnalyticsService->index($workspaceId);
+        $failureResolutionActionAnalytics = $this->reportFailureResolutionActionAnalyticsService->index($workspaceId);
         $shareSummary = $this->reportShareLinkService->summary($workspaceId);
 
         return new JsonResponse([
@@ -100,6 +103,8 @@ class ReportController
                     'recipient_group_failure_alignment' => $recipientGroupFailureAlignment['items'],
                     'recipient_group_failure_reason_summary' => $recipientGroupFailureReasons['summary'],
                     'recipient_group_failure_reasons' => $recipientGroupFailureReasons['items'],
+                    'failure_resolution_action_analytics_summary' => $failureResolutionActionAnalytics['summary'],
+                    'failure_resolution_action_analytics' => $failureResolutionActionAnalytics['items'],
                     'delivery_profile_summary' => $profileIndex['summary'],
                     'delivery_profiles' => $profileIndex['items'],
                     'delivery_summary' => $deliveryIndex['summary'],
@@ -547,6 +552,33 @@ class ReportController
 
         return new JsonResponse([
             'message' => 'Failure resolution aksiyonu calistirildi.',
+            'data' => $result,
+        ]);
+    }
+
+    public function trackFailureResolutionAction(
+        Request $request,
+        string $entityType,
+        string $entityId,
+        string $actionCode,
+    ): JsonResponse {
+        if (! in_array($entityType, ['account', 'campaign'], true)) {
+            abort(404);
+        }
+
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $result = $this->reportFailureResolutionActionService->trackInteraction(
+            workspace: $workspace,
+            entityType: $entityType,
+            entityId: $entityId,
+            actionCode: $actionCode,
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Failure resolution aksiyonu analytics icin izlendi.',
             'data' => $result,
         ]);
     }

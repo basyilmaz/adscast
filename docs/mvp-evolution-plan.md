@@ -284,3 +284,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 45. Failure reason bazli tek tik duzeltme aksiyonlarini entity detail ekranlarina tasiyip retry uygun run'lar icin bulk retry akisi eklemek
 46. Provider ve teslim asamasi bazli retry onerilerini entity detail ekranlarina tasiyip failure resolution aksiyonlarini sadece retry-safe reason'larda acik tutmak
 47. Recipient ve contact kaynakli hata tipleri icin detail ekranlarina daha spesifik tek tik duzeltme aksiyonlari ve prefiltered reports yonlendirmeleri eklemek
+48. Failure resolution aksiyonlarinin kullanim ve sonuc verisini analytics katmanina geri besleyip reports merkezinde hangi duzeltmenin gercekten calistigini gorunur hale getirmek

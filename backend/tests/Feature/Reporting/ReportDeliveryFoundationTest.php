@@ -383,6 +383,140 @@ class ReportDeliveryFoundationTest extends TestCase
         $this->assertSame(1, ReportDeliveryRun::query()->where('report_delivery_schedule_id', $schedule->id)->count());
     }
 
+    public function test_reports_index_includes_failure_resolution_action_analytics(): void
+    {
+        [$workspace, $token, $account, $campaign] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $accountTemplate = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Action Analytics Account Template',
+            'entity_type' => 'account',
+            'entity_id' => $account->id,
+            'report_type' => 'client_account_summary_v1',
+            'default_range_days' => 14,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $accountSchedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $accountTemplate->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 2,
+            'send_time' => '09:30',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['client@castintech.com'],
+            'configuration' => [],
+            'is_active' => true,
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $accountSchedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'failed',
+            'recipients' => ['client@castintech.com'],
+            'prepared_at' => now()->subMinutes(30),
+            'trigger_mode' => 'manual',
+            'error_message' => 'SMTP timeout',
+            'metadata' => [],
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/failure-resolution-actions/account/{$account->id}/retry_failed_runs/track")
+            ->assertOk()
+            ->assertJsonPath('data.action_code', 'retry_failed_runs');
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/failure-resolution-actions/account/{$account->id}/retry_failed_runs")
+            ->assertOk()
+            ->assertJsonPath('data.retried_runs', 1);
+
+        $campaignTemplate = ReportTemplate::query()->create([
+            'workspace_id' => $workspace->id,
+            'name' => 'Action Analytics Campaign Template',
+            'entity_type' => 'campaign',
+            'entity_id' => $campaign->id,
+            'report_type' => 'client_campaign_summary_v1',
+            'default_range_days' => 7,
+            'layout_preset' => 'client_digest',
+            'is_active' => true,
+        ]);
+
+        $campaignSchedule = ReportDeliverySchedule::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_template_id' => $campaignTemplate->id,
+            'delivery_channel' => 'email_stub',
+            'cadence' => 'weekly',
+            'weekday' => 4,
+            'send_time' => '11:00',
+            'timezone' => 'Europe/Istanbul',
+            'recipients' => ['rejected@castintech.com'],
+            'configuration' => [],
+            'is_active' => true,
+        ]);
+
+        ReportDeliveryRun::query()->create([
+            'workspace_id' => $workspace->id,
+            'report_delivery_schedule_id' => $campaignSchedule->id,
+            'delivery_channel' => 'email_stub',
+            'status' => 'failed',
+            'recipients' => ['rejected@castintech.com'],
+            'prepared_at' => now()->subMinutes(20),
+            'trigger_mode' => 'manual',
+            'error_message' => 'Recipient rejected',
+            'metadata' => [
+                'recipient_group_summary' => [
+                    'label' => 'Recipient Reject Group',
+                ],
+            ],
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson("/api/v1/reports/failure-resolution-actions/campaign/{$campaign->id}/review_contact_book/track")
+            ->assertOk()
+            ->assertJsonPath('data.action_code', 'review_contact_book');
+
+        $indexResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $indexResponse->assertOk()
+            ->assertJsonPath('data.failure_resolution_action_analytics_summary.observed_actions', 2)
+            ->assertJsonPath('data.failure_resolution_action_analytics_summary.tracked_interactions', 2)
+            ->assertJsonPath('data.failure_resolution_action_analytics_summary.api_attempts', 1)
+            ->assertJsonPath('data.failure_resolution_action_analytics_summary.route_interactions', 1)
+            ->assertJsonPath('data.failure_resolution_action_analytics_summary.focus_interactions', 0)
+            ->assertJsonPath('data.failure_resolution_action_analytics_summary.successful_executions', 1)
+            ->assertJsonPath('data.failure_resolution_action_analytics_summary.partial_executions', 0)
+            ->assertJsonPath('data.failure_resolution_action_analytics_summary.failed_executions', 0)
+            ->assertJsonPath('data.failure_resolution_action_analytics_summary.best_success_action_label', 'Basarisiz teslimleri tekrar dene');
+
+        $analytics = collect($indexResponse->json('data.failure_resolution_action_analytics'))->keyBy('action_code');
+
+        $this->assertSame(2, $analytics->count());
+        $this->assertSame(1, data_get($analytics->get('retry_failed_runs'), 'observed_uses'));
+        $this->assertSame(1, data_get($analytics->get('retry_failed_runs'), 'api_attempts'));
+        $this->assertSame(1, data_get($analytics->get('retry_failed_runs'), 'successful_executions'));
+        $this->assertSame(0, data_get($analytics->get('retry_failed_runs'), 'failed_executions'));
+        $this->assertSame('smtp_timeout', data_get($analytics->get('retry_failed_runs'), 'top_reason_code'));
+        $this->assertSame(1, data_get($analytics->get('review_contact_book'), 'observed_uses'));
+        $this->assertSame(1, data_get($analytics->get('review_contact_book'), 'route_interactions'));
+        $this->assertNull(data_get($analytics->get('review_contact_book'), 'success_rate'));
+        $this->assertSame('recipient_rejected', data_get($analytics->get('review_contact_book'), 'top_reason_code'));
+
+        $this->assertDatabaseHas('audit_logs', [
+            'workspace_id' => $workspace->id,
+            'action' => 'report_failure_resolution_action_tracked',
+            'target_type' => 'account',
+            'target_id' => $account->id,
+        ]);
+    }
+
     public function test_quick_delivery_setup_creates_campaign_scoped_schedule_with_recipients(): void
     {
         [$workspace, $token, , $campaign] = $this->seedReportFixture('agency.admin@adscast.test');

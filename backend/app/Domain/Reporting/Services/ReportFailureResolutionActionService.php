@@ -190,12 +190,15 @@ class ReportFailureResolutionActionService
         ?User $actor = null,
         ?Request $request = null,
     ): array {
+        $actionDefinition = $this->resolveActionDefinitionOrFallback($workspace->id, $entityType, $entityId, $actionCode);
+
         return match ($actionCode) {
             'retry_failed_runs' => $this->retryFailedRunsForEntity(
                 workspace: $workspace,
                 entityType: $entityType,
                 entityId: $entityId,
                 reportDeliveryScheduleService: $reportDeliveryScheduleService,
+                actionDefinition: $actionDefinition,
                 actor: $actor,
                 request: $request,
             ),
@@ -208,11 +211,53 @@ class ReportFailureResolutionActionService
     /**
      * @return array<string, mixed>
      */
+    public function trackInteraction(
+        Workspace $workspace,
+        string $entityType,
+        string $entityId,
+        string $actionCode,
+        ?User $actor = null,
+        ?Request $request = null,
+    ): array {
+        $actionDefinition = $this->resolveActionDefinition($workspace->id, $entityType, $entityId, $actionCode);
+
+        $this->auditLogService->log(
+            actor: $actor,
+            action: 'report_failure_resolution_action_tracked',
+            targetType: $entityType,
+            targetId: $entityId,
+            organizationId: $workspace->organization_id,
+            workspaceId: $workspace->id,
+            metadata: [
+                'action_code' => $actionCode,
+                'action_label' => $actionDefinition['label'] ?? $actionCode,
+                'action_kind' => $actionDefinition['action_kind'] ?? 'route',
+                'severity' => $actionDefinition['severity'] ?? 'warning',
+                'route' => $actionDefinition['route'] ?? null,
+                'target_tab' => $actionDefinition['target_tab'] ?? null,
+                'affected_reason_codes' => data_get($actionDefinition, 'metadata.affected_reason_codes', []),
+                'sample_recipients' => data_get($actionDefinition, 'metadata.sample_recipients', []),
+                'affected_group_labels' => data_get($actionDefinition, 'metadata.affected_group_labels', []),
+            ],
+            request: $request,
+        );
+
+        return [
+            'action_code' => $actionCode,
+            'action_kind' => $actionDefinition['action_kind'] ?? 'route',
+            'tracked' => true,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function retryFailedRunsForEntity(
         Workspace $workspace,
         string $entityType,
         string $entityId,
         ReportDeliveryScheduleService $reportDeliveryScheduleService,
+        array $actionDefinition,
         ?User $actor = null,
         ?Request $request = null,
     ): array {
@@ -273,9 +318,18 @@ class ReportFailureResolutionActionService
             workspaceId: $workspace->id,
             metadata: [
                 'action_code' => 'retry_failed_runs',
+                'action_label' => $actionDefinition['label'] ?? 'Basarisiz teslimleri tekrar dene',
+                'action_kind' => $actionDefinition['action_kind'] ?? 'api',
+                'severity' => $actionDefinition['severity'] ?? 'warning',
+                'affected_reason_codes' => data_get($actionDefinition, 'metadata.affected_reason_codes', []),
+                'sample_recipients' => data_get($actionDefinition, 'metadata.sample_recipients', []),
+                'affected_group_labels' => data_get($actionDefinition, 'metadata.affected_group_labels', []),
                 'requested_runs' => $retryableRuns->count(),
                 'retried_runs' => count($results),
                 'failed_retries' => count($errors),
+                'outcome_status' => count($results) > 0
+                    ? (count($errors) > 0 ? 'partial' : 'success')
+                    : 'failed',
             ],
             request: $request,
         );
@@ -411,5 +465,63 @@ class ReportFailureResolutionActionService
                     ->where('entity_type', $entityType)
                     ->where('entity_id', $entityId);
             });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resolveActionDefinition(
+        string $workspaceId,
+        string $entityType,
+        string $entityId,
+        string $actionCode,
+    ): array {
+        $actionDefinition = collect($this->forEntity($workspaceId, $entityType, $entityId)['items'])
+            ->first(fn (array $item): bool => ($item['code'] ?? null) === $actionCode);
+
+        if (! is_array($actionDefinition)) {
+            throw ValidationException::withMessages([
+                'action_code' => 'Desteklenmeyen failure resolution aksiyonu.',
+            ]);
+        }
+
+        return $actionDefinition;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resolveActionDefinitionOrFallback(
+        string $workspaceId,
+        string $entityType,
+        string $entityId,
+        string $actionCode,
+    ): array {
+        $actionDefinition = collect($this->forEntity($workspaceId, $entityType, $entityId)['items'])
+            ->first(fn (array $item): bool => ($item['code'] ?? null) === $actionCode);
+
+        if (is_array($actionDefinition)) {
+            return $actionDefinition;
+        }
+
+        if ($actionCode === 'retry_failed_runs') {
+            return [
+                'code' => 'retry_failed_runs',
+                'label' => 'Basarisiz teslimleri tekrar dene',
+                'action_kind' => 'api',
+                'severity' => 'warning',
+                'route' => null,
+                'target_tab' => 'reports',
+                'metadata' => [
+                    'affected_reason_codes' => [],
+                    'sample_recipients' => [],
+                    'affected_group_labels' => [],
+                ],
+            ];
+        }
+
+        throw ValidationException::withMessages([
+            'action_code' => 'Desteklenmeyen failure resolution aksiyonu.',
+        ]);
     }
 }

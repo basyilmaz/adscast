@@ -7,6 +7,7 @@ import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ReportContactForm } from "@/components/reports/report-contact-form";
 import { ReportContactManager } from "@/components/reports/report-contact-manager";
 import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery-history-panel";
+import { ReportFailureResolutionActionAnalyticsPanel } from "@/components/reports/report-failure-resolution-action-analytics-panel";
 import { ReportRecipientGroupAnalyticsPanel } from "@/components/reports/report-recipient-group-analytics-panel";
 import { ReportRecipientGroupAlignmentPanel } from "@/components/reports/report-recipient-group-alignment-panel";
 import { ReportRecipientGroupCorrelationPanel } from "@/components/reports/report-recipient-group-correlation-panel";
@@ -193,6 +194,7 @@ export default function ReportsPage() {
         <MetricCard label="Korelasyon Run" value={data?.recipient_group_correlation_summary.tracked_runs ?? 0} />
         <MetricCard label="Override Fail Tipi" value={data?.recipient_group_failure_alignment_summary.override_dominant_reasons ?? 0} />
         <MetricCard label="Hata Tipi" value={data?.recipient_group_failure_reason_summary.total_reason_types ?? 0} />
+        <MetricCard label="Aksiyon Kullanimi" value={data?.failure_resolution_action_analytics_summary.observed_actions ?? 0} />
         <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Sablon Kurali" value={data?.recipient_preset_summary.managed_templates ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
@@ -350,6 +352,25 @@ export default function ReportsPage() {
           <ReportRecipientGroupAlignmentPanel
             summary={data?.recipient_group_alignment_summary ?? null}
             items={data?.recipient_group_alignment ?? []}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Duzeltme Aksiyon Analitigi</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Operator hangi tek tik duzeltmeyi ne kadar kullaniyor, retry aksiyonlari ne kadar sonuc veriyor ve hangi aksiyonlar yalnizca yonlendirme olarak kaliyor burada gorulur.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
+          <span>Izlenen aksiyon: {data?.failure_resolution_action_analytics_summary.observed_actions ?? 0}</span>
+          <span>API denemesi: {data?.failure_resolution_action_analytics_summary.api_attempts ?? 0}</span>
+          <span>Basarili: {data?.failure_resolution_action_analytics_summary.successful_executions ?? 0}</span>
+          <span>En cok kullanilan: {data?.failure_resolution_action_analytics_summary.most_used_action_label ?? "-"}</span>
+        </div>
+        <div className="mt-4">
+          <ReportFailureResolutionActionAnalyticsPanel
+            summary={data?.failure_resolution_action_analytics_summary ?? null}
+            items={data?.failure_resolution_action_analytics ?? []}
           />
         </div>
       </Card>
