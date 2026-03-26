@@ -2201,6 +2201,60 @@ class ReportDeliveryFoundationTest extends TestCase
         ]);
     }
 
+    public function test_reports_index_includes_decision_surface_queue(): void
+    {
+        [$workspace, $token, $account, $campaign] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        Setting::query()->create([
+            'workspace_id' => $workspace->id,
+            'key' => 'reports.decision_surface_statuses',
+            'value' => [[
+                'id' => (string) Str::uuid(),
+                'entity_type' => 'account',
+                'entity_id' => $account->id,
+                'surface_key' => 'featured_fix',
+                'status' => 'completed',
+                'created_at' => now()->subHour()->toDateTimeString(),
+                'updated_at' => now()->subMinutes(40)->toDateTimeString(),
+                'updated_by_name' => 'Agency Admin',
+            ], [
+                'id' => (string) Str::uuid(),
+                'entity_type' => 'campaign',
+                'entity_id' => $campaign->id,
+                'surface_key' => 'profile',
+                'status' => 'deferred',
+                'created_at' => now()->subHour()->toDateTimeString(),
+                'updated_at' => now()->subMinutes(15)->toDateTimeString(),
+                'updated_by_name' => 'Agency Admin',
+            ]],
+            'is_encrypted' => false,
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $response->assertOk()
+            ->assertJsonPath('data.decision_surface_queue_summary.tracked_entities', 2)
+            ->assertJsonPath('data.decision_surface_queue_summary.total_items', 6)
+            ->assertJsonPath('data.decision_surface_queue_summary.open_items', 5)
+            ->assertJsonPath('data.decision_surface_queue_summary.pending_items', 4)
+            ->assertJsonPath('data.decision_surface_queue_summary.reviewed_items', 0)
+            ->assertJsonPath('data.decision_surface_queue_summary.completed_items', 1)
+            ->assertJsonPath('data.decision_surface_queue_summary.deferred_items', 1)
+            ->assertJsonPath('data.decision_surface_queue.0.entity_type', 'account')
+            ->assertJsonPath('data.decision_surface_queue.0.surface_key', 'profile')
+            ->assertJsonPath('data.decision_surface_queue.0.status', 'pending')
+            ->assertJsonPath('data.decision_surface_queue.0.route', sprintf('/ad-accounts/detail?id=%s&focus_surface=profile#report-decision-surface-profile', $account->id))
+            ->assertJsonFragment([
+                'entity_type' => 'campaign',
+                'entity_id' => $campaign->id,
+                'surface_key' => 'profile',
+                'status' => 'deferred',
+                'status_label' => 'Ertelendi',
+            ]);
+    }
+
     /**
      * @return array{0: Workspace, 1: string, 2: MetaAdAccount, 3: Campaign}
      */

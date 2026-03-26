@@ -62,8 +62,11 @@ export function AdAccountDetailClient() {
   const focusReasonCode = searchParams.get("focus_reason_code");
   const focusActionCode = searchParams.get("focus_action_code");
   const focusSource = searchParams.get("focus_source");
+  const focusSurface = searchParams.get("focus_surface");
   const hasAdAccountId = Boolean(adAccountId);
-  const [activeTab, setActiveTab] = useState<TabId>(() => (focusReasonCode || focusActionCode ? "reports" : "overview"));
+  const [activeTab, setActiveTab] = useState<TabId>(() => (
+    focusReasonCode || focusActionCode || focusSurface ? "reports" : "overview"
+  ));
 
   const {
     data,

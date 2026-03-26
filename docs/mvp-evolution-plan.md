@@ -300,3 +300,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 61. Operasyon karari ozetinden ilgili alt karta sayfa ici derin odak verip operatoru summary'den dogrudan dogru karara indirmek
 62. Hash ile acilan veya summary'den inilen karar yuzeyini kisa sureli gorsel vurguya alip operatorun geldigi hedefi aninda fark etmesini saglamak
 63. Featured fix, retry rehberi ve profil onerisi yuzeylerine operator takip durumu ekleyip detail report sekmesini sadece onerilerden degil is takibinden de sorumlu hale getirmek
+64. Decision surface durumlarini reports merkezine workspace-scope operasyon kuyrugu olarak tasiyip hangi account/campaign'de hangi karar yuzeyinin bekledigini tek ekranda gostermek

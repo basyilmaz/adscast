@@ -21,6 +21,7 @@ use App\Domain\Reporting\Services\ReportFailureResolutionEffectivenessAnalyticsS
 use App\Domain\Reporting\Services\ReportFeaturedFailureResolutionAnalyticsService;
 use App\Domain\Reporting\Services\ReportFeaturedFailureResolutionDecisionService;
 use App\Domain\Reporting\Services\ReportDecisionSurfaceStatusService;
+use App\Domain\Reporting\Services\ReportDecisionSurfaceQueueService;
 use App\Domain\Reporting\Services\ReportRecipientGroupAdvisorService;
 use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
@@ -56,6 +57,7 @@ class ReportController
         private readonly ReportFeaturedFailureResolutionAnalyticsService $reportFeaturedFailureResolutionAnalyticsService,
         private readonly ReportFeaturedFailureResolutionDecisionService $reportFeaturedFailureResolutionDecisionService,
         private readonly ReportDecisionSurfaceStatusService $reportDecisionSurfaceStatusService,
+        private readonly ReportDecisionSurfaceQueueService $reportDecisionSurfaceQueueService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
@@ -92,6 +94,7 @@ class ReportController
             effectivenessItems: $failureResolutionEffectiveness['items'],
             featuredAnalyticsItems: $featuredFailureResolutionAnalytics['items'],
         );
+        $decisionSurfaceQueue = $this->reportDecisionSurfaceQueueService->index($workspaceId);
         $shareSummary = $this->reportShareLinkService->summary($workspaceId);
 
         return new JsonResponse([
@@ -126,6 +129,8 @@ class ReportController
                     'featured_failure_resolution_analytics' => $featuredFailureResolutionAnalytics['items'],
                     'featured_failure_resolution_decision_summary' => $featuredFailureResolutionDecisions['summary'],
                     'featured_failure_resolution_decisions' => $featuredFailureResolutionDecisions['items'],
+                    'decision_surface_queue_summary' => $decisionSurfaceQueue['summary'],
+                    'decision_surface_queue' => $decisionSurfaceQueue['items'],
                     'delivery_profile_summary' => $profileIndex['summary'],
                     'delivery_profiles' => $profileIndex['items'],
                     'delivery_summary' => $deliveryIndex['summary'],

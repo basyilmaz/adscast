@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ReportContactForm } from "@/components/reports/report-contact-form";
 import { ReportContactManager } from "@/components/reports/report-contact-manager";
+import { ReportDecisionSurfaceQueuePanel } from "@/components/reports/report-decision-surface-queue-panel";
 import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery-history-panel";
 import { ReportFailureResolutionActionAnalyticsPanel } from "@/components/reports/report-failure-resolution-action-analytics-panel";
 import { ReportFailureResolutionEffectivenessPanel } from "@/components/reports/report-failure-resolution-effectiveness-panel";
@@ -200,6 +201,8 @@ export default function ReportsPage() {
         <MetricCard label="Aksiyon Kullanimi" value={data?.failure_resolution_action_analytics_summary.observed_actions ?? 0} />
         <MetricCard label="Calisan Fix" value={data?.failure_resolution_effectiveness_summary.working_recommended_fixes ?? 0} />
         <MetricCard label="Oneri Uyumu" value={data?.featured_failure_resolution_analytics_summary.featured_interactions ?? 0} />
+        <MetricCard label="Acik Karar" value={data?.decision_surface_queue_summary.open_items ?? 0} />
+        <MetricCard label="Takipte Entity" value={data?.decision_surface_queue_summary.tracked_entities ?? 0} />
         <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Sablon Kurali" value={data?.recipient_preset_summary.managed_templates ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
@@ -207,6 +210,12 @@ export default function ReportsPage() {
         <MetricCard label="Basarisiz Teslim" value={data?.delivery_run_summary.failed_runs ?? 0} />
         <MetricCard label="Aktif Paylasim" value={data?.share_summary.active_links ?? 0} />
       </section>
+
+      <ReportDecisionSurfaceQueuePanel
+        summary={data?.decision_surface_queue_summary ?? null}
+        items={data?.decision_surface_queue ?? []}
+        routeBuilder={(route) => buildHrefWithHashAndFilters(route, searchParams, GLOBAL_DATE_FILTER_KEYS)}
+      />
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
         <Card>
@@ -861,4 +870,27 @@ function MetricCard({ label, value }: { label: string; value: number }) {
       <CardValue>{value}</CardValue>
     </Card>
   );
+}
+
+function buildHrefWithHashAndFilters(
+  route: string,
+  searchParams: { get(name: string): string | null },
+  allowedKeys: readonly ("start_date" | "end_date" | "status" | "objective" | "ad_account_id")[],
+) {
+  const [beforeHash, hash = ""] = route.split("#", 2);
+  const [path, existingQuery = ""] = beforeHash.split("?", 2);
+  const params = new URLSearchParams(existingQuery);
+
+  allowedKeys.forEach((key) => {
+    const value = searchParams.get(key);
+
+    if (value) {
+      params.set(key, value);
+    }
+  });
+
+  const query = params.toString();
+  const href = query ? `${path}?${query}` : path;
+
+  return hash ? `${href}#${hash}` : href;
 }

@@ -74,8 +74,11 @@ export function CampaignDetailClient() {
   const focusReasonCode = searchParams.get("focus_reason_code");
   const focusActionCode = searchParams.get("focus_action_code");
   const focusSource = searchParams.get("focus_source");
+  const focusSurface = searchParams.get("focus_surface");
   const hasCampaignId = Boolean(campaignId);
-  const [activeTab, setActiveTab] = useState<TabId>(() => (focusReasonCode || focusActionCode ? "report" : "overview"));
+  const [activeTab, setActiveTab] = useState<TabId>(() => (
+    focusReasonCode || focusActionCode || focusSurface ? "report" : "overview"
+  ));
 
   const { data, error, isLoading, isRefreshing, reload } = useApiQuery<CampaignDetailResponse, CampaignDetailResponse["data"]>(
     buildApiPathWithFilters(`/campaigns/${campaignId ?? ""}`, searchParams, GLOBAL_DATE_FILTER_KEYS),

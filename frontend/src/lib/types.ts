@@ -1396,6 +1396,24 @@ export type ReportDecisionSurfaceStatusItem = {
   updated_by_name: string | null;
 };
 
+export type ReportDecisionSurfaceQueueSummary = {
+  tracked_entities: number;
+  total_items: number;
+  open_items: number;
+  pending_items: number;
+  reviewed_items: number;
+  completed_items: number;
+  deferred_items: number;
+  top_surface_label: string | null;
+};
+
+export type ReportDecisionSurfaceQueueItem = ReportDecisionSurfaceStatusItem & {
+  entity_label: string | null;
+  context_label: string | null;
+  route: string | null;
+  is_open: boolean;
+};
+
 export type ReportDeliveryRetryRecommendationItem = {
   reason_code: string;
   label: string;
@@ -1892,6 +1910,7 @@ export type ReportIndexResponse = {
     failure_resolution_effectiveness_summary: ReportFailureResolutionEffectivenessSummary;
     featured_failure_resolution_analytics_summary: ReportFeaturedFailureResolutionAnalyticsSummary;
     featured_failure_resolution_decision_summary: ReportFeaturedFailureResolutionDecisionSummary;
+    decision_surface_queue_summary: ReportDecisionSurfaceQueueSummary;
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1943,6 +1962,7 @@ export type ReportIndexResponse = {
     failure_resolution_effectiveness: ReportFailureResolutionEffectivenessItem[];
     featured_failure_resolution_analytics: ReportFeaturedFailureResolutionAnalyticsItem[];
     featured_failure_resolution_decisions: ReportFeaturedFailureResolutionDecisionItem[];
+    decision_surface_queue: ReportDecisionSurfaceQueueItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];
