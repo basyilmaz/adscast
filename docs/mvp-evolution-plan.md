@@ -287,3 +287,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 48. Failure resolution aksiyonlarinin kullanim ve sonuc verisini analytics katmanina geri besleyip reports merkezinde hangi duzeltmenin gercekten calistigini gorunur hale getirmek
 49. Failure reason, provider/asama ve fiili duzeltme sonucunu birlestirip reports merkezinde hangi fix'in gercekten ise yaradigini gosteren effectiveness katmani eklemek
 50. Failure resolution effectiveness ozetini account ve campaign detail ekranlarinin report sekmesine tasiyip entity scope'unda gorunur hale getirmek
+51. Effectiveness, retry policy ve mevcut action inventory verisini birlestirip entity detail ekranlarinda otomatik one cikan duzeltme aksiyonunu secmek ve vurgulamak

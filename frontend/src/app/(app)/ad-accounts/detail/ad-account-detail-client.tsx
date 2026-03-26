@@ -407,6 +407,7 @@ export function AdAccountDetailClient() {
             entityId={data.ad_account.id}
             summary={data.failure_resolution_summary}
             actions={data.failure_resolution_actions}
+            featuredRecommendation={data.featured_failure_resolution}
             onReload={reload}
             onFocusDeliveryProfile={() => setActiveTab("overview")}
           />

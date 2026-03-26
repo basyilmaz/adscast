@@ -23,6 +23,7 @@ Base path: `/api/v1`
   - `suggested_recipient_groups[]` ile kampanya baglamina uygun onerilen alici gruplarini doner; sirket/marka eslesmesi olan akilli gruplar dahil edilir
   - `suggested_delivery_profile` ile rule-managed template kaynakli varsayilan teslim profili onerisi doner
   - `failure_resolution_effectiveness_summary` ve `failure_resolution_effectiveness[]` ile kampanya scope'unda hangi duzeltmenin gercekten ise yaradigini doner
+  - `featured_failure_resolution` ile entity bazinda otomatik olarak one cikarilan duzeltme aksiyonunu doner
   - `retry_recommendation_summary` ve `retry_recommendations[]` ile provider/asama bazli retry politikasini doner
   - `recipient_group_failure_alignment_summary` ve `recipient_group_failure_alignment[]` ile kampanya scope'unda failure reason dagiliminin onerilen grup mu yoksa override secimi mi tarafinda biriktigini doner
   - `failure_resolution_summary` ve `failure_resolution_actions[]` ile tek tik duzeltme aksiyonlarini doner
@@ -101,6 +102,7 @@ Base path: `/api/v1`
   - `suggested_recipient_groups[]` ile hesap baglamina uygun onerilen alici gruplarini doner; sirket/marka eslesmesi olan akilli gruplar dahil edilir
   - `suggested_delivery_profile` ile rule-managed template kaynakli varsayilan teslim profili onerisi doner
   - `failure_resolution_effectiveness_summary` ve `failure_resolution_effectiveness[]` ile hesap scope'unda hangi duzeltmenin gercekten ise yaradigini doner
+  - `featured_failure_resolution` ile entity bazinda otomatik olarak one cikarilan duzeltme aksiyonunu doner
   - `retry_recommendation_summary` ve `retry_recommendations[]` ile provider/asama bazli retry politikasini doner
   - `recipient_group_failure_alignment_summary` ve `recipient_group_failure_alignment[]` ile hesap scope'unda failure reason dagiliminin onerilen grup mu yoksa override secimi mi tarafinda biriktigini doner
   - `failure_resolution_summary` ve `failure_resolution_actions[]` ile tek tik duzeltme aksiyonlarini doner

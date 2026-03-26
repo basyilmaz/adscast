@@ -21,6 +21,7 @@ class AdAccountQueryService
         private readonly ActionFeedService $actionFeedService,
         private readonly ReportFailureResolutionActionService $reportFailureResolutionActionService,
         private readonly ReportFailureResolutionEffectivenessAnalyticsService $reportFailureResolutionEffectivenessAnalyticsService,
+        private readonly ReportFeaturedFailureResolutionService $reportFeaturedFailureResolutionService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
         private readonly ReportDeliveryProfileSuggestionService $reportDeliveryProfileSuggestionService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
@@ -321,6 +322,11 @@ class AdAccountQueryService
             entityType: 'account',
             entityId: $account->id,
         );
+        $featuredFailureResolution = $this->reportFeaturedFailureResolutionService->recommend(
+            actions: $failureResolutionActions['items'],
+            retryRecommendations: $retryRecommendations['items'],
+            effectivenessItems: $failureResolutionEffectiveness['items'],
+        );
 
         return [
             'range' => [
@@ -366,6 +372,7 @@ class AdAccountQueryService
             'recipient_group_failure_reasons' => $recipientGroupFailureReasons['items'],
             'failure_resolution_effectiveness_summary' => $failureResolutionEffectiveness['summary'],
             'failure_resolution_effectiveness' => $failureResolutionEffectiveness['items'],
+            'featured_failure_resolution' => $featuredFailureResolution,
             'retry_recommendation_summary' => $retryRecommendations['summary'],
             'retry_recommendations' => $retryRecommendations['items'],
             'failure_resolution_summary' => $failureResolutionActions['summary'],

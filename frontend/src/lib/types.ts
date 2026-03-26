@@ -199,6 +199,7 @@ export type AdAccountDetailResponse = {
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
     failure_resolution_effectiveness_summary: ReportFailureResolutionEffectivenessSummary;
     failure_resolution_effectiveness: ReportFailureResolutionEffectivenessItem[];
+    featured_failure_resolution: ReportFeaturedFailureResolution | null;
     retry_recommendation_summary: ReportDeliveryRetryRecommendationSummary;
     retry_recommendations: ReportDeliveryRetryRecommendationItem[];
     failure_resolution_summary: ReportFailureResolutionSummary;
@@ -348,6 +349,7 @@ export type CampaignDetailResponse = {
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
     failure_resolution_effectiveness_summary: ReportFailureResolutionEffectivenessSummary;
     failure_resolution_effectiveness: ReportFailureResolutionEffectivenessItem[];
+    featured_failure_resolution: ReportFeaturedFailureResolution | null;
     retry_recommendation_summary: ReportDeliveryRetryRecommendationSummary;
     retry_recommendations: ReportDeliveryRetryRecommendationItem[];
     failure_resolution_summary: ReportFailureResolutionSummary;
@@ -1400,6 +1402,37 @@ export type ReportFailureResolutionActionItem = {
   is_available: boolean;
   route: string | null;
   target_tab: string | null;
+  metadata: {
+    retryable_runs?: number;
+    affected_reason_codes?: string[];
+    latest_failed_at?: string | null;
+    sample_recipients?: string[];
+    affected_group_labels?: string[];
+  } | null;
+};
+
+export type ReportFeaturedFailureResolution = {
+  status: string;
+  status_label: string;
+  source: string;
+  action_code: string;
+  action_label: string;
+  action_kind: "api" | "focus_tab" | "route" | string;
+  button_label: string;
+  is_available: boolean;
+  route: string | null;
+  target_tab: string | null;
+  reason_code: string | null;
+  reason_label: string | null;
+  provider_label: string | null;
+  delivery_stage_label: string | null;
+  retry_policy: string | null;
+  retry_policy_label: string | null;
+  recommended_wait_minutes: number | null;
+  recommended_max_attempts: number | null;
+  effectiveness_status: string | null;
+  effectiveness_label: string | null;
+  summary: string;
   metadata: {
     retryable_runs?: number;
     affected_reason_codes?: string[];

@@ -6,13 +6,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { apiRequest } from "@/lib/api";
-import { ReportFailureResolutionActionItem, ReportFailureResolutionSummary } from "@/lib/types";
+import {
+  ReportFailureResolutionActionItem,
+  ReportFailureResolutionSummary,
+  ReportFeaturedFailureResolution,
+} from "@/lib/types";
 
 type Props = {
   entityType: "account" | "campaign";
   entityId: string;
   summary: ReportFailureResolutionSummary;
   actions: ReportFailureResolutionActionItem[];
+  featuredRecommendation?: ReportFeaturedFailureResolution | null;
   onReload?: () => Promise<void> | void;
   onFocusDeliveryProfile?: () => void;
 };
@@ -30,6 +35,7 @@ export function ReportFailureResolutionActionsCard({
   entityId,
   summary,
   actions,
+  featuredRecommendation,
   onReload,
   onFocusDeliveryProfile,
 }: Props) {
@@ -115,15 +121,40 @@ export function ReportFailureResolutionActionsCard({
         </div>
       </div>
 
+      {featuredRecommendation ? (
+        <div className="mt-4 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/5 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge label={featuredRecommendation.status_label} variant="success" />
+            <Badge label={featuredRecommendation.action_label} variant={variantForSeverity("warning")} />
+            {featuredRecommendation.reason_label ? <Badge label={featuredRecommendation.reason_label} variant="neutral" /> : null}
+            {featuredRecommendation.retry_policy_label ? <Badge label={featuredRecommendation.retry_policy_label} variant="neutral" /> : null}
+          </div>
+          <p className="mt-3 text-sm">{featuredRecommendation.summary}</p>
+          <p className="mt-2 text-xs muted-text">
+            Onerilen duzeltme: {featuredRecommendation.action_label}
+            {featuredRecommendation.provider_label ? ` / ${featuredRecommendation.provider_label}` : ""}
+            {featuredRecommendation.delivery_stage_label ? ` / ${featuredRecommendation.delivery_stage_label}` : ""}
+          </p>
+        </div>
+      ) : null}
+
       {error ? <p className="mt-4 text-sm text-[var(--danger)]">{error}</p> : null}
       {message ? <p className="mt-4 text-sm text-[var(--accent)]">{message}</p> : null}
 
       <div className="mt-4 space-y-3">
         {actions.map((action) => (
-          <div key={action.id} className="rounded-lg border border-[var(--border)] p-4">
+          <div
+            key={action.id}
+            className={`rounded-lg border p-4 ${
+              featuredRecommendation?.action_code === action.code
+                ? "border-[var(--accent)] bg-[var(--accent)]/5"
+                : "border-[var(--border)]"
+            }`}
+          >
             <div className="flex flex-wrap items-center gap-2">
               <Badge label={action.label} variant={variantForSeverity(action.severity)} />
               <Badge label={action.action_kind} variant="neutral" />
+              {featuredRecommendation?.action_code === action.code ? <Badge label="Onerilen" variant="success" /> : null}
               {action.metadata?.retryable_runs ? (
                 <Badge label={`${action.metadata.retryable_runs} retry`} variant="neutral" />
               ) : null}
