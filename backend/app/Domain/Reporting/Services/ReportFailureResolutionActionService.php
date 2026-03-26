@@ -16,6 +16,9 @@ class ReportFailureResolutionActionService
     public function __construct(
         private readonly ReportDeliveryFailureReasonClassifier $reportDeliveryFailureReasonClassifier,
         private readonly ReportDeliveryRetryRecommendationService $reportDeliveryRetryRecommendationService,
+        private readonly ReportRecipientGroupFailureReasonAnalyticsService $reportRecipientGroupFailureReasonAnalyticsService,
+        private readonly ReportFailureResolutionEffectivenessAnalyticsService $reportFailureResolutionEffectivenessAnalyticsService,
+        private readonly ReportFeaturedFailureResolutionService $reportFeaturedFailureResolutionService,
         private readonly AuditLogService $auditLogService,
     ) {
     }
@@ -190,7 +193,14 @@ class ReportFailureResolutionActionService
         ?User $actor = null,
         ?Request $request = null,
     ): array {
-        $actionDefinition = $this->resolveActionDefinitionOrFallback($workspace->id, $entityType, $entityId, $actionCode);
+        $actionsPayload = $this->forEntity($workspace->id, $entityType, $entityId);
+        $actionDefinition = $this->resolveActionDefinitionOrFallbackFromItems($actionsPayload['items'], $actionCode);
+        $featuredFailureResolution = $this->featuredFailureResolutionContext(
+            workspaceId: $workspace->id,
+            entityType: $entityType,
+            entityId: $entityId,
+            actions: $actionsPayload['items'],
+        );
 
         return match ($actionCode) {
             'retry_failed_runs' => $this->retryFailedRunsForEntity(
@@ -199,6 +209,7 @@ class ReportFailureResolutionActionService
                 entityId: $entityId,
                 reportDeliveryScheduleService: $reportDeliveryScheduleService,
                 actionDefinition: $actionDefinition,
+                featuredFailureResolution: $featuredFailureResolution,
                 actor: $actor,
                 request: $request,
             ),
@@ -219,7 +230,14 @@ class ReportFailureResolutionActionService
         ?User $actor = null,
         ?Request $request = null,
     ): array {
-        $actionDefinition = $this->resolveActionDefinition($workspace->id, $entityType, $entityId, $actionCode);
+        $actionsPayload = $this->forEntity($workspace->id, $entityType, $entityId);
+        $actionDefinition = $this->resolveActionDefinitionFromItems($actionsPayload['items'], $actionCode);
+        $featuredFailureResolution = $this->featuredFailureResolutionContext(
+            workspaceId: $workspace->id,
+            entityType: $entityType,
+            entityId: $entityId,
+            actions: $actionsPayload['items'],
+        );
 
         $this->auditLogService->log(
             actor: $actor,
@@ -238,7 +256,7 @@ class ReportFailureResolutionActionService
                 'affected_reason_codes' => data_get($actionDefinition, 'metadata.affected_reason_codes', []),
                 'sample_recipients' => data_get($actionDefinition, 'metadata.sample_recipients', []),
                 'affected_group_labels' => data_get($actionDefinition, 'metadata.affected_group_labels', []),
-            ],
+            ] + $this->featuredFailureResolutionMetadata($featuredFailureResolution, $actionCode),
             request: $request,
         );
 
@@ -258,6 +276,7 @@ class ReportFailureResolutionActionService
         string $entityId,
         ReportDeliveryScheduleService $reportDeliveryScheduleService,
         array $actionDefinition,
+        ?array $featuredFailureResolution = null,
         ?User $actor = null,
         ?Request $request = null,
     ): array {
@@ -330,7 +349,7 @@ class ReportFailureResolutionActionService
                 'outcome_status' => count($results) > 0
                     ? (count($errors) > 0 ? 'partial' : 'success')
                     : 'failed',
-            ],
+            ] + $this->featuredFailureResolutionMetadata($featuredFailureResolution, 'retry_failed_runs'),
             request: $request,
         );
 
@@ -476,7 +495,34 @@ class ReportFailureResolutionActionService
         string $entityId,
         string $actionCode,
     ): array {
-        $actionDefinition = collect($this->forEntity($workspaceId, $entityType, $entityId)['items'])
+        return $this->resolveActionDefinitionFromItems(
+            $this->forEntity($workspaceId, $entityType, $entityId)['items'],
+            $actionCode,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resolveActionDefinitionOrFallback(
+        string $workspaceId,
+        string $entityType,
+        string $entityId,
+        string $actionCode,
+    ): array {
+        return $this->resolveActionDefinitionOrFallbackFromItems(
+            $this->forEntity($workspaceId, $entityType, $entityId)['items'],
+            $actionCode,
+        );
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<string, mixed>
+     */
+    private function resolveActionDefinitionFromItems(array $items, string $actionCode): array
+    {
+        $actionDefinition = collect($items)
             ->first(fn (array $item): bool => ($item['code'] ?? null) === $actionCode);
 
         if (! is_array($actionDefinition)) {
@@ -489,15 +535,12 @@ class ReportFailureResolutionActionService
     }
 
     /**
+     * @param  array<int, array<string, mixed>>  $items
      * @return array<string, mixed>
      */
-    private function resolveActionDefinitionOrFallback(
-        string $workspaceId,
-        string $entityType,
-        string $entityId,
-        string $actionCode,
-    ): array {
-        $actionDefinition = collect($this->forEntity($workspaceId, $entityType, $entityId)['items'])
+    private function resolveActionDefinitionOrFallbackFromItems(array $items, string $actionCode): array
+    {
+        $actionDefinition = collect($items)
             ->first(fn (array $item): bool => ($item['code'] ?? null) === $actionCode);
 
         if (is_array($actionDefinition)) {
@@ -523,5 +566,75 @@ class ReportFailureResolutionActionService
         throw ValidationException::withMessages([
             'action_code' => 'Desteklenmeyen failure resolution aksiyonu.',
         ]);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $actions
+     * @return array<string, mixed>|null
+     */
+    private function featuredFailureResolutionContext(
+        string $workspaceId,
+        string $entityType,
+        string $entityId,
+        array $actions,
+    ): ?array {
+        $failureReasons = $this->reportRecipientGroupFailureReasonAnalyticsService
+            ->forEntity($workspaceId, $entityType, $entityId);
+
+        $retryRecommendations = $this->reportDeliveryRetryRecommendationService
+            ->fromFailureReasonItems($failureReasons['items']);
+
+        $effectiveness = $this->reportFailureResolutionEffectivenessAnalyticsService
+            ->index($workspaceId, 90, $entityType, $entityId);
+
+        return $this->reportFeaturedFailureResolutionService->recommend(
+            actions: $actions,
+            retryRecommendations: $retryRecommendations['items'],
+            effectivenessItems: $effectiveness['items'],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $featuredFailureResolution
+     * @return array<string, mixed>
+     */
+    private function featuredFailureResolutionMetadata(?array $featuredFailureResolution, string $actionCode): array
+    {
+        if ($featuredFailureResolution === null) {
+            return [
+                'featured_failure_resolution_available' => false,
+                'matches_featured_failure_resolution' => false,
+                'is_featured_failure_resolution' => false,
+                'featured_failure_resolution_status' => null,
+                'featured_failure_resolution_status_label' => null,
+                'featured_failure_resolution_source' => null,
+                'featured_failure_resolution_action_code' => null,
+                'featured_failure_resolution_action_label' => null,
+                'featured_failure_resolution_reason_code' => null,
+                'featured_failure_resolution_reason_label' => null,
+                'featured_failure_resolution_provider_label' => null,
+                'featured_failure_resolution_delivery_stage_label' => null,
+            ];
+        }
+
+        $featuredActionCode = is_string($featuredFailureResolution['action_code'] ?? null)
+            ? $featuredFailureResolution['action_code']
+            : null;
+        $matchesFeaturedResolution = $featuredActionCode !== null && $featuredActionCode === $actionCode;
+
+        return [
+            'featured_failure_resolution_available' => true,
+            'matches_featured_failure_resolution' => $matchesFeaturedResolution,
+            'is_featured_failure_resolution' => $matchesFeaturedResolution,
+            'featured_failure_resolution_status' => $featuredFailureResolution['status'] ?? null,
+            'featured_failure_resolution_status_label' => $featuredFailureResolution['status_label'] ?? null,
+            'featured_failure_resolution_source' => $featuredFailureResolution['source'] ?? null,
+            'featured_failure_resolution_action_code' => $featuredActionCode,
+            'featured_failure_resolution_action_label' => $featuredFailureResolution['action_label'] ?? null,
+            'featured_failure_resolution_reason_code' => $featuredFailureResolution['reason_code'] ?? null,
+            'featured_failure_resolution_reason_label' => $featuredFailureResolution['reason_label'] ?? null,
+            'featured_failure_resolution_provider_label' => $featuredFailureResolution['provider_label'] ?? null,
+            'featured_failure_resolution_delivery_stage_label' => $featuredFailureResolution['delivery_stage_label'] ?? null,
+        ];
     }
 }

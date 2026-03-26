@@ -1549,6 +1549,55 @@ export type ReportFailureResolutionEffectivenessItem = {
   }>;
 };
 
+export type ReportFeaturedFailureResolutionAnalyticsSummary = {
+  tracked_interactions: number;
+  featured_interactions: number;
+  override_interactions: number;
+  featured_api_attempts: number;
+  override_api_attempts: number;
+  successful_featured_executions: number;
+  partial_featured_executions: number;
+  failed_featured_executions: number;
+  successful_override_executions: number;
+  partial_override_executions: number;
+  failed_override_executions: number;
+  top_featured_action_label: string | null;
+  top_overridden_featured_action_label: string | null;
+  best_followed_featured_action_label: string | null;
+  window_days: number;
+};
+
+export type ReportFeaturedFailureResolutionAnalyticsItem = {
+  featured_action_code: string;
+  featured_action_label: string;
+  featured_status: string;
+  featured_status_label: string;
+  featured_source: string;
+  reason_code: string;
+  reason_label: string;
+  provider_label: string | null;
+  delivery_stage_label: string | null;
+  tracked_interactions: number;
+  featured_interactions: number;
+  override_interactions: number;
+  route_interactions: number;
+  focus_interactions: number;
+  featured_api_attempts: number;
+  override_api_attempts: number;
+  successful_featured_executions: number;
+  partial_featured_executions: number;
+  failed_featured_executions: number;
+  successful_override_executions: number;
+  partial_override_executions: number;
+  failed_override_executions: number;
+  follow_rate: number | null;
+  featured_success_rate: number | null;
+  override_success_rate: number | null;
+  top_override_action_label: string | null;
+  usage_summary: string;
+  last_seen_at: string | null;
+};
+
 export type ReportDeliveryProfileSuggestion = {
   status: string;
   status_label: string;
@@ -1765,6 +1814,7 @@ export type ReportIndexResponse = {
     recipient_group_failure_reason_summary: ReportRecipientGroupFailureReasonSummary;
     failure_resolution_action_analytics_summary: ReportFailureResolutionActionAnalyticsSummary;
     failure_resolution_effectiveness_summary: ReportFailureResolutionEffectivenessSummary;
+    featured_failure_resolution_analytics_summary: ReportFeaturedFailureResolutionAnalyticsSummary;
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1814,6 +1864,7 @@ export type ReportIndexResponse = {
     recipient_group_failure_reasons: ReportRecipientGroupFailureReasonItem[];
     failure_resolution_action_analytics: ReportFailureResolutionActionAnalyticsItem[];
     failure_resolution_effectiveness: ReportFailureResolutionEffectivenessItem[];
+    featured_failure_resolution_analytics: ReportFeaturedFailureResolutionAnalyticsItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];

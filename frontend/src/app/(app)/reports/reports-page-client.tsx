@@ -9,6 +9,7 @@ import { ReportContactManager } from "@/components/reports/report-contact-manage
 import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery-history-panel";
 import { ReportFailureResolutionActionAnalyticsPanel } from "@/components/reports/report-failure-resolution-action-analytics-panel";
 import { ReportFailureResolutionEffectivenessPanel } from "@/components/reports/report-failure-resolution-effectiveness-panel";
+import { ReportFeaturedFailureResolutionAnalyticsPanel } from "@/components/reports/report-featured-failure-resolution-analytics-panel";
 import { ReportRecipientGroupAnalyticsPanel } from "@/components/reports/report-recipient-group-analytics-panel";
 import { ReportRecipientGroupAlignmentPanel } from "@/components/reports/report-recipient-group-alignment-panel";
 import { ReportRecipientGroupCorrelationPanel } from "@/components/reports/report-recipient-group-correlation-panel";
@@ -197,6 +198,7 @@ export default function ReportsPage() {
         <MetricCard label="Hata Tipi" value={data?.recipient_group_failure_reason_summary.total_reason_types ?? 0} />
         <MetricCard label="Aksiyon Kullanimi" value={data?.failure_resolution_action_analytics_summary.observed_actions ?? 0} />
         <MetricCard label="Calisan Fix" value={data?.failure_resolution_effectiveness_summary.working_recommended_fixes ?? 0} />
+        <MetricCard label="Oneri Uyumu" value={data?.featured_failure_resolution_analytics_summary.featured_interactions ?? 0} />
         <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Sablon Kurali" value={data?.recipient_preset_summary.managed_templates ?? 0} />
         <MetricCard label="Varsayilan Profil" value={data?.delivery_profile_summary.total_profiles ?? 0} />
@@ -392,6 +394,25 @@ export default function ReportsPage() {
           <ReportFailureResolutionEffectivenessPanel
             summary={data?.failure_resolution_effectiveness_summary ?? null}
             items={data?.failure_resolution_effectiveness ?? []}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>One Cikan Duzeltme Kullanimi</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Sistem hangi duzeltmeyi one cikariyor, operator bu oneriyi takip ediyor mu ve featured aksiyon gercekte basari uretiyor mu burada izlenir.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
+          <span>Izlenen karar: {data?.featured_failure_resolution_analytics_summary.tracked_interactions ?? 0}</span>
+          <span>Oneriye uyum: {data?.featured_failure_resolution_analytics_summary.featured_interactions ?? 0}</span>
+          <span>Override: {data?.featured_failure_resolution_analytics_summary.override_interactions ?? 0}</span>
+          <span>En cok one cikan: {data?.featured_failure_resolution_analytics_summary.top_featured_action_label ?? "-"}</span>
+        </div>
+        <div className="mt-4">
+          <ReportFeaturedFailureResolutionAnalyticsPanel
+            summary={data?.featured_failure_resolution_analytics_summary ?? null}
+            items={data?.featured_failure_resolution_analytics ?? []}
           />
         </div>
       </Card>
