@@ -219,6 +219,9 @@ class CampaignDrillDownTest extends TestCase
             ->assertJsonPath('data.recipient_group_failure_reason_summary.total_reason_types', 0)
             ->assertJsonPath('data.recipient_group_failure_reason_summary.total_failed_runs', 0)
             ->assertJsonCount(0, 'data.recipient_group_failure_reasons')
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.total_reasons', 0)
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.reasons_with_observed_fix', 0)
+            ->assertJsonCount(0, 'data.failure_resolution_effectiveness')
             ->assertJsonPath('data.retry_recommendation_summary.total_recommendations', 0)
             ->assertJsonPath('data.retry_recommendation_summary.auto_retry_recommendations', 0)
             ->assertJsonPath('data.retry_recommendation_summary.blocked_retry_recommendations', 0)
@@ -340,6 +343,11 @@ class CampaignDrillDownTest extends TestCase
             ->getJson("/api/v1/campaigns/{$campaign->id}?start_date=2026-03-10&end_date=2026-03-16");
 
         $response->assertOk()
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.total_reasons', 1)
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.reasons_with_observed_fix', 0)
+            ->assertJsonPath('data.failure_resolution_effectiveness.0.reason_code', 'recipient_rejected')
+            ->assertJsonPath('data.failure_resolution_effectiveness.0.recommended_action.code', 'review_contact_book')
+            ->assertJsonPath('data.failure_resolution_effectiveness.0.observed_actions', 0)
             ->assertJsonPath('data.retry_recommendation_summary.total_recommendations', 1)
             ->assertJsonPath('data.retry_recommendation_summary.blocked_retry_recommendations', 1)
             ->assertJsonPath('data.retry_recommendations.0.reason_code', 'recipient_rejected')

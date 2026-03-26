@@ -3,6 +3,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
 import {
+  ReportFailureResolutionEffectivenessItem,
+  ReportFailureResolutionEffectivenessSummary,
   ReportRecipientGroupAlignmentItem,
   ReportRecipientGroupAlignmentSummary,
   ReportRecipientGroupAnalyticsItem,
@@ -22,6 +24,8 @@ type Props = {
   failureAlignmentItems: ReportRecipientGroupFailureAlignmentItem[];
   failureReasonSummary: ReportRecipientGroupFailureReasonSummary;
   failureReasonItems: ReportRecipientGroupFailureReasonItem[];
+  effectivenessSummary: ReportFailureResolutionEffectivenessSummary;
+  effectivenessItems: ReportFailureResolutionEffectivenessItem[];
   entityLabel: string;
 };
 
@@ -34,6 +38,8 @@ export function ReportRecipientGroupEntityInsightsPanel({
   failureAlignmentItems,
   failureReasonSummary,
   failureReasonItems,
+  effectivenessSummary,
+  effectivenessItems,
   entityLabel,
 }: Props) {
   return (
@@ -50,6 +56,8 @@ export function ReportRecipientGroupEntityInsightsPanel({
         <Metric label="Override" value={alignmentSummary.overridden_decisions} />
         <Metric label="Override Fail Tipi" value={failureAlignmentSummary.override_dominant_reasons} />
         <Metric label="Hata Tipi" value={failureReasonSummary.total_reason_types} />
+        <Metric label="Calisan Fix" value={effectivenessSummary.working_recommended_fixes} />
+        <Metric label="Manuel Takip" value={effectivenessSummary.manual_followup_reasons} />
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-4">
@@ -143,6 +151,61 @@ export function ReportRecipientGroupEntityInsightsPanel({
             ))}
             {failureAlignmentItems.length === 0 ? <p className="text-sm muted-text">Bu kayit icin secim kaynakli hata dagilimi yok.</p> : null}
           </div>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-[var(--border)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Hangi Duzeltme Ise Yariyor</p>
+            <p className="mt-1 text-sm muted-text">
+              {entityLabel} icin hata tiplerine karsi onerilen fix ile gercek operator davranisinin sonucunu gosterir.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge label={`${effectivenessSummary.reasons_with_observed_fix} izlenen fix`} variant="neutral" />
+            <Badge
+              label={`${effectivenessSummary.working_recommended_fixes} calisan fix`}
+              variant={effectivenessSummary.working_recommended_fixes > 0 ? "success" : "neutral"}
+            />
+            <Badge
+              label={`${effectivenessSummary.manual_followup_reasons} manuel takip`}
+              variant={effectivenessSummary.manual_followup_reasons > 0 ? "warning" : "neutral"}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 xl:grid-cols-3">
+          {effectivenessItems.slice(0, 3).map((item) => (
+            <div key={item.reason_code} className="rounded-md border border-[var(--border)] p-3">
+              <div className="flex flex-wrap gap-2">
+                <Badge label={item.label} variant="neutral" />
+                <Badge label={item.provider_label} variant="neutral" />
+                <Badge
+                  label={item.effectiveness_label}
+                  variant={
+                    item.effectiveness_status === "working_well"
+                      ? "success"
+                      : item.effectiveness_status === "manual_followup_active"
+                        ? "warning"
+                        : item.effectiveness_status === "needs_attention"
+                          ? "danger"
+                          : "neutral"
+                  }
+                />
+              </div>
+              <p className="mt-2 text-sm muted-text">{item.effectiveness_summary}</p>
+              <p className="mt-2 text-xs muted-text">
+                Onerilen fix: {item.recommended_action.label} / Politika: {item.recommended_action.retry_policy_label}
+              </p>
+              <p className="mt-2 text-xs muted-text">
+                Gozlenen aksiyon: {item.top_observed_action?.label ?? "-"} / Basari: {item.recommended_action_metrics?.success_rate ?? 0}%
+              </p>
+            </div>
+          ))}
+          {effectivenessItems.length === 0 ? (
+            <p className="text-sm muted-text">Bu kayit icin duzeltme etkinligi olcumu olusan bir veri yok.</p>
+          ) : null}
         </div>
       </div>
     </Card>

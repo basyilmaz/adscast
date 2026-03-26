@@ -523,6 +523,8 @@ export function CampaignDetailClient() {
             failureAlignmentItems={data.recipient_group_failure_alignment}
             failureReasonSummary={data.recipient_group_failure_reason_summary}
             failureReasonItems={data.recipient_group_failure_reasons}
+            effectivenessSummary={data.failure_resolution_effectiveness_summary}
+            effectivenessItems={data.failure_resolution_effectiveness}
             entityLabel={data.campaign.name}
           />
 

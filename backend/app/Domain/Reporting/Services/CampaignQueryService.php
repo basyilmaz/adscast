@@ -20,6 +20,7 @@ class CampaignQueryService
     public function __construct(
         private readonly ActionFeedService $actionFeedService,
         private readonly ReportFailureResolutionActionService $reportFailureResolutionActionService,
+        private readonly ReportFailureResolutionEffectivenessAnalyticsService $reportFailureResolutionEffectivenessAnalyticsService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
         private readonly ReportDeliveryProfileSuggestionService $reportDeliveryProfileSuggestionService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
@@ -334,6 +335,11 @@ class CampaignQueryService
             'campaign',
             $campaign->id,
         );
+        $failureResolutionEffectiveness = $this->reportFailureResolutionEffectivenessAnalyticsService->index(
+            workspaceId: $campaign->workspace_id,
+            entityType: 'campaign',
+            entityId: $campaign->id,
+        );
 
         return [
             'range' => [
@@ -379,6 +385,8 @@ class CampaignQueryService
             'recipient_group_failure_alignment' => $recipientGroupFailureAlignment['items'],
             'recipient_group_failure_reason_summary' => $recipientGroupFailureReasons['summary'],
             'recipient_group_failure_reasons' => $recipientGroupFailureReasons['items'],
+            'failure_resolution_effectiveness_summary' => $failureResolutionEffectiveness['summary'],
+            'failure_resolution_effectiveness' => $failureResolutionEffectiveness['items'],
             'retry_recommendation_summary' => $retryRecommendations['summary'],
             'retry_recommendations' => $retryRecommendations['items'],
             'failure_resolution_summary' => $failureResolutionActions['summary'],

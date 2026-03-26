@@ -5,6 +5,7 @@ namespace Tests\Feature\Reporting;
 use App\Models\Ad;
 use App\Models\AdSet;
 use App\Models\Alert;
+use App\Models\AuditLog;
 use App\Models\Campaign;
 use App\Models\MetaAdAccount;
 use App\Models\MetaConnection;
@@ -400,6 +401,45 @@ class AdAccountReportingTest extends TestCase
             ],
         ]);
 
+        $user = \App\Models\User::query()->where('email', 'account.manager@adscast.test')->firstOrFail();
+
+        AuditLog::query()->create([
+            'organization_id' => $workspace->organization_id,
+            'workspace_id' => $workspace->id,
+            'actor_id' => $user->id,
+            'action' => 'report_failure_resolution_action_tracked',
+            'target_type' => 'account',
+            'target_id' => $account->id,
+            'metadata' => [
+                'action_code' => 'retry_failed_runs',
+                'action_label' => 'Basarisiz teslimleri tekrar dene',
+                'action_kind' => 'api',
+                'severity' => 'warning',
+                'affected_reason_codes' => ['smtp_timeout'],
+            ],
+            'occurred_at' => now()->subMinutes(20),
+        ]);
+
+        AuditLog::query()->create([
+            'organization_id' => $workspace->organization_id,
+            'workspace_id' => $workspace->id,
+            'actor_id' => $user->id,
+            'action' => 'report_failure_resolution_action_executed',
+            'target_type' => 'account',
+            'target_id' => $account->id,
+            'metadata' => [
+                'action_code' => 'retry_failed_runs',
+                'action_label' => 'Basarisiz teslimleri tekrar dene',
+                'action_kind' => 'api',
+                'severity' => 'warning',
+                'affected_reason_codes' => ['smtp_timeout'],
+                'outcome_status' => 'success',
+                'retried_runs' => 1,
+                'failed_retries' => 0,
+            ],
+            'occurred_at' => now()->subMinutes(18),
+        ]);
+
         ReportDeliveryRun::query()->create([
             'workspace_id' => $workspace->id,
             'report_delivery_schedule_id' => $schedule->id,
@@ -483,6 +523,14 @@ class AdAccountReportingTest extends TestCase
             ->assertJsonPath('data.recipient_group_failure_reason_summary.top_reason_label', 'SMTP Timeout')
             ->assertJsonPath('data.recipient_group_failure_reasons.0.reason_code', 'smtp_timeout')
             ->assertJsonPath('data.recipient_group_failure_reasons.0.top_group_label', 'Castintech Main Stakeholders')
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.total_reasons', 1)
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.reasons_with_observed_fix', 1)
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.working_recommended_fixes', 1)
+            ->assertJsonPath('data.failure_resolution_effectiveness_summary.manual_followup_reasons', 0)
+            ->assertJsonPath('data.failure_resolution_effectiveness.0.reason_code', 'smtp_timeout')
+            ->assertJsonPath('data.failure_resolution_effectiveness.0.effectiveness_status', 'working_well')
+            ->assertJsonPath('data.failure_resolution_effectiveness.0.recommended_action.code', 'retry_failed_runs')
+            ->assertJsonPath('data.failure_resolution_effectiveness.0.recommended_action_metrics.success_rate', 100)
             ->assertJsonPath('data.retry_recommendation_summary.total_recommendations', 1)
             ->assertJsonPath('data.retry_recommendation_summary.auto_retry_recommendations', 1)
             ->assertJsonPath('data.retry_recommendation_summary.blocked_retry_recommendations', 0)
