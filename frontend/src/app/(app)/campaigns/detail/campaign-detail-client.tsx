@@ -11,6 +11,7 @@ import { Card, CardTitle, CardValue } from "@/components/ui/card";
 import { PageErrorState, PageLoadingState } from "@/components/ui/page-state";
 import { NextBestActionsPanel } from "@/components/operations/next-best-actions-panel";
 import { ReportDeliveryProfileManager } from "@/components/reports/report-delivery-profile-manager";
+import { ReportDecisionSurfaceSection } from "@/components/reports/report-decision-surface-section";
 import { ReportFailureResolutionActionsCard } from "@/components/reports/report-failure-resolution-actions-card";
 import { ReportOperationalDecisionSummaryCard } from "@/components/reports/report-operational-decision-summary-card";
 import { ReportDeliveryProfileSuggestionCard } from "@/components/reports/report-delivery-profile-suggestion-card";
@@ -19,7 +20,6 @@ import { ReportRecipientGroupEntityInsightsPanel } from "@/components/reports/re
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
 import { buildApiPathWithFilters, buildHrefWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
-import { reportDecisionSurfaceId } from "@/lib/report-failure-focus";
 import { CampaignDetailResponse } from "@/lib/types";
 
 const SpendResultChart = dynamic(
@@ -507,7 +507,7 @@ export function CampaignDetailClient() {
             focusSource={focusSource}
           />
 
-          <div id={reportDecisionSurfaceId("featured_fix")} className="scroll-mt-24">
+          <ReportDecisionSurfaceSection surfaceKey="featured_fix">
             <ReportFailureResolutionActionsCard
               entityType="campaign"
               entityId={data.campaign.id}
@@ -520,9 +520,9 @@ export function CampaignDetailClient() {
               onReload={reload}
               onFocusDeliveryProfile={() => setActiveTab("overview")}
             />
-          </div>
+          </ReportDecisionSurfaceSection>
 
-          <div id={reportDecisionSurfaceId("retry")} className="scroll-mt-24">
+          <ReportDecisionSurfaceSection surfaceKey="retry">
             <ReportDeliveryRetryRecommendationsPanel
               summary={data.retry_recommendation_summary}
               items={data.retry_recommendations}
@@ -532,9 +532,9 @@ export function CampaignDetailClient() {
               focusReasonCode={focusReasonCode}
               focusSource={focusSource}
             />
-          </div>
+          </ReportDecisionSurfaceSection>
 
-          <div id={reportDecisionSurfaceId("profile")} className="scroll-mt-24">
+          <ReportDecisionSurfaceSection surfaceKey="profile">
             <ReportDeliveryProfileSuggestionCard
               suggestion={data.suggested_delivery_profile}
               entityLabel={data.campaign.name}
@@ -546,7 +546,7 @@ export function CampaignDetailClient() {
               focusSource={focusSource}
               onApplied={reload}
             />
-          </div>
+          </ReportDecisionSurfaceSection>
 
           <ReportRecipientGroupEntityInsightsPanel
             analyticsSummary={data.recipient_group_analytics_summary}

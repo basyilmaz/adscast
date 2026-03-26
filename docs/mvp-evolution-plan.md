@@ -298,3 +298,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 59. Ayni focus baglamini delivery profile suggestion kartina da tasiyip detail ekranindaki uc karar yuzeyini tek bir aciklanabilir karar akisinda birlestirmek
 60. Detail ekraninin report sekmesinde uc karar yuzeyini tek bir "once ne yapmaliyim" cevap bloğunda birlestiren operasyon karari ozeti katmani eklemek
 61. Operasyon karari ozetinden ilgili alt karta sayfa ici derin odak verip operatoru summary'den dogrudan dogru karara indirmek
+62. Hash ile acilan veya summary'den inilen karar yuzeyini kisa sureli gorsel vurguya alip operatorun geldigi hedefi aninda fark etmesini saglamak

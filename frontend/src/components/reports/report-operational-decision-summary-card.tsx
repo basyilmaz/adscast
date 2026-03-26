@@ -7,11 +7,11 @@ import {
   actionLabelForCode,
   deliveryProfileSuggestionExplanation,
   featuredRecommendationExplanation,
+  focusReportDecisionSurface,
   focusSourceLabel,
   focusedRetryExplanation,
   isFocusedDeliveryProfileSuggestion,
   prioritizeFocusedRetryRecommendations,
-  reportDecisionSurfaceId,
   reasonLabelForCode,
   ReportDecisionSurfaceKey,
 } from "@/lib/report-failure-focus";
@@ -71,18 +71,6 @@ export function ReportOperationalDecisionSummaryCard({
 
   const primaryDecision = decisions.sort((left, right) => right.priority - left.priority)[0] ?? null;
 
-  const scrollToSurface = (key: ReportDecisionSurfaceKey) => {
-    const surfaceId = reportDecisionSurfaceId(key);
-    const target = document.getElementById(surfaceId);
-
-    if (!target) {
-      return;
-    }
-
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
-    window.history.replaceState(null, "", `#${surfaceId}`);
-  };
-
   return (
     <Card>
       <CardTitle>Operasyon Karari Ozeti</CardTitle>
@@ -113,7 +101,7 @@ export function ReportOperationalDecisionSummaryCard({
           <p className="mt-3 text-base font-semibold">{primaryDecision.title}</p>
           <p className="mt-2 text-sm muted-text">{primaryDecision.detail}</p>
           <div className="mt-3">
-            <Button type="button" size="sm" variant="secondary" onClick={() => scrollToSurface(primaryDecision.key)}>
+            <Button type="button" size="sm" variant="secondary" onClick={() => focusReportDecisionSurface(primaryDecision.key)}>
               Ilgili karta git
             </Button>
           </div>
@@ -130,21 +118,21 @@ export function ReportOperationalDecisionSummaryCard({
           title="Hizli Duzeltme"
           value={featuredRecommendation?.action_label ?? "Kayitli featured fix yok"}
           note={featuredRecommendation?.reason_label ?? "Failure reason odagi yok"}
-          onJump={scrollToSurface}
+          onJump={focusReportDecisionSurface}
         />
         <SurfaceSummary
           surfaceKey="retry"
           title="Retry Rehberi"
           value={topRetryItem ? `${topRetryItem.label} / ${topRetryItem.retry_policy_label}` : "Kayitli retry karari yok"}
           note={topRetryItem?.operator_note ?? "Retry odagi yok"}
-          onJump={scrollToSurface}
+          onJump={focusReportDecisionSurface}
         />
         <SurfaceSummary
           surfaceKey="profile"
           title="Profil Onerisi"
           value={suggestion?.recipient_preset_name ?? "Kayitli profil onerisi yok"}
           note={suggestion?.reason ?? "Profil odagi yok"}
-          onJump={scrollToSurface}
+          onJump={focusReportDecisionSurface}
         />
       </div>
     </Card>

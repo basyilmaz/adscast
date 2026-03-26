@@ -6,6 +6,7 @@ import {
 } from "@/lib/types";
 
 export type ReportDecisionSurfaceKey = "featured_fix" | "retry" | "profile";
+export const REPORT_DECISION_SURFACE_FOCUS_EVENT = "report-decision-surface-focus";
 
 export function reasonLabelForCode(value?: string | null): string {
   switch (value) {
@@ -62,6 +63,23 @@ export function focusSourceLabel(value?: string | null): string {
 
 export function reportDecisionSurfaceId(key: ReportDecisionSurfaceKey): string {
   return `report-decision-surface-${key}`;
+}
+
+export function focusReportDecisionSurface(key: ReportDecisionSurfaceKey) {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return;
+  }
+
+  const surfaceId = reportDecisionSurfaceId(key);
+  const target = document.getElementById(surfaceId);
+
+  if (!target) {
+    return;
+  }
+
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+  window.history.replaceState(null, "", `#${surfaceId}`);
+  window.dispatchEvent(new CustomEvent(REPORT_DECISION_SURFACE_FOCUS_EVENT, { detail: { surfaceId } }));
 }
 
 export function focusedActionExplanation(
