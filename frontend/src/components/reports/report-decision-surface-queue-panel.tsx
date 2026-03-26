@@ -1,17 +1,209 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
+import { apiRequest } from "@/lib/api";
 import { ReportDecisionSurfaceQueueItem, ReportDecisionSurfaceQueueSummary } from "@/lib/types";
 
 type Props = {
   summary: ReportDecisionSurfaceQueueSummary | null;
   items: ReportDecisionSurfaceQueueItem[];
   routeBuilder: (route: string) => string;
+  onChanged?: () => Promise<void> | void;
 };
 
-export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder }: Props) {
+const STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "Tum Durumlar" },
+  { value: "open", label: "Acik Kararlar" },
+  { value: "pending", label: "Beklemede" },
+  { value: "reviewed", label: "Gozden Gecirildi" },
+  { value: "deferred", label: "Ertelendi" },
+  { value: "completed", label: "Tamamlandi" },
+] as const;
+
+const STATUS_UPDATE_OPTIONS = [
+  { value: "pending", label: "Beklemede" },
+  { value: "reviewed", label: "Gozden Gecirildi" },
+  { value: "completed", label: "Tamamlandi" },
+  { value: "deferred", label: "Ertelendi" },
+] as const;
+
+const ENTITY_FILTER_OPTIONS = [
+  { value: "all", label: "Tum Entity" },
+  { value: "account", label: "Reklam Hesabi" },
+  { value: "campaign", label: "Kampanya" },
+] as const;
+
+const SURFACE_FILTER_OPTIONS = [
+  { value: "all", label: "Tum Yuzeyler" },
+  { value: "featured_fix", label: "Hizli Duzeltme" },
+  { value: "retry", label: "Retry Rehberi" },
+  { value: "profile", label: "Profil Onerisi" },
+] as const;
+
+const OPEN_STATUSES = new Set(["pending", "reviewed", "deferred"]);
+
+export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, onChanged }: Props) {
+  const [statusFilter, setStatusFilter] =
+    useState<(typeof STATUS_FILTER_OPTIONS)[number]["value"]>("open");
+  const [entityFilter, setEntityFilter] =
+    useState<(typeof ENTITY_FILTER_OPTIONS)[number]["value"]>("all");
+  const [surfaceFilter, setSurfaceFilter] =
+    useState<(typeof SURFACE_FILTER_OPTIONS)[number]["value"]>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [activeBulkStatus, setActiveBulkStatus] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const normalizedSearchTerm = searchTerm.trim().toLocaleLowerCase("tr");
+
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      if (statusFilter === "open" && !OPEN_STATUSES.has(item.status)) {
+        return false;
+      }
+
+      if (statusFilter !== "all" && statusFilter !== "open" && item.status !== statusFilter) {
+        return false;
+      }
+
+      if (entityFilter !== "all" && item.entity_type !== entityFilter) {
+        return false;
+      }
+
+      if (surfaceFilter !== "all" && item.surface_key !== surfaceFilter) {
+        return false;
+      }
+
+      if (!normalizedSearchTerm) {
+        return true;
+      }
+
+      const searchHaystack = [
+        item.entity_label,
+        item.context_label,
+        item.surface_label,
+        item.status_label,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("tr");
+
+      return searchHaystack.includes(normalizedSearchTerm);
+    });
+  }, [entityFilter, items, normalizedSearchTerm, statusFilter, surfaceFilter]);
+
+  const filteredKeySet = useMemo(
+    () => new Set(filteredItems.map((item) => queueItemKey(item))),
+    [filteredItems],
+  );
+
+  useEffect(() => {
+    setSelectedKeys((current) => {
+      const next = current.filter((key) => filteredKeySet.has(key));
+      return next.length === current.length ? current : next;
+    });
+  }, [filteredKeySet]);
+
+  const selectedVisibleItems = useMemo(
+    () => filteredItems.filter((item) => selectedKeys.includes(queueItemKey(item))),
+    [filteredItems, selectedKeys],
+  );
+  const allVisibleSelected =
+    filteredItems.length > 0 && selectedVisibleItems.length === filteredItems.length;
+
+  const handleToggleItem = (itemKey: string, checked: boolean) => {
+    setSelectedKeys((current) => {
+      if (checked) {
+        return current.includes(itemKey) ? current : [...current, itemKey];
+      }
+
+      return current.filter((key) => key !== itemKey);
+    });
+  };
+
+  const handleToggleVisibleSelection = () => {
+    if (allVisibleSelected) {
+      setSelectedKeys([]);
+      return;
+    }
+
+    setSelectedKeys(filteredItems.map((item) => queueItemKey(item)));
+  };
+
+  const handleBulkStatusChange = async (nextStatus: (typeof STATUS_UPDATE_OPTIONS)[number]["value"]) => {
+    const targetItems = selectedVisibleItems.filter((item) => item.status !== nextStatus);
+
+    if (targetItems.length === 0) {
+      setError(null);
+      setMessage(
+        selectedVisibleItems.length === 0
+          ? "Toplu guncelleme icin once en az bir karar yuzeyi secin."
+          : `Secili yuzeyler zaten ${statusLabel(nextStatus).toLocaleLowerCase("tr")} durumunda.`,
+      );
+      return;
+    }
+
+    setActiveBulkStatus(nextStatus);
+    setError(null);
+    setMessage(null);
+
+    const results = await Promise.allSettled(
+      targetItems.map((item) =>
+        apiRequest(`/reports/decision-surface-statuses/${item.entity_type}/${item.entity_id}/${item.surface_key}`, {
+          method: "PUT",
+          requireWorkspace: true,
+          body: {
+            status: nextStatus,
+          },
+        }),
+      ),
+    );
+
+    const successCount = results.filter((result) => result.status === "fulfilled").length;
+    const failureResults = results.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+
+    try {
+      if (successCount > 0) {
+        await onChanged?.();
+      }
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error && requestError.message.trim()
+          ? requestError.message
+          : "Karar kuyrugu yenilenemedi.",
+      );
+    } finally {
+      setActiveBulkStatus(null);
+      setSelectedKeys([]);
+    }
+
+    if (failureResults.length === 0) {
+      setMessage(
+        `${successCount} karar yuzeyi ${statusLabel(nextStatus).toLocaleLowerCase("tr")} durumuna tasindi.`,
+      );
+      return;
+    }
+
+    if (successCount > 0) {
+      setMessage(
+        `${successCount} karar yuzeyi guncellendi, ${failureResults.length} karar yuzeyi hata verdi.`,
+      );
+      setError(errorMessageFromFailure(failureResults[0].reason));
+      return;
+    }
+
+    setError(errorMessageFromFailure(failureResults[0].reason));
+  };
+
+  const filteredOpenItems = filteredItems.filter((item) => OPEN_STATUSES.has(item.status)).length;
+
   return (
     <Card>
       <CardTitle>Operasyon Karar Kuyrugu</CardTitle>
@@ -27,46 +219,200 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder }
         <span>Tamamlanan: {summary?.completed_items ?? 0}</span>
       </div>
 
-      <div className="mt-4 space-y-3">
-        {items.map((item) => (
-          <div key={`${item.entity_type}:${item.entity_id}:${item.surface_key}`} className="rounded-lg border border-[var(--border)] p-4">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge label={item.surface_label} variant="neutral" />
-                  <Badge label={item.status_label} variant={variantForStatus(item.status)} />
-                  <Badge label={item.entity_type} variant="neutral" />
-                </div>
-                <p className="mt-3 text-sm font-semibold">{item.entity_label ?? "Bilinmeyen varlik"}</p>
-                <p className="mt-1 text-xs muted-text">
-                  {item.context_label ?? "-"}
-                  {item.updated_at ? ` / Son guncelleme: ${item.updated_at}` : " / Henuz operator isareti yok"}
-                  {item.updated_by_name ? ` / ${item.updated_by_name}` : ""}
-                </p>
-              </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <label className="space-y-1 text-sm">
+          <span className="block font-medium">Durum</span>
+          <select
+            className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as (typeof STATUS_FILTER_OPTIONS)[number]["value"])}
+          >
+            {STATUS_FILTER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
-              <div className="flex flex-wrap gap-2">
-                {item.route ? (
-                  <Link
-                    href={routeBuilder(item.route)}
-                    className="inline-flex h-10 items-center rounded-md border border-[var(--border)] px-4 text-sm font-semibold hover:bg-[var(--surface-2)]"
-                  >
-                    Detaya git
-                  </Link>
-                ) : null}
-              </div>
+        <label className="space-y-1 text-sm">
+          <span className="block font-medium">Entity</span>
+          <select
+            className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+            value={entityFilter}
+            onChange={(event) => setEntityFilter(event.target.value as (typeof ENTITY_FILTER_OPTIONS)[number]["value"])}
+          >
+            {ENTITY_FILTER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1 text-sm">
+          <span className="block font-medium">Yuzey</span>
+          <select
+            className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+            value={surfaceFilter}
+            onChange={(event) => setSurfaceFilter(event.target.value as (typeof SURFACE_FILTER_OPTIONS)[number]["value"])}
+          >
+            {SURFACE_FILTER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1 text-sm">
+          <span className="block font-medium">Ara</span>
+          <input
+            type="search"
+            className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Entity veya baglam ara"
+          />
+        </label>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-3 text-sm muted-text">
+              <span>Filtrelenen: {filteredItems.length}</span>
+              <span>Acik: {filteredOpenItems}</span>
+              <span>Secili: {selectedVisibleItems.length}</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={handleToggleVisibleSelection}
+                disabled={filteredItems.length === 0 || activeBulkStatus !== null}
+              >
+                {allVisibleSelected ? "Secimi Temizle" : "Gorunenleri Sec"}
+              </Button>
+              {STATUS_UPDATE_OPTIONS.map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  size="sm"
+                  variant={buttonVariantForBulkStatus(option.value)}
+                  disabled={activeBulkStatus !== null || selectedVisibleItems.length === 0}
+                  onClick={() => void handleBulkStatusChange(option.value)}
+                >
+                  {activeBulkStatus === option.value ? "Guncelleniyor..." : option.label}
+                </Button>
+              ))}
             </div>
           </div>
-        ))}
+        </div>
 
-        {items.length === 0 ? (
+        {message ? <p className="mt-3 text-sm text-[var(--accent)]">{message}</p> : null}
+        {error ? <p className="mt-2 text-sm text-[var(--danger)]">{error}</p> : null}
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {filteredItems.map((item) => {
+          const itemKey = queueItemKey(item);
+
+          return (
+            <div key={itemKey} className="rounded-lg border border-[var(--border)] p-4">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="flex gap-3">
+                  <label className="mt-1 flex items-start">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border border-[var(--border)]"
+                      checked={selectedKeys.includes(itemKey)}
+                      onChange={(event) => handleToggleItem(itemKey, event.target.checked)}
+                      disabled={activeBulkStatus !== null}
+                      aria-label={`${item.entity_label ?? "Bilinmeyen varlik"} sec`}
+                    />
+                  </label>
+
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge label={item.surface_label} variant="neutral" />
+                      <Badge label={item.status_label} variant={variantForStatus(item.status)} />
+                      <Badge label={entityTypeLabel(item.entity_type)} variant="neutral" />
+                    </div>
+                    <p className="mt-3 text-sm font-semibold">{item.entity_label ?? "Bilinmeyen varlik"}</p>
+                    <p className="mt-1 text-xs muted-text">
+                      {item.context_label ?? "-"}
+                      {item.updated_at ? ` / Son guncelleme: ${item.updated_at}` : " / Henuz operator isareti yok"}
+                      {item.updated_by_name ? ` / ${item.updated_by_name}` : ""}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {item.route ? (
+                    <Link
+                      href={routeBuilder(item.route)}
+                      className="inline-flex h-10 items-center rounded-md border border-[var(--border)] px-4 text-sm font-semibold hover:bg-[var(--surface-2)]"
+                    >
+                      Detaya git
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {filteredItems.length === 0 ? (
           <p className="text-sm muted-text">
-            Henuz reports merkezine tasinmis operator takip kaydi yok. Detail ekranlarindaki karar yuzeyleri isaretlendikce bu kuyruk dolacak.
+            {items.length === 0
+              ? "Henuz reports merkezine tasinmis operator takip kaydi yok. Detail ekranlarindaki karar yuzeyleri isaretlendikce bu kuyruk dolacak."
+              : "Secili filtrelerle eslesen karar yuzeyi yok."}
           </p>
         ) : null}
       </div>
     </Card>
   );
+}
+
+function queueItemKey(item: ReportDecisionSurfaceQueueItem) {
+  return `${item.entity_type}:${item.entity_id}:${item.surface_key}`;
+}
+
+function statusLabel(status: string) {
+  return (
+    STATUS_UPDATE_OPTIONS.find((option) => option.value === status)?.label ??
+    STATUS_FILTER_OPTIONS.find((option) => option.value === status)?.label ??
+    status
+  );
+}
+
+function entityTypeLabel(entityType: string) {
+  if (entityType === "account") {
+    return "Reklam Hesabi";
+  }
+
+  if (entityType === "campaign") {
+    return "Kampanya";
+  }
+
+  return entityType;
+}
+
+function buttonVariantForBulkStatus(status: string) {
+  if (status === "completed") return "primary" as const;
+  if (status === "deferred") return "outline" as const;
+
+  return "secondary" as const;
+}
+
+function errorMessageFromFailure(reason: unknown) {
+  if (reason instanceof Error && reason.message.trim()) {
+    return reason.message;
+  }
+
+  return "Toplu karar durumu guncellenemedi.";
 }
 
 function variantForStatus(status: string) {

@@ -215,6 +215,7 @@ export default function ReportsPage() {
         summary={data?.decision_surface_queue_summary ?? null}
         items={data?.decision_surface_queue ?? []}
         routeBuilder={(route) => buildHrefWithHashAndFilters(route, searchParams, GLOBAL_DATE_FILTER_KEYS)}
+        onChanged={reload}
       />
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">

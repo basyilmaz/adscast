@@ -301,3 +301,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 62. Hash ile acilan veya summary'den inilen karar yuzeyini kisa sureli gorsel vurguya alip operatorun geldigi hedefi aninda fark etmesini saglamak
 63. Featured fix, retry rehberi ve profil onerisi yuzeylerine operator takip durumu ekleyip detail report sekmesini sadece onerilerden degil is takibinden de sorumlu hale getirmek
 64. Decision surface durumlarini reports merkezine workspace-scope operasyon kuyrugu olarak tasiyip hangi account/campaign'de hangi karar yuzeyinin bekledigini tek ekranda gostermek
+65. Reports merkezindeki operasyon kuyruguna bulk filtre, gorunenleri secme ve toplu durum guncelleme ekleyip operatorun birden cok karar yuzeyini tek akista kapatabilmesini saglamak
