@@ -63,12 +63,16 @@ export function ReportDecisionSurfaceStatusBar({
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold">Takip Durumu</p>
             <Badge label={statusItem.status_label} variant={variantForStatus(statusItem.status)} />
+            {statusItem.defer_reason_label ? <Badge label={statusItem.defer_reason_label} variant="warning" /> : null}
           </div>
           <p className="mt-1 text-xs muted-text">
             {statusItem.updated_at
               ? `${statusItem.updated_by_name ?? "Operator"} / ${statusItem.updated_at}`
               : "Bu yuzey icin operator durumu henuz isaretlenmedi."}
           </p>
+          {statusItem.operator_note ? (
+            <p className="mt-2 text-xs muted-text">Not: {statusItem.operator_note}</p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">

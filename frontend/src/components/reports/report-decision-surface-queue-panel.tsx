@@ -31,6 +31,15 @@ const STATUS_UPDATE_OPTIONS = [
   { value: "deferred", label: "Ertelendi" },
 ] as const;
 
+const DEFER_REASON_OPTIONS = [
+  { value: "", label: "Erteleme nedeni secin" },
+  { value: "waiting_client_feedback", label: "Musteri Donusu Bekleniyor" },
+  { value: "waiting_data_validation", label: "Veri Dogrulamasi Bekleniyor" },
+  { value: "scheduled_followup", label: "Planli Takip Bekleniyor" },
+  { value: "blocked_external_dependency", label: "Dis Bagimlilik Engeli" },
+  { value: "priority_window_shifted", label: "Oncelik Penceresi Degisti" },
+] as const;
+
 const ENTITY_FILTER_OPTIONS = [
   { value: "all", label: "Tum Entity" },
   { value: "account", label: "Reklam Hesabi" },
@@ -56,6 +65,8 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [activeBulkStatus, setActiveBulkStatus] = useState<string | null>(null);
+  const [bulkNote, setBulkNote] = useState("");
+  const [bulkDeferReason, setBulkDeferReason] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -137,6 +148,7 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
 
   const handleBulkStatusChange = async (nextStatus: (typeof STATUS_UPDATE_OPTIONS)[number]["value"]) => {
     const targetItems = selectedVisibleItems.filter((item) => item.status !== nextStatus);
+    const normalizedBulkNote = bulkNote.trim();
 
     if (targetItems.length === 0) {
       setError(null);
@@ -148,20 +160,40 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
       return;
     }
 
+    if (nextStatus === "deferred" && !bulkDeferReason) {
+      setMessage(null);
+      setError("Toplu erteleme icin once bir erteleme nedeni secin.");
+      return;
+    }
+
     setActiveBulkStatus(nextStatus);
     setError(null);
     setMessage(null);
 
     const results = await Promise.allSettled(
-      targetItems.map((item) =>
-        apiRequest(`/reports/decision-surface-statuses/${item.entity_type}/${item.entity_id}/${item.surface_key}`, {
+      targetItems.map((item) => {
+        const body: {
+          status: string;
+          operator_note?: string;
+          defer_reason_code?: string;
+        } = {
+          status: nextStatus,
+        };
+
+        if (normalizedBulkNote !== "") {
+          body.operator_note = normalizedBulkNote;
+        }
+
+        if (nextStatus === "deferred") {
+          body.defer_reason_code = bulkDeferReason;
+        }
+
+        return apiRequest(`/reports/decision-surface-statuses/${item.entity_type}/${item.entity_id}/${item.surface_key}`, {
           method: "PUT",
           requireWorkspace: true,
-          body: {
-            status: nextStatus,
-          },
-        }),
-      ),
+          body,
+        });
+      }),
     );
 
     const successCount = results.filter((result) => result.status === "fulfilled").length;
@@ -185,6 +217,8 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
     }
 
     if (failureResults.length === 0) {
+      setBulkNote("");
+      setBulkDeferReason("");
       setMessage(
         `${successCount} karar yuzeyi ${statusLabel(nextStatus).toLocaleLowerCase("tr")} durumuna tasindi.`,
       );
@@ -278,36 +312,69 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
       </div>
 
       <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-3 text-sm muted-text">
-              <span>Filtrelenen: {filteredItems.length}</span>
-              <span>Acik: {filteredOpenItems}</span>
-              <span>Secili: {selectedVisibleItems.length}</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                onClick={handleToggleVisibleSelection}
-                disabled={filteredItems.length === 0 || activeBulkStatus !== null}
-              >
-                {allVisibleSelected ? "Secimi Temizle" : "Gorunenleri Sec"}
-              </Button>
-              {STATUS_UPDATE_OPTIONS.map((option) => (
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-3 text-sm muted-text">
+                <span>Filtrelenen: {filteredItems.length}</span>
+                <span>Acik: {filteredOpenItems}</span>
+                <span>Secili: {selectedVisibleItems.length}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
                 <Button
-                  key={option.value}
                   type="button"
                   size="sm"
-                  variant={buttonVariantForBulkStatus(option.value)}
-                  disabled={activeBulkStatus !== null || selectedVisibleItems.length === 0}
-                  onClick={() => void handleBulkStatusChange(option.value)}
+                  variant="secondary"
+                  onClick={handleToggleVisibleSelection}
+                  disabled={filteredItems.length === 0 || activeBulkStatus !== null}
                 >
-                  {activeBulkStatus === option.value ? "Guncelleniyor..." : option.label}
+                  {allVisibleSelected ? "Secimi Temizle" : "Gorunenleri Sec"}
                 </Button>
-              ))}
+                {STATUS_UPDATE_OPTIONS.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    variant={buttonVariantForBulkStatus(option.value)}
+                    disabled={activeBulkStatus !== null || selectedVisibleItems.length === 0}
+                    onClick={() => void handleBulkStatusChange(option.value)}
+                  >
+                    {activeBulkStatus === option.value ? "Guncelleniyor..." : option.label}
+                  </Button>
+                ))}
+              </div>
             </div>
+          </div>
+
+          <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+            <label className="space-y-1 text-sm">
+              <span className="block font-medium">Operator Notu</span>
+              <textarea
+                className="min-h-[84px] w-full rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                value={bulkNote}
+                onChange={(event) => setBulkNote(event.target.value)}
+                placeholder="Secili karar yuzeyleri icin ortak not"
+                maxLength={500}
+              />
+            </label>
+
+            <label className="space-y-1 text-sm">
+              <span className="block font-medium">Erteleme Nedeni</span>
+              <select
+                className="h-10 w-full rounded-md border border-[var(--border)] bg-white px-3 text-sm"
+                value={bulkDeferReason}
+                onChange={(event) => setBulkDeferReason(event.target.value)}
+              >
+                {DEFER_REASON_OPTIONS.map((option) => (
+                  <option key={option.value || "empty"} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs muted-text">
+                Sadece `Ertelendi` durumuna toplu geciste zorunlu kullanilir. Diger durum gecislerinde mevcut notlar korunur.
+              </p>
+            </label>
           </div>
         </div>
 
@@ -346,6 +413,12 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
                       {item.updated_at ? ` / Son guncelleme: ${item.updated_at}` : " / Henuz operator isareti yok"}
                       {item.updated_by_name ? ` / ${item.updated_by_name}` : ""}
                     </p>
+                    {item.defer_reason_label ? (
+                      <p className="mt-2 text-xs muted-text">Erteleme nedeni: {item.defer_reason_label}</p>
+                    ) : null}
+                    {item.operator_note ? (
+                      <p className="mt-1 text-xs muted-text">Not: {item.operator_note}</p>
+                    ) : null}
                   </div>
                 </div>
 

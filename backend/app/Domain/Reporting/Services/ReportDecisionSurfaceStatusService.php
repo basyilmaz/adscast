@@ -33,6 +33,17 @@ class ReportDecisionSurfaceStatusService
         'deferred' => 'Ertelendi',
     ];
 
+    /**
+     * @var array<string, string>
+     */
+    private const DEFER_REASON_LABELS = [
+        'waiting_client_feedback' => 'Musteri Donusu Bekleniyor',
+        'waiting_data_validation' => 'Veri Dogrulamasi Bekleniyor',
+        'scheduled_followup' => 'Planli Takip Bekleniyor',
+        'blocked_external_dependency' => 'Dis Bagimlilik Engeli',
+        'priority_window_shifted' => 'Oncelik Penceresi Degisti',
+    ];
+
     public function __construct(
         private readonly ReportWorkspaceConfigStore $configStore,
         private readonly AuditLogService $auditLogService,
@@ -75,12 +86,18 @@ class ReportDecisionSurfaceStatusService
         string $entityId,
         string $surfaceKey,
         string $status,
+        array $attributes = [],
         ?User $actor = null,
         ?Request $request = null,
     ): array {
         $items = $this->configStore->collection($workspace->id, self::SETTING_KEY);
         $index = $this->findIndex($items, $entityType, $entityId, $surfaceKey);
         $now = now()->toDateTimeString();
+        $existing = $index === false ? [] : (array) $items->get($index);
+        $operatorNote = array_key_exists('operator_note', $attributes)
+            ? $this->normalizeOptionalText($attributes['operator_note'] ?? null)
+            : $this->normalizeOptionalText($existing['operator_note'] ?? null);
+        $deferReasonCode = $this->resolveDeferReasonCode($status, $attributes, $existing);
 
         $raw = [
             'id' => $index === false
@@ -96,6 +113,8 @@ class ReportDecisionSurfaceStatusService
             'updated_at' => $now,
             'updated_by_user_id' => $actor?->id,
             'updated_by_name' => $actor?->name,
+            'operator_note' => $operatorNote,
+            'defer_reason_code' => $deferReasonCode,
         ];
 
         if ($index === false) {
@@ -119,6 +138,8 @@ class ReportDecisionSurfaceStatusService
                 'entity_id' => $entityId,
                 'surface_key' => $surfaceKey,
                 'status' => $status,
+                'operator_note' => $operatorNote,
+                'defer_reason_code' => $deferReasonCode,
             ],
             request: $request,
         );
@@ -143,6 +164,14 @@ class ReportDecisionSurfaceStatusService
     }
 
     /**
+     * @return array<int, string>
+     */
+    public static function validDeferReasonCodes(): array
+    {
+        return array_keys(self::DEFER_REASON_LABELS);
+    }
+
+    /**
      * @param  Collection<int, array<string, mixed>>  $items
      */
     private function findIndex(Collection $items, string $entityType, string $entityId, string $surfaceKey): int|false
@@ -162,6 +191,7 @@ class ReportDecisionSurfaceStatusService
     {
         $surfaceKey = (string) ($item['surface_key'] ?? '');
         $status = (string) ($item['status'] ?? 'pending');
+        $deferReasonCode = $this->normalizeDeferReasonCode($item['defer_reason_code'] ?? null);
 
         if (! array_key_exists($surfaceKey, self::SURFACE_LABELS)) {
             throw ValidationException::withMessages([
@@ -192,6 +222,9 @@ class ReportDecisionSurfaceStatusService
             'updated_by_name' => isset($item['updated_by_name']) && trim((string) $item['updated_by_name']) !== ''
                 ? trim((string) $item['updated_by_name'])
                 : null,
+            'operator_note' => $this->normalizeOptionalText($item['operator_note'] ?? null),
+            'defer_reason_code' => $deferReasonCode,
+            'defer_reason_label' => self::DEFER_REASON_LABELS[$deferReasonCode] ?? null,
         ];
     }
 
@@ -213,6 +246,9 @@ class ReportDecisionSurfaceStatusService
             'updated_at' => null,
             'updated_by_user_id' => null,
             'updated_by_name' => null,
+            'operator_note' => null,
+            'defer_reason_code' => null,
+            'defer_reason_label' => null,
         ];
     }
 
@@ -230,5 +266,48 @@ class ReportDecisionSurfaceStatusService
             'deferred_surfaces' => $items->where('status', 'deferred')->count(),
             'tracked_surfaces' => $items->where('status', '!=', 'pending')->count(),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $existing
+     */
+    private function resolveDeferReasonCode(string $status, array $attributes, array $existing): ?string
+    {
+        if ($status !== 'deferred') {
+            return null;
+        }
+
+        if (array_key_exists('defer_reason_code', $attributes)) {
+            return $this->normalizeDeferReasonCode($attributes['defer_reason_code'] ?? null);
+        }
+
+        return $this->normalizeDeferReasonCode($existing['defer_reason_code'] ?? null);
+    }
+
+    private function normalizeOptionalText(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $normalized = trim($value);
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    private function normalizeDeferReasonCode(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $normalized = trim($value);
+
+        if ($normalized === '' || ! array_key_exists($normalized, self::DEFER_REASON_LABELS)) {
+            return null;
+        }
+
+        return $normalized;
     }
 }

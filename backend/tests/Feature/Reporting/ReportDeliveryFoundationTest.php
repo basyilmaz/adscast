@@ -2201,6 +2201,34 @@ class ReportDeliveryFoundationTest extends TestCase
         ]);
     }
 
+    public function test_decision_surface_status_can_store_operator_note_and_defer_reason(): void
+    {
+        [$workspace, $token, $account] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->putJson("/api/v1/reports/decision-surface-statuses/account/{$account->id}/retry", [
+                'status' => 'deferred',
+                'operator_note' => 'SMTP ayari netlesene kadar beklet.',
+                'defer_reason_code' => 'waiting_data_validation',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', 'deferred')
+            ->assertJsonPath('data.operator_note', 'SMTP ayari netlesene kadar beklet.')
+            ->assertJsonPath('data.defer_reason_code', 'waiting_data_validation')
+            ->assertJsonPath('data.defer_reason_label', 'Veri Dogrulamasi Bekleniyor');
+
+        $setting = Setting::query()
+            ->where('workspace_id', $workspace->id)
+            ->where('key', 'reports.decision_surface_statuses')
+            ->first();
+
+        $this->assertNotNull($setting);
+        $this->assertSame('SMTP ayari netlesene kadar beklet.', data_get($setting?->value, '0.operator_note'));
+        $this->assertSame('waiting_data_validation', data_get($setting?->value, '0.defer_reason_code'));
+    }
+
     public function test_reports_index_includes_decision_surface_queue(): void
     {
         [$workspace, $token, $account, $campaign] = $this->seedReportFixture('agency.admin@adscast.test');
@@ -2226,6 +2254,8 @@ class ReportDeliveryFoundationTest extends TestCase
                 'created_at' => now()->subHour()->toDateTimeString(),
                 'updated_at' => now()->subMinutes(15)->toDateTimeString(),
                 'updated_by_name' => 'Agency Admin',
+                'operator_note' => 'Musteri onayi gelene kadar beklet.',
+                'defer_reason_code' => 'waiting_client_feedback',
             ]],
             'is_encrypted' => false,
         ]);
@@ -2252,6 +2282,9 @@ class ReportDeliveryFoundationTest extends TestCase
                 'surface_key' => 'profile',
                 'status' => 'deferred',
                 'status_label' => 'Ertelendi',
+                'operator_note' => 'Musteri onayi gelene kadar beklet.',
+                'defer_reason_code' => 'waiting_client_feedback',
+                'defer_reason_label' => 'Musteri Donusu Bekleniyor',
             ]);
     }
 

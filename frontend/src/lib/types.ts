@@ -1394,6 +1394,9 @@ export type ReportDecisionSurfaceStatusItem = {
   updated_at: string | null;
   updated_by_user_id: string | null;
   updated_by_name: string | null;
+  operator_note: string | null;
+  defer_reason_code: string | null;
+  defer_reason_label: string | null;
 };
 
 export type ReportDecisionSurfaceQueueSummary = {

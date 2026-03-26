@@ -73,6 +73,7 @@ Base path: `/api/v1`
   - `recipient_preset_id`, `recipients` ve/veya `contact_tags[]` ile varsayilan teslim profili kaydedilebilir
 - `PUT /reports/decision-surface-statuses/{entityType}/{entityId}/{surfaceKey}` (`settings.manage`)
   - `status`: `pending|reviewed|completed|deferred`
+  - opsiyonel `operator_note` ve `defer_reason_code` (`waiting_client_feedback|waiting_data_validation|scheduled_followup|blocked_external_dependency|priority_window_shifted`) alanlarini kabul eder
   - report sekmesindeki `featured_fix`, `retry` veya `profile` yuzeyi icin operator takip durumunu kaydeder
 - `POST /reports/delivery-profiles/{entityType}/{entityId}/toggle` (`settings.manage`)
 - `DELETE /reports/delivery-profiles/{entityType}/{entityId}` (`settings.manage`)

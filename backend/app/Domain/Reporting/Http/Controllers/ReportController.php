@@ -354,6 +354,7 @@ class ReportController
             entityId: $entityId,
             surfaceKey: $surfaceKey,
             status: $request->validated('status'),
+            attributes: $request->safe()->only(['operator_note', 'defer_reason_code']),
             actor: $request->user(),
             request: $request,
         );
