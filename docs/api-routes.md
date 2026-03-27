@@ -45,6 +45,7 @@ Base path: `/api/v1`
   - `featured_failure_resolution_analytics_summary` ve `featured_failure_resolution_analytics[]` ile sistemin one cikardigi duzeltmenin takip edilip edilmedigini ve override/featured sonuc farkini doner
   - `featured_failure_resolution_decision_summary` ve `featured_failure_resolution_decisions[]` ile sistemin hangi fix'i neden one cikardigini aciklanabilir karar katmani olarak doner; item bazinda `primary_entity.route` ile operator ilgili account/campaign detail ekranina gidebilir
   - `decision_surface_queue_summary` ve `decision_surface_queue[]` ile detail ekranlarinda isaretlenen featured fix / retry / profil onerisi durumlarini workspace genelinde operasyon kuyrugu olarak doner
+  - `decision_queue_recommendation_analytics_summary` ve `decision_queue_recommendation_analytics[]` ile operasyon kuyrugunun onerilen bulk aksiyonlarinin ne kadar kullanildigini ve ne kadar is kapattigini doner
   - her failure reason item'i provider (`provider_label`) ve teslim asamasi (`delivery_stage_label`) metadata'si da tasir
   - `recipient_preset_summary.managed_templates` ve `recipient_preset_summary.recommended_default_presets` ile kural yonetilen grup sablonlarini ozetler
   - `recipient_presets[].contact_tags`, `resolved_recipients_count` ve `recipient_group_summary` ile kayitli alici gruplarini doner
@@ -75,6 +76,9 @@ Base path: `/api/v1`
   - `status`: `pending|reviewed|completed|deferred`
   - opsiyonel `operator_note` ve `defer_reason_code` (`waiting_client_feedback|waiting_data_validation|scheduled_followup|blocked_external_dependency|priority_window_shifted`) alanlarini kabul eder
   - report sekmesindeki `featured_fix`, `retry` veya `profile` yuzeyi icin operator takip durumunu kaydeder
+- `POST /reports/decision-surface-queue/recommendations/track` (`settings.manage`)
+  - queue icindeki onerilen bulk aksiyon secimlerini ve uygulama sonucunu analytics icin izler
+  - `execution_mode`: `selection_only|bulk_status_applied`
 - `POST /reports/delivery-profiles/{entityType}/{entityId}/toggle` (`settings.manage`)
 - `DELETE /reports/delivery-profiles/{entityType}/{entityId}` (`settings.manage`)
 - `POST /reports/delivery-setups` (`settings.manage`)

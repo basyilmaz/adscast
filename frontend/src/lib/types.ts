@@ -1417,6 +1417,58 @@ export type ReportDecisionSurfaceQueueItem = ReportDecisionSurfaceStatusItem & {
   is_open: boolean;
 };
 
+export type ReportDecisionQueueRecommendationAnalyticsSummary = {
+  tracked_recommendations: number;
+  selection_only_recommendations: number;
+  applied_recommendations: number;
+  successful_applications: number;
+  partial_applications: number;
+  failed_applications: number;
+  top_recommendation_label: string | null;
+  best_success_recommendation_label: string | null;
+  window_days: number;
+};
+
+export type ReportDecisionQueueRecommendationAnalyticsItem = {
+  recommendation_code: string;
+  label: string;
+  suggested_status: string | null;
+  suggested_status_label: string | null;
+  guidance_variant: string;
+  guidance_message: string | null;
+  tracked_interactions: number;
+  selection_only_interactions: number;
+  applied_interactions: number;
+  successful_applications: number;
+  partial_applications: number;
+  failed_applications: number;
+  total_target_items: number;
+  total_attempted_items: number;
+  total_successful_items: number;
+  total_failed_items: number;
+  application_success_rate: number | null;
+  item_success_rate: number | null;
+  dominant_reason_code: string | null;
+  top_priority_group_key: string | null;
+  top_priority_group_label: string | null;
+  target_entity_types: string[];
+  target_surface_keys: string[];
+  unique_entities_count: number;
+  last_tracked_at: string | null;
+  health_status: string;
+  health_summary: string;
+  outcome_summary: string;
+  entities: Array<{
+    entity_type: string;
+    entity_id: string;
+    surface_key: string;
+    label: string | null;
+    context_label: string | null;
+    route: string | null;
+    uses_count: number;
+  }>;
+};
+
 export type ReportDeliveryRetryRecommendationItem = {
   reason_code: string;
   label: string;
@@ -1914,6 +1966,7 @@ export type ReportIndexResponse = {
     featured_failure_resolution_analytics_summary: ReportFeaturedFailureResolutionAnalyticsSummary;
     featured_failure_resolution_decision_summary: ReportFeaturedFailureResolutionDecisionSummary;
     decision_surface_queue_summary: ReportDecisionSurfaceQueueSummary;
+    decision_queue_recommendation_analytics_summary: ReportDecisionQueueRecommendationAnalyticsSummary;
     recipient_preset_summary: {
       total_presets: number;
       active_presets: number;
@@ -1966,6 +2019,7 @@ export type ReportIndexResponse = {
     featured_failure_resolution_analytics: ReportFeaturedFailureResolutionAnalyticsItem[];
     featured_failure_resolution_decisions: ReportFeaturedFailureResolutionDecisionItem[];
     decision_surface_queue: ReportDecisionSurfaceQueueItem[];
+    decision_queue_recommendation_analytics: ReportDecisionQueueRecommendationAnalyticsItem[];
     recipient_presets: ReportRecipientPresetListItem[];
     delivery_profiles: ReportDeliveryProfileListItem[];
     delivery_runs: ReportDeliveryRunListItem[];

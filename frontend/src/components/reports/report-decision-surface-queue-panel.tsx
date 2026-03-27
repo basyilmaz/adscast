@@ -15,6 +15,24 @@ type Props = {
   onChanged?: () => Promise<void> | void;
 };
 
+type QueueRecommendation = {
+  code: string;
+  title: string;
+  statusLabel: string;
+  statusValue: "pending" | "reviewed" | "completed" | "deferred" | null;
+  variant: "success" | "warning" | "danger" | "neutral";
+  helperLabel: string;
+  helperDescription: string;
+  targetKeys: string[];
+  targetItems: ReportDecisionSurfaceQueueItem[];
+};
+
+type BulkStatusChangeResult = {
+  attemptedCount: number;
+  successfulCount: number;
+  failedCount: number;
+};
+
 const STATUS_FILTER_OPTIONS = [
   { value: "all", label: "Tum Durumlar" },
   { value: "open", label: "Acik Kararlar" },
@@ -231,7 +249,7 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
     targetItems: ReportDecisionSurfaceQueueItem[],
     nextStatus: (typeof STATUS_UPDATE_OPTIONS)[number]["value"],
     customMessage?: string,
-  ) => {
+  ): Promise<BulkStatusChangeResult | null> => {
     const normalizedBulkNote = bulkNote.trim();
 
     if (targetItems.length === 0) {
@@ -241,13 +259,13 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
           ? "Toplu guncelleme icin once en az bir karar yuzeyi secin."
           : `Secili yuzeyler zaten ${statusLabel(nextStatus).toLocaleLowerCase("tr")} durumunda.`,
       );
-      return;
+      return null;
     }
 
     if (nextStatus === "deferred" && !bulkDeferReason) {
       setMessage(null);
       setError("Toplu erteleme icin once bir erteleme nedeni secin.");
-      return;
+      return null;
     }
 
     setActiveBulkStatus(nextStatus);
@@ -280,6 +298,7 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
       }),
     );
 
+    const attemptedCount = targetItems.length;
     const successCount = results.filter((result) => result.status === "fulfilled").length;
     const failureResults = results.filter(
       (result): result is PromiseRejectedResult => result.status === "rejected",
@@ -306,18 +325,33 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
       setMessage(
         customMessage ?? `${successCount} karar yuzeyi ${statusLabel(nextStatus).toLocaleLowerCase("tr")} durumuna tasindi.`,
       );
-      return;
+      return {
+        attemptedCount,
+        successfulCount: successCount,
+        failedCount: 0,
+      };
     }
 
     if (successCount > 0) {
       setMessage(
-      `${successCount} karar yuzeyi guncellendi, ${failureResults.length} karar yuzeyi hata verdi.`,
-    );
-    setError(errorMessageFromFailure(failureResults[0].reason));
-      return;
+        `${successCount} karar yuzeyi guncellendi, ${failureResults.length} karar yuzeyi hata verdi.`,
+      );
+      setError(errorMessageFromFailure(failureResults[0].reason));
+
+      return {
+        attemptedCount,
+        successfulCount: successCount,
+        failedCount: failureResults.length,
+      };
     }
 
     setError(errorMessageFromFailure(failureResults[0].reason));
+
+    return {
+      attemptedCount,
+      successfulCount: 0,
+      failedCount: failureResults.length,
+    };
   };
 
   const filteredOpenItems = filteredItems.filter((item) => OPEN_STATUSES.has(item.status)).length;
@@ -383,7 +417,7 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
   const allPrioritySelected =
     prioritySelectionKeys.length > 0 &&
     prioritySelectionKeys.every((key) => selectedKeys.includes(key));
-  const priorityBulkRecommendation = useMemo(() => {
+  const priorityBulkRecommendation = useMemo<QueueRecommendation | null>(() => {
     if (deferredWithoutReasonItems.length > 0) {
       return {
         code: "fix_defer_reason",
@@ -524,6 +558,28 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
     });
   };
 
+  const trackRecommendationInteraction = async (
+    recommendation: QueueRecommendation,
+    executionMode: "selection_only" | "bulk_status_applied",
+    result?: BulkStatusChangeResult | null,
+  ) => {
+    const payload = buildQueueRecommendationTrackPayload(recommendation, executionMode, result);
+
+    if (!payload) {
+      return;
+    }
+
+    try {
+      await apiRequest("/reports/decision-surface-queue/recommendations/track", {
+        method: "POST",
+        requireWorkspace: true,
+        body: payload,
+      });
+    } catch {
+      // Analytics kaydi operator akislarini bloklamamali.
+    }
+  };
+
   const handleSelectRecommendationTargets = () => {
     if (!priorityBulkRecommendation || priorityBulkRecommendation.targetKeys.length === 0) {
       return;
@@ -536,6 +592,7 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
       setReasonFilter("none");
       setMessage("Nedensiz ertelemeler secildi. Bir erteleme nedeni girip `Ertelendi` ile kaydedin.");
       setError(null);
+      void trackRecommendationInteraction(priorityBulkRecommendation, "selection_only");
       return;
     }
 
@@ -544,6 +601,7 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
       `${priorityBulkRecommendation.targetKeys.length} karar yuzeyi secildi. Sonraki adim icin \`${priorityBulkRecommendation.statusLabel}\` aksiyonunu kullanin.`,
     );
     setError(null);
+    void trackRecommendationInteraction(priorityBulkRecommendation, "selection_only");
   };
 
   const handleApplyRecommendedBulkAction = async () => {
@@ -554,13 +612,19 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
 
     setSelectedKeys(Array.from(new Set(priorityBulkRecommendation.targetKeys)));
 
-    await runBulkStatusChange(
-      priorityBulkRecommendation.targetItems.filter(
-        (item) => item.status !== priorityBulkRecommendation.statusValue,
-      ),
+    const applicationTargets = priorityBulkRecommendation.targetItems.filter(
+      (item) => item.status !== priorityBulkRecommendation.statusValue,
+    );
+
+    const result = await runBulkStatusChange(
+      applicationTargets,
       priorityBulkRecommendation.statusValue,
       `${priorityBulkRecommendation.targetItems.length} oncelikli karar yuzeyi ${priorityBulkRecommendation.statusLabel.toLocaleLowerCase("tr")} durumuna tasindi.`,
     );
+
+    if (result) {
+      void trackRecommendationInteraction(priorityBulkRecommendation, "bulk_status_applied", result);
+    }
   };
 
   return (
@@ -935,6 +999,46 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
 
 function queueItemKey(item: ReportDecisionSurfaceQueueItem) {
   return `${item.entity_type}:${item.entity_id}:${item.surface_key}`;
+}
+
+function buildQueueRecommendationTrackPayload(
+  recommendation: QueueRecommendation,
+  executionMode: "selection_only" | "bulk_status_applied",
+  result?: BulkStatusChangeResult | null,
+) {
+  if (recommendation.targetItems.length === 0) {
+    return null;
+  }
+
+  const reasonCodes = Array.from(
+    new Set(
+      recommendation.targetItems
+        .map((item) => item.defer_reason_code ?? (item.status === "deferred" ? "none" : null))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+
+  return {
+    recommendation_code: recommendation.code,
+    recommendation_label: recommendation.title,
+    suggested_status: recommendation.statusValue,
+    execution_mode: executionMode,
+    guidance_variant: recommendation.variant,
+    guidance_message: recommendation.helperDescription,
+    target_count: recommendation.targetItems.length,
+    attempted_count: executionMode === "bulk_status_applied" ? (result?.attemptedCount ?? 0) : undefined,
+    successful_count: executionMode === "bulk_status_applied" ? (result?.successfulCount ?? 0) : undefined,
+    failed_count: executionMode === "bulk_status_applied" ? (result?.failedCount ?? 0) : undefined,
+    reason_codes: reasonCodes,
+    priority_group_keys: reasonCodes,
+    target_entity_types: Array.from(new Set(recommendation.targetItems.map((item) => item.entity_type))),
+    target_surface_keys: Array.from(new Set(recommendation.targetItems.map((item) => item.surface_key))),
+    targets: recommendation.targetItems.map((item) => ({
+      entity_type: item.entity_type,
+      entity_id: item.entity_id,
+      surface_key: item.surface_key,
+    })),
+  };
 }
 
 function statusLabel(status: string) {

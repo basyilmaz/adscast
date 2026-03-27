@@ -2288,6 +2288,111 @@ class ReportDeliveryFoundationTest extends TestCase
             ]);
     }
 
+    public function test_reports_index_includes_decision_queue_recommendation_analytics(): void
+    {
+        [$workspace, $token, $account, $campaign] = $this->seedReportFixture('agency.admin@adscast.test');
+
+        $selectionResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/decision-surface-queue/recommendations/track', [
+                'recommendation_code' => 'review_external_blockers',
+                'recommendation_label' => 'Once gozden gecir',
+                'suggested_status' => 'reviewed',
+                'execution_mode' => 'selection_only',
+                'guidance_variant' => 'warning',
+                'guidance_message' => 'Dis bagimlilik bloklarini owner bazli ayirmak icin secim onerisi.',
+                'target_count' => 2,
+                'reason_codes' => ['blocked_external_dependency'],
+                'priority_group_keys' => ['blocked_external_dependency'],
+                'target_entity_types' => ['account', 'campaign'],
+                'target_surface_keys' => ['retry', 'profile'],
+                'targets' => [[
+                    'entity_type' => 'account',
+                    'entity_id' => $account->id,
+                    'surface_key' => 'retry',
+                ], [
+                    'entity_type' => 'campaign',
+                    'entity_id' => $campaign->id,
+                    'surface_key' => 'profile',
+                ]],
+            ]);
+
+        $selectionResponse->assertOk()
+            ->assertJsonPath('data.recommendation_code', 'review_external_blockers')
+            ->assertJsonPath('data.execution_mode', 'selection_only');
+
+        $appliedResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->postJson('/api/v1/reports/decision-surface-queue/recommendations/track', [
+                'recommendation_code' => 'review_external_blockers',
+                'recommendation_label' => 'Once gozden gecir',
+                'suggested_status' => 'reviewed',
+                'execution_mode' => 'bulk_status_applied',
+                'guidance_variant' => 'warning',
+                'guidance_message' => 'Dis bagimlilik bloklarini gozden gecirilmis havuza tasi.',
+                'target_count' => 2,
+                'attempted_count' => 2,
+                'successful_count' => 1,
+                'failed_count' => 1,
+                'reason_codes' => ['blocked_external_dependency'],
+                'priority_group_keys' => ['blocked_external_dependency'],
+                'target_entity_types' => ['account', 'campaign'],
+                'target_surface_keys' => ['retry', 'profile'],
+                'targets' => [[
+                    'entity_type' => 'account',
+                    'entity_id' => $account->id,
+                    'surface_key' => 'retry',
+                ], [
+                    'entity_type' => 'campaign',
+                    'entity_id' => $campaign->id,
+                    'surface_key' => 'profile',
+                ]],
+            ]);
+
+        $appliedResponse->assertOk()
+            ->assertJsonPath('data.recommendation_code', 'review_external_blockers')
+            ->assertJsonPath('data.execution_mode', 'bulk_status_applied')
+            ->assertJsonPath('data.outcome_status', 'partial');
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->getJson('/api/v1/reports');
+
+        $response->assertOk()
+            ->assertJsonPath('data.decision_queue_recommendation_analytics_summary.tracked_recommendations', 2)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics_summary.selection_only_recommendations', 1)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics_summary.applied_recommendations', 1)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics_summary.partial_applications', 1)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics_summary.top_recommendation_label', 'Once gozden gecir')
+            ->assertJsonPath('data.decision_queue_recommendation_analytics_summary.best_success_recommendation_label', 'Once gozden gecir')
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.recommendation_code', 'review_external_blockers')
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.suggested_status', 'reviewed')
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.tracked_interactions', 2)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.selection_only_interactions', 1)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.applied_interactions', 1)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.partial_applications', 1)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.total_successful_items', 1)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.total_failed_items', 1)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.item_success_rate', 50)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.top_priority_group_key', 'blocked_external_dependency')
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.entities.0.uses_count', 2)
+            ->assertJsonFragment([
+                'entity_type' => 'account',
+                'entity_id' => $account->id,
+                'surface_key' => 'retry',
+            ])
+            ->assertJsonFragment([
+                'entity_type' => 'campaign',
+                'entity_id' => $campaign->id,
+                'surface_key' => 'profile',
+            ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'workspace_id' => $workspace->id,
+            'action' => 'report_decision_surface_queue_recommendation_tracked',
+        ]);
+    }
+
     /**
      * @return array{0: Workspace, 1: string, 2: MetaAdAccount, 3: Campaign}
      */

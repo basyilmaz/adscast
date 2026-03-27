@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ReportContactForm } from "@/components/reports/report-contact-form";
 import { ReportContactManager } from "@/components/reports/report-contact-manager";
+import { ReportDecisionQueueRecommendationAnalyticsPanel } from "@/components/reports/report-decision-queue-recommendation-analytics-panel";
 import { ReportDecisionSurfaceQueuePanel } from "@/components/reports/report-decision-surface-queue-panel";
 import { ReportDeliveryHistoryPanel } from "@/components/reports/report-delivery-history-panel";
 import { ReportFailureResolutionActionAnalyticsPanel } from "@/components/reports/report-failure-resolution-action-analytics-panel";
@@ -202,6 +203,7 @@ export default function ReportsPage() {
         <MetricCard label="Calisan Fix" value={data?.failure_resolution_effectiveness_summary.working_recommended_fixes ?? 0} />
         <MetricCard label="Oneri Uyumu" value={data?.featured_failure_resolution_analytics_summary.featured_interactions ?? 0} />
         <MetricCard label="Acik Karar" value={data?.decision_surface_queue_summary.open_items ?? 0} />
+        <MetricCard label="Queue Oneri" value={data?.decision_queue_recommendation_analytics_summary.tracked_recommendations ?? 0} />
         <MetricCard label="Takipte Entity" value={data?.decision_surface_queue_summary.tracked_entities ?? 0} />
         <MetricCard label="Alici Grubu" value={data?.recipient_preset_summary.total_presets ?? 0} />
         <MetricCard label="Sablon Kurali" value={data?.recipient_preset_summary.managed_templates ?? 0} />
@@ -217,6 +219,25 @@ export default function ReportsPage() {
         routeBuilder={(route) => buildHrefWithHashAndFilters(route, searchParams, GLOBAL_DATE_FILTER_KEYS)}
         onChanged={reload}
       />
+
+      <Card>
+        <CardTitle>Kuyruk Oneri Analitigi</CardTitle>
+        <p className="mt-2 text-sm muted-text">
+          Operasyon kuyrugunun onerdiği toplu aksiyonlar ne kadar kullaniliyor, hangi oneriler secimde kaliyor ve hangileri gercekten kayit kapatiyor burada gorulur.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
+          <span>Izlenen oneriler: {data?.decision_queue_recommendation_analytics_summary.tracked_recommendations ?? 0}</span>
+          <span>Uygulanan: {data?.decision_queue_recommendation_analytics_summary.applied_recommendations ?? 0}</span>
+          <span>Basarili: {data?.decision_queue_recommendation_analytics_summary.successful_applications ?? 0}</span>
+          <span>En cok kullanilan: {data?.decision_queue_recommendation_analytics_summary.top_recommendation_label ?? "-"}</span>
+        </div>
+        <div className="mt-4">
+          <ReportDecisionQueueRecommendationAnalyticsPanel
+            summary={data?.decision_queue_recommendation_analytics_summary ?? null}
+            items={data?.decision_queue_recommendation_analytics ?? []}
+          />
+        </div>
+      </Card>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
         <Card>

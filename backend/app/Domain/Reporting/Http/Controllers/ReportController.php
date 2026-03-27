@@ -7,6 +7,7 @@ use App\Domain\Reporting\Http\Requests\StoreReportContactRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliverySetupRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportRecipientPresetRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportDeliveryScheduleRequest;
+use App\Domain\Reporting\Http\Requests\TrackReportDecisionQueueRecommendationRequest;
 use App\Domain\Reporting\Http\Requests\UpsertReportDecisionSurfaceStatusRequest;
 use App\Domain\Reporting\Http\Requests\ResolveReportRecipientGroupSuggestionsRequest;
 use App\Domain\Reporting\Http\Requests\StoreReportShareLinkRequest;
@@ -22,6 +23,7 @@ use App\Domain\Reporting\Services\ReportFeaturedFailureResolutionAnalyticsServic
 use App\Domain\Reporting\Services\ReportFeaturedFailureResolutionDecisionService;
 use App\Domain\Reporting\Services\ReportDecisionSurfaceStatusService;
 use App\Domain\Reporting\Services\ReportDecisionSurfaceQueueService;
+use App\Domain\Reporting\Services\ReportDecisionSurfaceQueueRecommendationAnalyticsService;
 use App\Domain\Reporting\Services\ReportRecipientGroupAdvisorService;
 use App\Domain\Reporting\Services\ReportRecipientPresetService;
 use App\Domain\Reporting\Services\ReportDeliveryScheduleService;
@@ -58,6 +60,7 @@ class ReportController
         private readonly ReportFeaturedFailureResolutionDecisionService $reportFeaturedFailureResolutionDecisionService,
         private readonly ReportDecisionSurfaceStatusService $reportDecisionSurfaceStatusService,
         private readonly ReportDecisionSurfaceQueueService $reportDecisionSurfaceQueueService,
+        private readonly ReportDecisionSurfaceQueueRecommendationAnalyticsService $reportDecisionSurfaceQueueRecommendationAnalyticsService,
         private readonly ReportRecipientGroupAdvisorService $reportRecipientGroupAdvisorService,
         private readonly ReportRecipientPresetService $reportRecipientPresetService,
         private readonly ReportDeliveryProfileService $reportDeliveryProfileService,
@@ -95,6 +98,7 @@ class ReportController
             featuredAnalyticsItems: $featuredFailureResolutionAnalytics['items'],
         );
         $decisionSurfaceQueue = $this->reportDecisionSurfaceQueueService->index($workspaceId);
+        $decisionQueueRecommendationAnalytics = $this->reportDecisionSurfaceQueueRecommendationAnalyticsService->index($workspaceId);
         $shareSummary = $this->reportShareLinkService->summary($workspaceId);
 
         return new JsonResponse([
@@ -131,6 +135,8 @@ class ReportController
                     'featured_failure_resolution_decisions' => $featuredFailureResolutionDecisions['items'],
                     'decision_surface_queue_summary' => $decisionSurfaceQueue['summary'],
                     'decision_surface_queue' => $decisionSurfaceQueue['items'],
+                    'decision_queue_recommendation_analytics_summary' => $decisionQueueRecommendationAnalytics['summary'],
+                    'decision_queue_recommendation_analytics' => $decisionQueueRecommendationAnalytics['items'],
                     'delivery_profile_summary' => $profileIndex['summary'],
                     'delivery_profiles' => $profileIndex['items'],
                     'delivery_summary' => $deliveryIndex['summary'],
@@ -362,6 +368,24 @@ class ReportController
         return new JsonResponse([
             'message' => 'Decision surface durumu kaydedildi.',
             'data' => $status,
+        ]);
+    }
+
+    public function trackDecisionSurfaceQueueRecommendation(
+        TrackReportDecisionQueueRecommendationRequest $request,
+    ): JsonResponse {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+
+        $result = $this->reportDecisionSurfaceQueueRecommendationAnalyticsService->track(
+            workspace: $workspace,
+            payload: $request->validated(),
+            actor: $request->user(),
+            request: $request,
+        );
+
+        return new JsonResponse([
+            'message' => 'Queue onerisi analytics icin izlendi.',
+            'data' => $result,
         ]);
     }
 
