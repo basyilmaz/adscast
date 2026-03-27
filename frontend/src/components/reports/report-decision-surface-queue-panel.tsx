@@ -6,11 +6,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { apiRequest } from "@/lib/api";
-import { ReportDecisionSurfaceQueueItem, ReportDecisionSurfaceQueueSummary } from "@/lib/types";
+import {
+  ReportDecisionQueueRecommendationAnalyticsItem,
+  ReportDecisionSurfaceQueueItem,
+  ReportDecisionSurfaceQueueSummary,
+} from "@/lib/types";
 
 type Props = {
   summary: ReportDecisionSurfaceQueueSummary | null;
   items: ReportDecisionSurfaceQueueItem[];
+  recommendationAnalyticsItems: ReportDecisionQueueRecommendationAnalyticsItem[];
   routeBuilder: (route: string) => string;
   onChanged?: () => Promise<void> | void;
 };
@@ -25,6 +30,16 @@ type QueueRecommendation = {
   helperDescription: string;
   targetKeys: string[];
   targetItems: ReportDecisionSurfaceQueueItem[];
+  basePriority: number;
+  staticOrder: number;
+  dominantReasonKey: string | null;
+  selectionStrategy?: "safety_override" | "analytics_boosted" | "static_priority";
+  selectionSummary?: string;
+  adaptiveScore?: number;
+  analytics?: Pick<
+    ReportDecisionQueueRecommendationAnalyticsItem,
+    "tracked_interactions" | "selection_only_interactions" | "applied_interactions" | "item_success_rate" | "health_status"
+  > | null;
 };
 
 type BulkStatusChangeResult = {
@@ -123,7 +138,13 @@ const DEFER_REASON_PRIORITY = {
   },
 } as const;
 
-export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, onChanged }: Props) {
+export function ReportDecisionSurfaceQueuePanel({
+  summary,
+  items,
+  recommendationAnalyticsItems,
+  routeBuilder,
+  onChanged,
+}: Props) {
   const [statusFilter, setStatusFilter] =
     useState<(typeof STATUS_FILTER_OPTIONS)[number]["value"]>("open");
   const [entityFilter, setEntityFilter] =
@@ -143,6 +164,10 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
   const [error, setError] = useState<string | null>(null);
 
   const normalizedSearchTerm = searchTerm.trim().toLocaleLowerCase("tr");
+  const recommendationAnalyticsIndex = useMemo(
+    () => new Map(recommendationAnalyticsItems.map((item) => [item.recommendation_code, item])),
+    [recommendationAnalyticsItems],
+  );
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -417,9 +442,11 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
   const allPrioritySelected =
     prioritySelectionKeys.length > 0 &&
     prioritySelectionKeys.every((key) => selectedKeys.includes(key));
-  const priorityBulkRecommendation = useMemo<QueueRecommendation | null>(() => {
+  const recommendationCandidates = useMemo<QueueRecommendation[]>(() => {
+    const candidates: QueueRecommendation[] = [];
+
     if (deferredWithoutReasonItems.length > 0) {
-      return {
+      candidates.push({
         code: "fix_defer_reason",
         title: "Erteleme nedenini duzelt",
         statusLabel: "Ertelendi",
@@ -430,11 +457,14 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
           "Nedensiz ertelemeler en riskli bloklar. Bu kayitlari secip bir erteleme nedeni girerek tekrar kaydedin.",
         targetKeys: missingReasonSelectionKeys,
         targetItems: deferredWithoutReasonItems,
-      };
+        basePriority: 100,
+        staticOrder: 0,
+        dominantReasonKey: "none",
+      });
     }
 
     if (topPriorityGroups.some((group) => group.key === "blocked_external_dependency")) {
-      return {
+      candidates.push({
         code: "review_external_blockers",
         title: "Once gozden gecir",
         statusLabel: "Gozden Gecirildi",
@@ -445,11 +475,14 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
           "Dis bagimlilik bloklari owner atamasi veya takip notu gerektiriyor. Yuzeyleri secip gozden gecirilmis olarak ayirin.",
         targetKeys: prioritySelectionKeys,
         targetItems: prioritySelectionCandidates,
-      };
+        basePriority: 80,
+        staticOrder: 1,
+        dominantReasonKey: "blocked_external_dependency",
+      });
     }
 
     if (topPriorityGroups.some((group) => group.key === "waiting_data_validation")) {
-      return {
+      candidates.push({
         code: "review_data_validation",
         title: "Veri bloklarini gozden gecir",
         statusLabel: "Gozden Gecirildi",
@@ -460,11 +493,14 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
           "Veri dogrulamasi bekleyen bloklar karar akisini durduruyor. Yuzeyleri secip dogrulama sahibiyle birlikte tekrar ele alin.",
         targetKeys: prioritySelectionKeys,
         targetItems: prioritySelectionCandidates,
-      };
+        basePriority: 78,
+        staticOrder: 2,
+        dominantReasonKey: "waiting_data_validation",
+      });
     }
 
     if (topPriorityGroups.some((group) => group.key === "priority_window_shifted")) {
-      return {
+      candidates.push({
         code: "review_priority_shift",
         title: "Durumu yeniden degerlendir",
         statusLabel: "Gozden Gecirildi",
@@ -475,11 +511,14 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
           "Oncelik penceresi kayan bloklarin yeni takvime gore yeniden siniflanmasi gerekiyor.",
         targetKeys: prioritySelectionKeys,
         targetItems: prioritySelectionCandidates,
-      };
+        basePriority: 72,
+        staticOrder: 3,
+        dominantReasonKey: "priority_window_shifted",
+      });
     }
 
     if (prioritySelectionCandidates.length > 0) {
-      return {
+      candidates.push({
         code: "complete_priority_blockers",
         title: "Simdi tamamla",
         statusLabel: "Tamamlandi",
@@ -490,10 +529,13 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
           "Bu bloklar artik ek bekleme nedeni tasimiyor gibi gorunuyor. Gecerliligini kontrol edip tamamlamaya tasiyin.",
         targetKeys: prioritySelectionKeys,
         targetItems: prioritySelectionCandidates,
-      };
+        basePriority: 65,
+        staticOrder: 4,
+        dominantReasonKey: topPriorityGroups[0]?.key ?? null,
+      });
     }
 
-    return null;
+    return candidates;
   }, [
     deferredWithoutReasonItems,
     missingReasonSelectionKeys,
@@ -501,6 +543,67 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
     prioritySelectionKeys,
     topPriorityGroups,
   ]);
+  const priorityBulkRecommendation = useMemo<QueueRecommendation | null>(() => {
+    if (recommendationCandidates.length === 0) {
+      return null;
+    }
+
+    const staticTopCandidate = [...recommendationCandidates].sort(compareRecommendationStaticOrder)[0];
+    const rankedCandidates = recommendationCandidates
+      .map((candidate) => {
+        const analytics = recommendationAnalyticsIndex.get(candidate.code) ?? null;
+        const adaptiveScore =
+          candidate.code === "fix_defer_reason"
+            ? Number.MAX_SAFE_INTEGER
+            : candidate.basePriority * 100
+              + candidate.targetItems.length * 10
+              + recommendationAnalyticsScore(analytics);
+
+        return {
+          ...candidate,
+          adaptiveScore,
+          analytics: analytics
+            ? {
+                tracked_interactions: analytics.tracked_interactions,
+                selection_only_interactions: analytics.selection_only_interactions,
+                applied_interactions: analytics.applied_interactions,
+                item_success_rate: analytics.item_success_rate,
+                health_status: analytics.health_status,
+              }
+            : null,
+        };
+      })
+      .sort(compareRecommendationAdaptiveOrder);
+
+    const topCandidate = rankedCandidates[0];
+
+    if (topCandidate.code === "fix_defer_reason") {
+      return {
+        ...topCandidate,
+        selectionStrategy: "safety_override",
+        selectionSummary: "Nedensiz ertelemeler oldugu icin bu aksiyon guvenlik geregi her zaman once gelir.",
+      };
+    }
+
+    if (
+      staticTopCandidate
+      && topCandidate.code !== staticTopCandidate.code
+      && topCandidate.analytics
+      && (topCandidate.analytics.applied_interactions > 0 || topCandidate.analytics.selection_only_interactions > 0)
+    ) {
+      return {
+        ...topCandidate,
+        selectionStrategy: "analytics_boosted",
+        selectionSummary: analyticsBoostSummary(topCandidate),
+      };
+    }
+
+    return {
+      ...topCandidate,
+      selectionStrategy: "static_priority",
+      selectionSummary: staticPrioritySummary(topCandidate),
+    };
+  }, [recommendationAnalyticsIndex, recommendationCandidates]);
   const groupedItems = useMemo<Array<{
     key: string;
     label: string;
@@ -764,9 +867,34 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge label="Onerilen Toplu Aksiyon" variant={priorityBulkRecommendation.variant} />
                   <Badge label={priorityBulkRecommendation.statusLabel} variant="neutral" />
+                  {priorityBulkRecommendation.selectionStrategy === "analytics_boosted" ? (
+                    <Badge label="Analytics Destekli" variant="success" />
+                  ) : null}
+                  {priorityBulkRecommendation.selectionStrategy === "safety_override" ? (
+                    <Badge label="Guvenlik Oncelemesi" variant="danger" />
+                  ) : null}
+                  {priorityBulkRecommendation.selectionStrategy === "static_priority" ? (
+                    <Badge label="Kural Tabanli" variant="neutral" />
+                  ) : null}
+                  {priorityBulkRecommendation.analytics?.item_success_rate != null ? (
+                    <Badge
+                      label={`%${formatRecommendationRate(priorityBulkRecommendation.analytics?.item_success_rate ?? null)} kayit basarisi`}
+                      variant={recommendationRateVariant(priorityBulkRecommendation.analytics?.item_success_rate ?? null)}
+                    />
+                  ) : null}
                 </div>
                 <p className="mt-3 text-sm font-semibold">{priorityBulkRecommendation.title}</p>
                 <p className="mt-1 text-sm muted-text">{priorityBulkRecommendation.helperDescription}</p>
+                {priorityBulkRecommendation.selectionSummary ? (
+                  <p className="mt-2 text-xs muted-text">{priorityBulkRecommendation.selectionSummary}</p>
+                ) : null}
+                {priorityBulkRecommendation.analytics ? (
+                  <p className="mt-1 text-xs muted-text">
+                    Gecmis veri: {priorityBulkRecommendation.analytics.applied_interactions} uygulama /{" "}
+                    {priorityBulkRecommendation.analytics.selection_only_interactions} secim /{" "}
+                    {priorityBulkRecommendation.analytics.tracked_interactions} toplam izleme
+                  </p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -1041,6 +1169,62 @@ function buildQueueRecommendationTrackPayload(
   };
 }
 
+function compareRecommendationStaticOrder(left: QueueRecommendation, right: QueueRecommendation) {
+  return left.staticOrder - right.staticOrder;
+}
+
+function compareRecommendationAdaptiveOrder(left: QueueRecommendation, right: QueueRecommendation) {
+  const scoreDifference = (right.adaptiveScore ?? 0) - (left.adaptiveScore ?? 0);
+
+  if (scoreDifference !== 0) {
+    return scoreDifference;
+  }
+
+  return compareRecommendationStaticOrder(left, right);
+}
+
+function recommendationAnalyticsScore(item: ReportDecisionQueueRecommendationAnalyticsItem | null) {
+  if (!item) {
+    return 0;
+  }
+
+  const successWeight = item.item_success_rate ?? 0;
+  const applicationWeight = Math.min(item.applied_interactions * 8, 32);
+  const confidenceWeight = Math.min(item.tracked_interactions * 2, 12);
+
+  if (item.health_status === "critical") {
+    return Math.max(0, successWeight / 4);
+  }
+
+  return successWeight + applicationWeight + confidenceWeight;
+}
+
+function analyticsBoostSummary(recommendation: QueueRecommendation) {
+  const analytics = recommendation.analytics;
+
+  if (!analytics) {
+    return staticPrioritySummary(recommendation);
+  }
+
+  return `%${formatRecommendationRate(analytics.item_success_rate)} kayit basarisi ve ${analytics.applied_interactions} uygulama gordugu icin bu aksiyon one alindi.`;
+}
+
+function staticPrioritySummary(recommendation: QueueRecommendation) {
+  if (recommendation.dominantReasonKey === "blocked_external_dependency") {
+    return "Dis bagimlilik bloklari aktif oldugu icin once gozden gecirme akisina oncelik verildi.";
+  }
+
+  if (recommendation.dominantReasonKey === "waiting_data_validation") {
+    return "Veri dogrulamasi bekleyen bloklar karar akisini durdurdugu icin once bu akis onerildi.";
+  }
+
+  if (recommendation.dominantReasonKey === "priority_window_shifted") {
+    return "Oncelik penceresi kayan kayitlar agirlikta oldugu icin yeniden degerlendirme akisina oncelik verildi.";
+  }
+
+  return "Mevcut blok dagilimi icinde en yuksek oncelikli grup bu aksiyonla eslesiyor.";
+}
+
 function statusLabel(status: string) {
   return (
     STATUS_UPDATE_OPTIONS.find((option) => option.value === status)?.label ??
@@ -1132,4 +1316,24 @@ function safeTimestamp(value: string | null) {
 
   const timestamp = Date.parse(value);
   return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function recommendationRateVariant(value: number | null): "success" | "warning" | "danger" | "neutral" {
+  if (value === null) {
+    return "neutral";
+  }
+
+  if (value >= 80) {
+    return "success";
+  }
+
+  if (value >= 40) {
+    return "warning";
+  }
+
+  return "danger";
+}
+
+function formatRecommendationRate(value: number | null) {
+  return value === null ? "-" : value.toFixed(1);
 }

@@ -216,6 +216,7 @@ export default function ReportsPage() {
       <ReportDecisionSurfaceQueuePanel
         summary={data?.decision_surface_queue_summary ?? null}
         items={data?.decision_surface_queue ?? []}
+        recommendationAnalyticsItems={data?.decision_queue_recommendation_analytics ?? []}
         routeBuilder={(route) => buildHrefWithHashAndFilters(route, searchParams, GLOBAL_DATE_FILTER_KEYS)}
         onChanged={reload}
       />
