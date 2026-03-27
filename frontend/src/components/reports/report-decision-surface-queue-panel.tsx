@@ -224,12 +224,20 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
 
   const handleBulkStatusChange = async (nextStatus: (typeof STATUS_UPDATE_OPTIONS)[number]["value"]) => {
     const targetItems = selectedVisibleItems.filter((item) => item.status !== nextStatus);
+    await runBulkStatusChange(targetItems, nextStatus);
+  };
+
+  const runBulkStatusChange = async (
+    targetItems: ReportDecisionSurfaceQueueItem[],
+    nextStatus: (typeof STATUS_UPDATE_OPTIONS)[number]["value"],
+    customMessage?: string,
+  ) => {
     const normalizedBulkNote = bulkNote.trim();
 
     if (targetItems.length === 0) {
       setError(null);
       setMessage(
-        selectedVisibleItems.length === 0
+        selectedVisibleItems.length === 0 && !customMessage
           ? "Toplu guncelleme icin once en az bir karar yuzeyi secin."
           : `Secili yuzeyler zaten ${statusLabel(nextStatus).toLocaleLowerCase("tr")} durumunda.`,
       );
@@ -296,16 +304,16 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
       setBulkNote("");
       setBulkDeferReason("");
       setMessage(
-        `${successCount} karar yuzeyi ${statusLabel(nextStatus).toLocaleLowerCase("tr")} durumuna tasindi.`,
+        customMessage ?? `${successCount} karar yuzeyi ${statusLabel(nextStatus).toLocaleLowerCase("tr")} durumuna tasindi.`,
       );
       return;
     }
 
     if (successCount > 0) {
       setMessage(
-        `${successCount} karar yuzeyi guncellendi, ${failureResults.length} karar yuzeyi hata verdi.`,
-      );
-      setError(errorMessageFromFailure(failureResults[0].reason));
+      `${successCount} karar yuzeyi guncellendi, ${failureResults.length} karar yuzeyi hata verdi.`,
+    );
+    setError(errorMessageFromFailure(failureResults[0].reason));
       return;
     }
 
@@ -381,11 +389,13 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
         code: "fix_defer_reason",
         title: "Erteleme nedenini duzelt",
         statusLabel: "Ertelendi",
+        statusValue: null,
         variant: "danger" as const,
         helperLabel: "Nedensiz Ertelemeleri Sec",
         helperDescription:
           "Nedensiz ertelemeler en riskli bloklar. Bu kayitlari secip bir erteleme nedeni girerek tekrar kaydedin.",
         targetKeys: missingReasonSelectionKeys,
+        targetItems: deferredWithoutReasonItems,
       };
     }
 
@@ -394,11 +404,13 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
         code: "review_external_blockers",
         title: "Once gozden gecir",
         statusLabel: "Gozden Gecirildi",
+        statusValue: "reviewed" as const,
         variant: "warning" as const,
         helperLabel: "Once Cozulmelileri Sec",
         helperDescription:
           "Dis bagimlilik bloklari owner atamasi veya takip notu gerektiriyor. Yuzeyleri secip gozden gecirilmis olarak ayirin.",
         targetKeys: prioritySelectionKeys,
+        targetItems: prioritySelectionCandidates,
       };
     }
 
@@ -407,11 +419,13 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
         code: "review_data_validation",
         title: "Veri bloklarini gozden gecir",
         statusLabel: "Gozden Gecirildi",
+        statusValue: "reviewed" as const,
         variant: "warning" as const,
         helperLabel: "Once Cozulmelileri Sec",
         helperDescription:
           "Veri dogrulamasi bekleyen bloklar karar akisini durduruyor. Yuzeyleri secip dogrulama sahibiyle birlikte tekrar ele alin.",
         targetKeys: prioritySelectionKeys,
+        targetItems: prioritySelectionCandidates,
       };
     }
 
@@ -420,11 +434,13 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
         code: "review_priority_shift",
         title: "Durumu yeniden degerlendir",
         statusLabel: "Gozden Gecirildi",
+        statusValue: "reviewed" as const,
         variant: "neutral" as const,
         helperLabel: "Once Cozulmelileri Sec",
         helperDescription:
           "Oncelik penceresi kayan bloklarin yeni takvime gore yeniden siniflanmasi gerekiyor.",
         targetKeys: prioritySelectionKeys,
+        targetItems: prioritySelectionCandidates,
       };
     }
 
@@ -433,11 +449,13 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
         code: "complete_priority_blockers",
         title: "Simdi tamamla",
         statusLabel: "Tamamlandi",
+        statusValue: "completed" as const,
         variant: "success" as const,
         helperLabel: "Once Cozulmelileri Sec",
         helperDescription:
           "Bu bloklar artik ek bekleme nedeni tasimiyor gibi gorunuyor. Gecerliligini kontrol edip tamamlamaya tasiyin.",
         targetKeys: prioritySelectionKeys,
+        targetItems: prioritySelectionCandidates,
       };
     }
 
@@ -445,7 +463,7 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
   }, [
     deferredWithoutReasonItems,
     missingReasonSelectionKeys,
-    prioritySelectionCandidates.length,
+    prioritySelectionCandidates,
     prioritySelectionKeys,
     topPriorityGroups,
   ]);
@@ -526,6 +544,23 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
       `${priorityBulkRecommendation.targetKeys.length} karar yuzeyi secildi. Sonraki adim icin \`${priorityBulkRecommendation.statusLabel}\` aksiyonunu kullanin.`,
     );
     setError(null);
+  };
+
+  const handleApplyRecommendedBulkAction = async () => {
+    if (!priorityBulkRecommendation || !priorityBulkRecommendation.statusValue) {
+      handleSelectRecommendationTargets();
+      return;
+    }
+
+    setSelectedKeys(Array.from(new Set(priorityBulkRecommendation.targetKeys)));
+
+    await runBulkStatusChange(
+      priorityBulkRecommendation.targetItems.filter(
+        (item) => item.status !== priorityBulkRecommendation.statusValue,
+      ),
+      priorityBulkRecommendation.statusValue,
+      `${priorityBulkRecommendation.targetItems.length} oncelikli karar yuzeyi ${priorityBulkRecommendation.statusLabel.toLocaleLowerCase("tr")} durumuna tasindi.`,
+    );
   };
 
   return (
@@ -678,6 +713,17 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
                   >
                     {priorityBulkRecommendation.helperLabel}
                   </Button>
+                  {priorityBulkRecommendation.statusValue ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="primary"
+                      onClick={() => void handleApplyRecommendedBulkAction()}
+                      disabled={priorityBulkRecommendation.targetKeys.length === 0 || activeBulkStatus !== null}
+                    >
+                      Oneriyi Uygula
+                    </Button>
+                  ) : null}
                   <Badge label={`${priorityBulkRecommendation.targetKeys.length} kayit`} variant="neutral" />
                 </div>
               </div>

@@ -307,3 +307,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 68. Operasyon kuyrugunda blok nedenlerini onceliklendirip varsayilan siralamayi "once cozulmesi gereken bloklar" mantigina gore kurmak
 69. Operasyon kuyrugunda "once cozulmeli" bloklari tek tikla secilebilir hale getirip bulk aksiyon akisina dogrudan baglamak
 70. Operasyon kuyrugunda "once cozulmeli" bloklari icin baglama gore onerilen bulk aksiyonu uretip operatoru dogru toplu karara yonlendirmek
+71. Operasyon kuyrugunda onerilen bulk aksiyonlari guvenli statuler icin tek tikla uygulanabilir hale getirip secim ve uygulama adimini ayni yuzeyde birlestirmek
