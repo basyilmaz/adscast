@@ -1,0 +1,56 @@
+services:
+  pgsql:
+    image: postgres:16-alpine
+    container_name: adscast-pgsql-dev
+    ports:
+      - "55432:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-adscastUser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-adscastSecret}
+      POSTGRES_DB: ${DB_DATABASE:-adscast}
+    volumes:
+      - adscast-pgsql-data:/var/lib/postgresql/data
+    networks:
+      - adscast-dev-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-adscastUser}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    container_name: adscast-redis-dev
+    ports:
+      - "6380:6379"
+    volumes:
+      - adscast-redis-data:/data
+    networks:
+      - adscast-dev-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: adscast-mailpit-dev
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+    networks:
+      - adscast-dev-net
+
+  # Backend & Frontend can run natively on the host during dev,
+  # but if we want to dockerize them for dev too, we can add them here.
+  # For MVP Local Dev: Backend and Frontend are typically run via `php artisan serve` and `npm run dev` 
+  # on the host to leverage hot-reloading easily. This compose file provisions the needed infrastructure.
+
+volumes:
+  adscast-pgsql-data:
+  adscast-redis-data:
+
+networks:
+  adscast-dev-net:
+    driver: bridge

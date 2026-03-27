@@ -103,6 +103,46 @@ Detayli rehber:
 3. Vercel project env degiskenlerini tanimla
 4. Production domain ve backend CORS ayarlarini eslestir
 
+## Local Docker Dev Altyapisi
+
+Repoda local gelistirme icin altyapi compose dosyasi da bulunur:
+
+- `docker-compose.yml`
+
+Sagladigi servisler:
+
+- PostgreSQL: `127.0.0.1:55432`
+- Redis: `127.0.0.1:6380`
+- Mailpit SMTP: `127.0.0.1:1025`
+- Mailpit UI: `http://127.0.0.1:8025`
+
+Calistirma:
+
+1. `docker compose up -d`
+2. Backend `.env` icin asgari local override:
+   - `DB_CONNECTION=pgsql`
+   - `DB_HOST=127.0.0.1`
+   - `DB_PORT=55432`
+   - `DB_DATABASE=adscast`
+   - `DB_USERNAME=adscastUser`
+   - `DB_PASSWORD=adscastSecret`
+   - `QUEUE_CONNECTION=redis`
+   - `CACHE_STORE=redis`
+   - `REDIS_CLIENT=predis`
+   - `REDIS_HOST=127.0.0.1`
+   - `REDIS_PORT=6380`
+   - `MAIL_MAILER=smtp`
+   - `MAIL_HOST=127.0.0.1`
+   - `MAIL_PORT=1025`
+3. `backend` icinde `composer install`
+4. `php artisan migrate`
+5. Frontend ve backend'i host makinede normal dev komutlariyla calistir
+
+Not:
+
+- Local compose dosyasi yalnizca altyapi servislerini aciyor; frontend/backend container icinde calismiyor.
+- `predis/predis` paketi local Redis baglantisi icin repoya eklenmistir; `phpredis` extension zorunlulugu yoktur.
+
 ## Horizon Notu
 
 Lokal Windows ortaminda `pcntl/posix` extension eksikligi nedeniyle Horizon calismayabilir. Production hedefi Linux tabanli container/VM'dir.
