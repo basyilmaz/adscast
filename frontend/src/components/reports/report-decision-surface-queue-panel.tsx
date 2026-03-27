@@ -316,6 +316,7 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
   const filteredDeferredItems = filteredItems.filter((item) => item.status === "deferred");
   const filteredItemsWithNotes = filteredItems.filter((item) => item.operator_note).length;
   const deferredWithoutReasonCount = filteredDeferredItems.filter((item) => item.defer_reason_code === null).length;
+  const deferredWithoutReasonItems = filteredDeferredItems.filter((item) => item.defer_reason_code === null);
   const deferredReasonGroups = useMemo(
     () =>
       Array.from(
@@ -367,9 +368,87 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
     () => prioritySelectionCandidates.map((item) => queueItemKey(item)),
     [prioritySelectionCandidates],
   );
+  const missingReasonSelectionKeys = useMemo(
+    () => deferredWithoutReasonItems.map((item) => queueItemKey(item)),
+    [deferredWithoutReasonItems],
+  );
   const allPrioritySelected =
     prioritySelectionKeys.length > 0 &&
     prioritySelectionKeys.every((key) => selectedKeys.includes(key));
+  const priorityBulkRecommendation = useMemo(() => {
+    if (deferredWithoutReasonItems.length > 0) {
+      return {
+        code: "fix_defer_reason",
+        title: "Erteleme nedenini duzelt",
+        statusLabel: "Ertelendi",
+        variant: "danger" as const,
+        helperLabel: "Nedensiz Ertelemeleri Sec",
+        helperDescription:
+          "Nedensiz ertelemeler en riskli bloklar. Bu kayitlari secip bir erteleme nedeni girerek tekrar kaydedin.",
+        targetKeys: missingReasonSelectionKeys,
+      };
+    }
+
+    if (topPriorityGroups.some((group) => group.key === "blocked_external_dependency")) {
+      return {
+        code: "review_external_blockers",
+        title: "Once gozden gecir",
+        statusLabel: "Gozden Gecirildi",
+        variant: "warning" as const,
+        helperLabel: "Once Cozulmelileri Sec",
+        helperDescription:
+          "Dis bagimlilik bloklari owner atamasi veya takip notu gerektiriyor. Yuzeyleri secip gozden gecirilmis olarak ayirin.",
+        targetKeys: prioritySelectionKeys,
+      };
+    }
+
+    if (topPriorityGroups.some((group) => group.key === "waiting_data_validation")) {
+      return {
+        code: "review_data_validation",
+        title: "Veri bloklarini gozden gecir",
+        statusLabel: "Gozden Gecirildi",
+        variant: "warning" as const,
+        helperLabel: "Once Cozulmelileri Sec",
+        helperDescription:
+          "Veri dogrulamasi bekleyen bloklar karar akisini durduruyor. Yuzeyleri secip dogrulama sahibiyle birlikte tekrar ele alin.",
+        targetKeys: prioritySelectionKeys,
+      };
+    }
+
+    if (topPriorityGroups.some((group) => group.key === "priority_window_shifted")) {
+      return {
+        code: "review_priority_shift",
+        title: "Durumu yeniden degerlendir",
+        statusLabel: "Gozden Gecirildi",
+        variant: "neutral" as const,
+        helperLabel: "Once Cozulmelileri Sec",
+        helperDescription:
+          "Oncelik penceresi kayan bloklarin yeni takvime gore yeniden siniflanmasi gerekiyor.",
+        targetKeys: prioritySelectionKeys,
+      };
+    }
+
+    if (prioritySelectionCandidates.length > 0) {
+      return {
+        code: "complete_priority_blockers",
+        title: "Simdi tamamla",
+        statusLabel: "Tamamlandi",
+        variant: "success" as const,
+        helperLabel: "Once Cozulmelileri Sec",
+        helperDescription:
+          "Bu bloklar artik ek bekleme nedeni tasimiyor gibi gorunuyor. Gecerliligini kontrol edip tamamlamaya tasiyin.",
+        targetKeys: prioritySelectionKeys,
+      };
+    }
+
+    return null;
+  }, [
+    deferredWithoutReasonItems,
+    missingReasonSelectionKeys,
+    prioritySelectionCandidates.length,
+    prioritySelectionKeys,
+    topPriorityGroups,
+  ]);
   const groupedItems = useMemo<Array<{
     key: string;
     label: string;
@@ -425,6 +504,28 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
 
       return Array.from(new Set(prioritySelectionKeys));
     });
+  };
+
+  const handleSelectRecommendationTargets = () => {
+    if (!priorityBulkRecommendation || priorityBulkRecommendation.targetKeys.length === 0) {
+      return;
+    }
+
+    setSelectedKeys(Array.from(new Set(priorityBulkRecommendation.targetKeys)));
+
+    if (priorityBulkRecommendation.code === "fix_defer_reason") {
+      setStatusFilter("deferred");
+      setReasonFilter("none");
+      setMessage("Nedensiz ertelemeler secildi. Bir erteleme nedeni girip `Ertelendi` ile kaydedin.");
+      setError(null);
+      return;
+    }
+
+    setStatusFilter("open");
+    setMessage(
+      `${priorityBulkRecommendation.targetKeys.length} karar yuzeyi secildi. Sonraki adim icin \`${priorityBulkRecommendation.statusLabel}\` aksiyonunu kullanin.`,
+    );
+    setError(null);
   };
 
   return (
@@ -558,6 +659,30 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
                 </Button>
               </div>
             </div>
+
+            {priorityBulkRecommendation ? (
+              <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge label="Onerilen Toplu Aksiyon" variant={priorityBulkRecommendation.variant} />
+                  <Badge label={priorityBulkRecommendation.statusLabel} variant="neutral" />
+                </div>
+                <p className="mt-3 text-sm font-semibold">{priorityBulkRecommendation.title}</p>
+                <p className="mt-1 text-sm muted-text">{priorityBulkRecommendation.helperDescription}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleSelectRecommendationTargets}
+                    disabled={priorityBulkRecommendation.targetKeys.length === 0 || activeBulkStatus !== null}
+                  >
+                    {priorityBulkRecommendation.helperLabel}
+                  </Button>
+                  <Badge label={`${priorityBulkRecommendation.targetKeys.length} kayit`} variant="neutral" />
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
               {topPriorityGroups.map((group) => (
                 <button
