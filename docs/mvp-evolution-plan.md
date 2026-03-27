@@ -305,3 +305,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 66. Operasyon kuyruguna operator notu ve erteleme nedeni ekleyip neden bekliyor bilgisini reports merkezinden toplu yonetilebilir hale getirmek
 67. Operasyon kuyruguna not/reason bazli filtre ve blok nedeni gruplama ekleyip hangi islerin neden takildigini reports merkezinde ust seviyede gorunur hale getirmek
 68. Operasyon kuyrugunda blok nedenlerini onceliklendirip varsayilan siralamayi "once cozulmesi gereken bloklar" mantigina gore kurmak
+69. Operasyon kuyrugunda "once cozulmeli" bloklari tek tikla secilebilir hale getirip bulk aksiyon akisina dogrudan baglamak

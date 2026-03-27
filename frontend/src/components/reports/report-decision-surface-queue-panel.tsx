@@ -356,6 +356,20 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
     [filteredDeferredItems],
   );
   const topPriorityGroups = deferredReasonGroups.filter((group) => group.priority.rank >= 3).slice(0, 3);
+  const prioritySelectionCandidates = useMemo(
+    () =>
+      filteredDeferredItems
+        .filter((item) => deferReasonPriority(item.defer_reason_code ?? "none").rank >= 3)
+        .sort(compareQueueItems),
+    [filteredDeferredItems],
+  );
+  const prioritySelectionKeys = useMemo(
+    () => prioritySelectionCandidates.map((item) => queueItemKey(item)),
+    [prioritySelectionCandidates],
+  );
+  const allPrioritySelected =
+    prioritySelectionKeys.length > 0 &&
+    prioritySelectionKeys.every((key) => selectedKeys.includes(key));
   const groupedItems = useMemo<Array<{
     key: string;
     label: string;
@@ -398,6 +412,20 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
 
     return deferredGroups.filter((group) => group.items.length > 0);
   }, [deferredReasonGroups, filteredItems]);
+
+  const handleTogglePrioritySelection = () => {
+    if (prioritySelectionKeys.length === 0) {
+      return;
+    }
+
+    setSelectedKeys((current) => {
+      if (allPrioritySelected) {
+        return current.filter((key) => !prioritySelectionKeys.includes(key));
+      }
+
+      return Array.from(new Set(prioritySelectionKeys));
+    });
+  };
 
   return (
     <Card>
@@ -512,9 +540,23 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
 
         {topPriorityGroups.length > 0 ? (
           <div className="mt-4 rounded-lg border border-[var(--border)] bg-white p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge label="Once Cozulmeli" variant="danger" />
-              <p className="text-sm font-semibold">Operasyonel olarak ilk ele alinmasi gereken bloklar</p>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge label="Once Cozulmeli" variant="danger" />
+                <p className="text-sm font-semibold">Operasyonel olarak ilk ele alinmasi gereken bloklar</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge label={`${prioritySelectionCandidates.length} oncelikli kayit`} variant="neutral" />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={allPrioritySelected ? "outline" : "secondary"}
+                  onClick={handleTogglePrioritySelection}
+                  disabled={prioritySelectionCandidates.length === 0 || activeBulkStatus !== null}
+                >
+                  {allPrioritySelected ? "Oncelikli Secimi Temizle" : "Once Cozulmelileri Sec"}
+                </Button>
+              </div>
             </div>
             <div className="mt-3 grid gap-3 lg:grid-cols-3">
               {topPriorityGroups.map((group) => (
