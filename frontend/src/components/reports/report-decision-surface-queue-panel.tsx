@@ -66,6 +66,44 @@ const NOTE_FILTER_OPTIONS = [
 ] as const;
 
 const OPEN_STATUSES = new Set(["pending", "reviewed", "deferred"]);
+const DEFER_REASON_PRIORITY = {
+  none: {
+    rank: 5,
+    label: "Acil",
+    variant: "danger" as const,
+    guidance: "Erteleme nedeni girilmemis. Once nedeni netlestirin.",
+  },
+  blocked_external_dependency: {
+    rank: 4,
+    label: "Yuksek",
+    variant: "warning" as const,
+    guidance: "Dis bagimlilik engeli var. Cozum sahibi netlestirilmeden kuyruk birikiyor.",
+  },
+  waiting_data_validation: {
+    rank: 4,
+    label: "Yuksek",
+    variant: "warning" as const,
+    guidance: "Veri dogrulamasi bekleyen isler karar akisini durduruyor.",
+  },
+  priority_window_shifted: {
+    rank: 3,
+    label: "Orta",
+    variant: "neutral" as const,
+    guidance: "Oncelik kaymasi var. Yeni pencereye gore yeniden planlayin.",
+  },
+  scheduled_followup: {
+    rank: 2,
+    label: "Planli",
+    variant: "neutral" as const,
+    guidance: "Planli takip bekleniyor. Tarih yaklastikca tekrar ele alin.",
+  },
+  waiting_client_feedback: {
+    rank: 1,
+    label: "Takip",
+    variant: "neutral" as const,
+    guidance: "Musteri geri donusu bekleniyor. Hemen teknik aksiyon beklenmez.",
+  },
+} as const;
 
 export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, onChanged }: Props) {
   const [statusFilter, setStatusFilter] =
@@ -307,40 +345,53 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
           count: group.count,
           entities: group.entities.size,
           notes: group.notes,
+          priority: deferReasonPriority(group.key),
         }))
-        .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "tr")),
+        .sort(
+          (left, right) =>
+            right.priority.rank - left.priority.rank ||
+            right.count - left.count ||
+            left.label.localeCompare(right.label, "tr"),
+        ),
     [filteredDeferredItems],
   );
+  const topPriorityGroups = deferredReasonGroups.filter((group) => group.priority.rank >= 3).slice(0, 3);
   const groupedItems = useMemo<Array<{
     key: string;
     label: string;
     tone: "warning" | "neutral";
+    priority: ReturnType<typeof deferReasonPriority> | null;
     items: ReportDecisionSurfaceQueueItem[];
   }>>(() => {
     const deferredGroups: Array<{
       key: string;
       label: string;
       tone: "warning" | "neutral";
+      priority: ReturnType<typeof deferReasonPriority> | null;
       items: ReportDecisionSurfaceQueueItem[];
     }> = deferredReasonGroups.map((group) => ({
       key: `deferred:${group.key}`,
       label: group.label,
       tone: "warning" as const,
-      items: filteredItems.filter((item) =>
-        item.status === "deferred"
-          ? group.key === "none"
-            ? item.defer_reason_code === null
-            : item.defer_reason_code === group.key
-          : false,
-      ),
+      priority: group.priority,
+      items: filteredItems
+        .filter((item) =>
+          item.status === "deferred"
+            ? group.key === "none"
+              ? item.defer_reason_code === null
+              : item.defer_reason_code === group.key
+            : false,
+        )
+        .sort(compareQueueItems),
     }));
 
-    const nonDeferredItems = filteredItems.filter((item) => item.status !== "deferred");
+    const nonDeferredItems = filteredItems.filter((item) => item.status !== "deferred").sort(compareQueueItems);
     if (nonDeferredItems.length > 0) {
       deferredGroups.push({
         key: "other-statuses",
         label: "Erteleme Disi Kararlar",
         tone: "neutral" as const,
+        priority: null,
         items: nonDeferredItems,
       });
     }
@@ -459,6 +510,32 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
           <span>Blok nedeni tipi: {deferredReasonGroups.length}</span>
         </div>
 
+        {topPriorityGroups.length > 0 ? (
+          <div className="mt-4 rounded-lg border border-[var(--border)] bg-white p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge label="Once Cozulmeli" variant="danger" />
+              <p className="text-sm font-semibold">Operasyonel olarak ilk ele alinmasi gereken bloklar</p>
+            </div>
+            <div className="mt-3 grid gap-3 lg:grid-cols-3">
+              {topPriorityGroups.map((group) => (
+                <button
+                  key={`priority-${group.key}`}
+                  type="button"
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-left hover:bg-white"
+                  onClick={() => setReasonFilter(group.key as (typeof REASON_FILTER_OPTIONS)[number]["value"])}
+                >
+                  <div className="flex flex-wrap gap-2">
+                    <Badge label={group.priority.label} variant={group.priority.variant} />
+                    <Badge label={group.label} variant="neutral" />
+                  </div>
+                  <p className="mt-2 text-sm font-semibold">{group.count} karar yuzeyi blokta</p>
+                  <p className="mt-1 text-xs muted-text">{group.priority.guidance}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {deferredReasonGroups.length > 0 ? (
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {deferredReasonGroups.map((group) => (
@@ -469,12 +546,14 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
                 onClick={() => setReasonFilter(group.key as (typeof REASON_FILTER_OPTIONS)[number]["value"])}
               >
                 <div className="flex flex-wrap gap-2">
+                  <Badge label={group.priority.label} variant={group.priority.variant} />
                   <Badge label={group.label} variant="warning" />
                   <Badge label={`${group.count} yuzey`} variant="neutral" />
                 </div>
                 <p className="mt-2 text-xs muted-text">
                   {group.entities} entity / {group.notes} notlu kayit
                 </p>
+                <p className="mt-1 text-xs muted-text">{group.priority.guidance}</p>
               </button>
             ))}
           </div>
@@ -560,6 +639,9 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
         {groupedItems.map((group) => (
           <div key={group.key} className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
+              {group.priority ? (
+                <Badge label={group.priority.label} variant={group.priority.variant} />
+              ) : null}
               <Badge label={group.label} variant={group.tone === "warning" ? "warning" : "neutral"} />
               <Badge label={`${group.items.length} kayit`} variant="neutral" />
             </div>
@@ -587,6 +669,12 @@ export function ReportDecisionSurfaceQueuePanel({ summary, items, routeBuilder, 
                           <Badge label={item.surface_label} variant="neutral" />
                           <Badge label={item.status_label} variant={variantForStatus(item.status)} />
                           <Badge label={entityTypeLabel(item.entity_type)} variant="neutral" />
+                          {item.status === "deferred" ? (
+                            <Badge
+                              label={deferReasonPriority(item.defer_reason_code ?? "none").label}
+                              variant={deferReasonPriority(item.defer_reason_code ?? "none").variant}
+                            />
+                          ) : null}
                         </div>
                         <p className="mt-3 text-sm font-semibold">{item.entity_label ?? "Bilinmeyen varlik"}</p>
                         <p className="mt-1 text-xs muted-text">
@@ -677,4 +765,54 @@ function variantForStatus(status: string) {
   if (status === "reviewed") return "neutral" as const;
 
   return "neutral" as const;
+}
+
+function deferReasonPriority(reasonCode: string) {
+  return (
+    DEFER_REASON_PRIORITY[reasonCode as keyof typeof DEFER_REASON_PRIORITY] ?? DEFER_REASON_PRIORITY.waiting_client_feedback
+  );
+}
+
+function compareQueueItems(left: ReportDecisionSurfaceQueueItem, right: ReportDecisionSurfaceQueueItem) {
+  const priorityDifference = queueItemPriorityScore(right) - queueItemPriorityScore(left);
+  if (priorityDifference !== 0) {
+    return priorityDifference;
+  }
+
+  const updatedDifference =
+    safeTimestamp(right.updated_at) - safeTimestamp(left.updated_at);
+  if (updatedDifference !== 0) {
+    return updatedDifference;
+  }
+
+  return (left.entity_label ?? "").localeCompare(right.entity_label ?? "", "tr");
+}
+
+function queueItemPriorityScore(item: ReportDecisionSurfaceQueueItem) {
+  if (item.status === "deferred") {
+    return deferReasonPriority(item.defer_reason_code ?? "none").rank * 10;
+  }
+
+  if (item.status === "pending") {
+    return 25;
+  }
+
+  if (item.status === "reviewed") {
+    return 20;
+  }
+
+  if (item.status === "completed") {
+    return 5;
+  }
+
+  return 10;
+}
+
+function safeTimestamp(value: string | null) {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }
