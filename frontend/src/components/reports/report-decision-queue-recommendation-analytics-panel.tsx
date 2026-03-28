@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   ReportDecisionQueueRecommendationAnalyticsItem,
@@ -13,7 +14,10 @@ type Props = {
   featuredRecommendationCode?: string | null;
   featuredRecommendationStrategy?: "safety_override" | "analytics_boosted" | "static_priority" | null;
   focusedRecommendationCode?: string | null;
+  focusedReasonCode?: string | null;
+  focusedSurfaceKey?: string | null;
   buildQueueFocusHref: (item: ReportDecisionQueueRecommendationAnalyticsItem) => string;
+  buildQueueClusterHref: (options: { reasonCode?: string | null; surfaceKey?: string | null }) => string;
 };
 
 export function ReportDecisionQueueRecommendationAnalyticsPanel({
@@ -22,8 +26,94 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
   featuredRecommendationCode,
   featuredRecommendationStrategy,
   focusedRecommendationCode,
+  focusedReasonCode,
+  focusedSurfaceKey,
   buildQueueFocusHref,
+  buildQueueClusterHref,
 }: Props) {
+  const reasonClusters = useMemo(
+    () =>
+      Array.from(
+        items.reduce(
+          (clusters, item) => {
+            const key = item.dominant_reason_code ?? "unknown";
+            const current = clusters.get(key) ?? {
+              key,
+              label: reasonLabel(item.dominant_reason_code),
+              recommendations: 0,
+              trackedInteractions: 0,
+              appliedInteractions: 0,
+              successfulItems: 0,
+            };
+
+            current.recommendations += 1;
+            current.trackedInteractions += item.tracked_interactions;
+            current.appliedInteractions += item.applied_interactions;
+            current.successfulItems += item.total_successful_items;
+            clusters.set(key, current);
+
+            return clusters;
+          },
+          new Map<
+            string,
+            {
+              key: string;
+              label: string;
+              recommendations: number;
+              trackedInteractions: number;
+              appliedInteractions: number;
+              successfulItems: number;
+            }
+          >(),
+        ).values(),
+      )
+        .sort(
+          (left, right) =>
+            right.trackedInteractions - left.trackedInteractions ||
+            right.recommendations - left.recommendations ||
+            left.label.localeCompare(right.label, "tr"),
+        )
+        .slice(0, 4),
+    [items],
+  );
+
+  const surfaceClusters = useMemo(
+    () =>
+      Array.from(
+        items.reduce(
+          (clusters, item) => {
+            const key = item.target_surface_keys.length === 1 ? item.target_surface_keys[0] : "multi_surface";
+            const current = clusters.get(key) ?? {
+              key,
+              label: surfaceGroupLabel(key),
+              recommendations: 0,
+              trackedInteractions: 0,
+              appliedInteractions: 0,
+            };
+
+            current.recommendations += 1;
+            current.trackedInteractions += item.tracked_interactions;
+            current.appliedInteractions += item.applied_interactions;
+            clusters.set(key, current);
+
+            return clusters;
+          },
+          new Map<
+            string,
+            { key: string; label: string; recommendations: number; trackedInteractions: number; appliedInteractions: number }
+          >(),
+        ).values(),
+      )
+        .sort(
+          (left, right) =>
+            right.trackedInteractions - left.trackedInteractions ||
+            right.recommendations - left.recommendations ||
+            left.label.localeCompare(right.label, "tr"),
+        )
+        .slice(0, 3),
+    [items],
+  );
+
   if (items.length === 0) {
     return <p className="text-sm muted-text">Queue onerileri icin henuz analytics verisi olusmadi.</p>;
   }
@@ -38,6 +128,66 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
           <SummaryMetric label="Basarili" value={summary.successful_applications} />
           <SummaryMetric label="Kismi" value={summary.partial_applications} />
           <SummaryMetric label="Basarisiz" value={summary.failed_applications} />
+        </div>
+      ) : null}
+
+      {reasonClusters.length > 0 || surfaceClusters.length > 0 ? (
+        <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+          <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge label="Hizli Neden Kumeleme" variant="warning" />
+              {focusedReasonCode && focusedReasonCode !== "all" ? <Badge label={`${reasonLabel(focusedReasonCode)} odakta`} variant="success" /> : null}
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {reasonClusters.map((cluster) => (
+                <Link
+                  key={cluster.key}
+                  href={buildQueueClusterHref({ reasonCode: cluster.key })}
+                  className={[
+                    "rounded-lg border border-[var(--border)] bg-white p-3 hover:bg-[var(--surface)]",
+                    focusedReasonCode === cluster.key ? "ring-2 ring-[var(--accent)]/20" : "",
+                  ].join(" ").trim()}
+                >
+                  <div className="flex flex-wrap gap-2">
+                    <Badge label={cluster.label} variant="warning" />
+                    {focusedReasonCode === cluster.key ? <Badge label="Odakta" variant="success" /> : null}
+                  </div>
+                  <p className="mt-2 text-sm font-semibold">{cluster.recommendations} recommendation</p>
+                  <p className="mt-1 text-xs muted-text">
+                    {cluster.trackedInteractions} izleme / {cluster.appliedInteractions} uygulama / {cluster.successfulItems} basarili kayit
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge label="Hizli Yuzey Kumeleme" variant="neutral" />
+              {focusedSurfaceKey && focusedSurfaceKey !== "all" ? <Badge label={`${surfaceLabel(focusedSurfaceKey)} odakta`} variant="success" /> : null}
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {surfaceClusters.map((cluster) => (
+                <Link
+                  key={cluster.key}
+                  href={buildQueueClusterHref({ surfaceKey: cluster.key === "multi_surface" ? null : cluster.key })}
+                  className={[
+                    "rounded-lg border border-[var(--border)] bg-white p-3 hover:bg-[var(--surface)]",
+                    focusedSurfaceKey === cluster.key ? "ring-2 ring-[var(--accent)]/20" : "",
+                  ].join(" ").trim()}
+                >
+                  <div className="flex flex-wrap gap-2">
+                    <Badge label={cluster.label} variant="neutral" />
+                    {focusedSurfaceKey === cluster.key ? <Badge label="Odakta" variant="success" /> : null}
+                  </div>
+                  <p className="mt-2 text-sm font-semibold">{cluster.recommendations} recommendation</p>
+                  <p className="mt-1 text-xs muted-text">
+                    {cluster.trackedInteractions} izleme / {cluster.appliedInteractions} uygulama
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -157,6 +307,23 @@ function surfaceLabel(value: string): string {
   if (value === "featured_fix") return "Hizli Duzeltme";
   if (value === "retry") return "Retry Rehberi";
   if (value === "profile") return "Profil Onerisi";
+  if (value === "multi_surface") return "Coklu Yuzey";
+
+  return value;
+}
+
+function surfaceGroupLabel(value: string): string {
+  return surfaceLabel(value);
+}
+
+function reasonLabel(value: string | null): string {
+  if (!value) return "Bilinmeyen Neden";
+  if (value === "none") return "Nedeni Girilmemis";
+  if (value === "blocked_external_dependency") return "Dis Bagimlilik Engeli";
+  if (value === "waiting_data_validation") return "Veri Dogrulamasi Bekleniyor";
+  if (value === "waiting_client_feedback") return "Musteri Donusu Bekleniyor";
+  if (value === "scheduled_followup") return "Planli Takip Bekleniyor";
+  if (value === "priority_window_shifted") return "Oncelik Penceresi Degisti";
 
   return value;
 }

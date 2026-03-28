@@ -89,6 +89,14 @@ export default function ReportsPage() {
     });
   };
 
+  const buildQueueClusterFocusHref = (options: { reasonCode?: string | null; surfaceKey?: string | null }) =>
+    buildReportsHrefWithFilters(searchParams, {
+      hash: "decision-queue",
+      queue_reason: options.reasonCode ?? null,
+      queue_surface: options.surfaceKey ?? null,
+      queue_focus_source: "queue_analytics_cluster",
+    });
+
   const handleToggleSchedule = async (schedule: ReportDeliveryScheduleListItem) => {
     const actionKey = `toggle:${schedule.id}`;
     setActiveActionKey(actionKey);
@@ -273,7 +281,10 @@ export default function ReportsPage() {
             featuredRecommendationCode={queueDefaultRecommendation?.code ?? null}
             featuredRecommendationStrategy={queueDefaultRecommendation?.selectionStrategy ?? null}
             focusedRecommendationCode={focusRecommendationCode}
+            focusedReasonCode={focusReasonCode}
+            focusedSurfaceKey={focusSurfaceKey}
             buildQueueFocusHref={buildQueueRecommendationFocusHref}
+            buildQueueClusterHref={buildQueueClusterFocusHref}
           />
         </div>
       </Card>

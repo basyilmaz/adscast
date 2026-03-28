@@ -313,3 +313,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 74. Queue recommendation analytics panelinden operasyon kuyruguna derin link ve odak query akisi ekleyip operatoru analytics'ten ilgili queue baglamina tasimak
 75. Operasyon kuyrugunda analytics odagini filtre, blok grubu ve queue item seviyesinde gorsel vurguya cevirip hangi onerinin incelendigi bilgisini kaybetmemek
 76. Queue analytics paneli ve operasyon kuyrugunun ayni recommendation engine'i kullanmasini saglayip queue'da su an one cikan oneriyi reports merkezinde acikca gostermek
+77. Queue recommendation analytics paneline reason ve surface bazli hizli kumeler ekleyip operatorun analytics'ten dogrudan ilgili queue slice'ina inmesini hizlandirmak
+78. Analytics odagi ile acilan operasyon kuyrugunda ilgili recommendation veya cluster kayitlarini otomatik secip bulk aksiyon oncesi hazir durum olusturmak
+79. Queue analytics cluster linkleri, focus query'leri ve queue secim akislarini tek batch'te hizalayip analytics -> queue gecisini iki tik altina indirmek

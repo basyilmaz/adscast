@@ -370,6 +370,7 @@ export function ReportDecisionSurfaceQueuePanel({
       ?? focusReasonCode
     );
   }, [focusReasonCode]);
+  const hasQueueFocus = Boolean(focusRecommendationCode || focusReasonCode || focusSurfaceKey);
 
   useEffect(() => {
     if (!focusRecommendationCode && !focusReasonCode && !focusSurfaceKey) {
@@ -395,6 +396,27 @@ export function ReportDecisionSurfaceQueuePanel({
     setMessage("Queue onerisi analytics panelinden odaklandi. Ilgili blok ve karar yuzeyleri filtrelendi.");
     setError(null);
   }, [focusReasonCode, focusRecommendationCode, focusSurfaceKey, recommendationAnalyticsItems]);
+
+  useEffect(() => {
+    if (!hasQueueFocus) {
+      return;
+    }
+
+    if (focusedRecommendation && focusedRecommendation.targetKeys.length > 0) {
+      setSelectedKeys(Array.from(new Set(focusedRecommendation.targetKeys)));
+      setMessage(
+        `${focusedRecommendation.targetKeys.length} kayit analytics odagindan otomatik secildi. Uygun bulk aksiyonu dogrudan calistirabilirsiniz.`,
+      );
+      return;
+    }
+
+    if (!focusRecommendationCode && filteredItems.length > 0) {
+      setSelectedKeys(filteredItems.map((item) => queueItemKey(item)));
+      setMessage(
+        `${filteredItems.length} kayit analytics kumesinden secildi. Toplu durum guncellemesi icin hazir.`,
+      );
+    }
+  }, [filteredItems, focusRecommendationCode, focusedRecommendation, hasQueueFocus]);
   const groupedItems = useMemo<Array<{
     key: string;
     label: string;
@@ -522,13 +544,13 @@ export function ReportDecisionSurfaceQueuePanel({
   };
 
   return (
-    <Card id="decision-queue" className={focusRecommendationCode ? "ring-1 ring-[var(--accent)]/20" : undefined}>
+    <Card id="decision-queue" className={hasQueueFocus ? "ring-1 ring-[var(--accent)]/20" : undefined}>
       <CardTitle>Operasyon Karar Kuyrugu</CardTitle>
       <p className="mt-2 text-sm muted-text">
         Detail ekranlarinda isaretlenen featured fix, retry rehberi ve profil onerisi durumlarini workspace genelinde tek listede izleyin.
       </p>
 
-      {focusRecommendationCode ? (
+      {hasQueueFocus ? (
         <div className="mt-4 rounded-lg border border-[var(--accent)]/30 bg-[var(--surface-2)] p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge label="Analytics Odagi" variant="success" />
