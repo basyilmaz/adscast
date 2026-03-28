@@ -17,7 +17,8 @@ type Props = {
   focusedReasonCode?: string | null;
   focusedSurfaceKey?: string | null;
   buildQueueFocusHref: (item: ReportDecisionQueueRecommendationAnalyticsItem) => string;
-  buildQueueClusterHref: (options: { reasonCode?: string | null; surfaceKey?: string | null }) => string;
+  buildQueueClusterHref: (options: { reasonCode?: string | null; surfaceKey?: string | null; focusSource?: string | null }) => string;
+  buildEntityDetailHref: (route: string) => string;
 };
 
 export function ReportDecisionQueueRecommendationAnalyticsPanel({
@@ -30,89 +31,31 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
   focusedSurfaceKey,
   buildQueueFocusHref,
   buildQueueClusterHref,
+  buildEntityDetailHref,
 }: Props) {
   const reasonClusters = useMemo(
     () =>
-      Array.from(
-        items.reduce(
-          (clusters, item) => {
-            const key = item.dominant_reason_code ?? "unknown";
-            const current = clusters.get(key) ?? {
-              key,
-              label: reasonLabel(item.dominant_reason_code),
-              recommendations: 0,
-              trackedInteractions: 0,
-              appliedInteractions: 0,
-              successfulItems: 0,
-            };
-
-            current.recommendations += 1;
-            current.trackedInteractions += item.tracked_interactions;
-            current.appliedInteractions += item.applied_interactions;
-            current.successfulItems += item.total_successful_items;
-            clusters.set(key, current);
-
-            return clusters;
-          },
-          new Map<
-            string,
-            {
-              key: string;
-              label: string;
-              recommendations: number;
-              trackedInteractions: number;
-              appliedInteractions: number;
-              successfulItems: number;
-            }
-          >(),
-        ).values(),
-      )
-        .sort(
-          (left, right) =>
-            right.trackedInteractions - left.trackedInteractions ||
-            right.recommendations - left.recommendations ||
-            left.label.localeCompare(right.label, "tr"),
-        )
+      buildRecommendationClusters(items, {
+        getKey: (item) => item.dominant_reason_code ?? "unknown",
+        getLabel: (item) => reasonLabel(item.dominant_reason_code),
+      })
+        .sort(compareClusterPerformance)
         .slice(0, 4),
     [items],
   );
 
   const surfaceClusters = useMemo(
     () =>
-      Array.from(
-        items.reduce(
-          (clusters, item) => {
-            const key = item.target_surface_keys.length === 1 ? item.target_surface_keys[0] : "multi_surface";
-            const current = clusters.get(key) ?? {
-              key,
-              label: surfaceGroupLabel(key),
-              recommendations: 0,
-              trackedInteractions: 0,
-              appliedInteractions: 0,
-            };
-
-            current.recommendations += 1;
-            current.trackedInteractions += item.tracked_interactions;
-            current.appliedInteractions += item.applied_interactions;
-            clusters.set(key, current);
-
-            return clusters;
-          },
-          new Map<
-            string,
-            { key: string; label: string; recommendations: number; trackedInteractions: number; appliedInteractions: number }
-          >(),
-        ).values(),
-      )
-        .sort(
-          (left, right) =>
-            right.trackedInteractions - left.trackedInteractions ||
-            right.recommendations - left.recommendations ||
-            left.label.localeCompare(right.label, "tr"),
-        )
+      buildRecommendationClusters(items, {
+        getKey: (item) => (item.target_surface_keys.length === 1 ? item.target_surface_keys[0] : "multi_surface"),
+        getLabel: (item) => surfaceGroupLabel(item.target_surface_keys.length === 1 ? item.target_surface_keys[0] : "multi_surface"),
+      })
+        .sort(compareClusterPerformance)
         .slice(0, 3),
     [items],
   );
+  const topReasonPerformanceCluster = reasonClusters[0] ?? null;
+  const topSurfacePerformanceCluster = surfaceClusters[0] ?? null;
 
   if (items.length === 0) {
     return <p className="text-sm muted-text">Queue onerileri icin henuz analytics verisi olusmadi.</p>;
@@ -131,6 +74,35 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
         </div>
       ) : null}
 
+      {topReasonPerformanceCluster || topSurfacePerformanceCluster ? (
+        <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+          {topReasonPerformanceCluster ? (
+            <ClusterPerformanceSpotlight
+              title="En Hizli Is Kapatan Neden Kumesi"
+              cluster={topReasonPerformanceCluster}
+              variant="warning"
+              queueHref={buildQueueClusterHref({
+                reasonCode: topReasonPerformanceCluster.key,
+                focusSource: "queue_analytics_cluster_performance",
+              })}
+              buildEntityDetailHref={buildEntityDetailHref}
+            />
+          ) : null}
+          {topSurfacePerformanceCluster ? (
+            <ClusterPerformanceSpotlight
+              title="En Hizli Is Kapatan Yuzey Kumesi"
+              cluster={topSurfacePerformanceCluster}
+              variant="neutral"
+              queueHref={buildQueueClusterHref({
+                surfaceKey: topSurfacePerformanceCluster.key === "multi_surface" ? null : topSurfacePerformanceCluster.key,
+                focusSource: "queue_analytics_cluster_performance",
+              })}
+              buildEntityDetailHref={buildEntityDetailHref}
+            />
+          ) : null}
+        </div>
+      ) : null}
+
       {reasonClusters.length > 0 || surfaceClusters.length > 0 ? (
         <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
           <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
@@ -142,7 +114,10 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
               {reasonClusters.map((cluster) => (
                 <Link
                   key={cluster.key}
-                  href={buildQueueClusterHref({ reasonCode: cluster.key })}
+                  href={buildQueueClusterHref({
+                    reasonCode: cluster.key,
+                    focusSource: "queue_analytics_cluster",
+                  })}
                   className={[
                     "rounded-lg border border-[var(--border)] bg-white p-3 hover:bg-[var(--surface)]",
                     focusedReasonCode === cluster.key ? "ring-2 ring-[var(--accent)]/20" : "",
@@ -151,11 +126,24 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
                   <div className="flex flex-wrap gap-2">
                     <Badge label={cluster.label} variant="warning" />
                     {focusedReasonCode === cluster.key ? <Badge label="Odakta" variant="success" /> : null}
+                    {topReasonPerformanceCluster?.key === cluster.key ? <Badge label="Performans Lideri" variant="success" /> : null}
+                    {cluster.applicationRate !== null ? (
+                      <Badge label={`%${formatRateValue(cluster.applicationRate)} uygulama`} variant={rateVariant(cluster.applicationRate)} />
+                    ) : null}
+                    {cluster.itemSuccessRate !== null ? (
+                      <Badge label={`%${formatRateValue(cluster.itemSuccessRate)} kayit basarisi`} variant={rateVariant(cluster.itemSuccessRate)} />
+                    ) : null}
                   </div>
                   <p className="mt-2 text-sm font-semibold">{cluster.recommendations} recommendation</p>
                   <p className="mt-1 text-xs muted-text">
                     {cluster.trackedInteractions} izleme / {cluster.appliedInteractions} uygulama / {cluster.successfulItems} basarili kayit
                   </p>
+                  {cluster.primaryEntity ? (
+                    <p className="mt-2 text-xs muted-text">
+                      Baskin entity: {cluster.primaryEntity.label ?? "Bilinmeyen varlik"}
+                      {cluster.primaryEntity.context_label ? ` / ${cluster.primaryEntity.context_label}` : ""}
+                    </p>
+                  ) : null}
                 </Link>
               ))}
             </div>
@@ -170,7 +158,10 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
               {surfaceClusters.map((cluster) => (
                 <Link
                   key={cluster.key}
-                  href={buildQueueClusterHref({ surfaceKey: cluster.key === "multi_surface" ? null : cluster.key })}
+                  href={buildQueueClusterHref({
+                    surfaceKey: cluster.key === "multi_surface" ? null : cluster.key,
+                    focusSource: "queue_analytics_cluster",
+                  })}
                   className={[
                     "rounded-lg border border-[var(--border)] bg-white p-3 hover:bg-[var(--surface)]",
                     focusedSurfaceKey === cluster.key ? "ring-2 ring-[var(--accent)]/20" : "",
@@ -179,11 +170,24 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
                   <div className="flex flex-wrap gap-2">
                     <Badge label={cluster.label} variant="neutral" />
                     {focusedSurfaceKey === cluster.key ? <Badge label="Odakta" variant="success" /> : null}
+                    {topSurfacePerformanceCluster?.key === cluster.key ? <Badge label="Performans Lideri" variant="success" /> : null}
+                    {cluster.applicationRate !== null ? (
+                      <Badge label={`%${formatRateValue(cluster.applicationRate)} uygulama`} variant={rateVariant(cluster.applicationRate)} />
+                    ) : null}
+                    {cluster.itemSuccessRate !== null ? (
+                      <Badge label={`%${formatRateValue(cluster.itemSuccessRate)} kayit basarisi`} variant={rateVariant(cluster.itemSuccessRate)} />
+                    ) : null}
                   </div>
                   <p className="mt-2 text-sm font-semibold">{cluster.recommendations} recommendation</p>
                   <p className="mt-1 text-xs muted-text">
-                    {cluster.trackedInteractions} izleme / {cluster.appliedInteractions} uygulama
+                    {cluster.trackedInteractions} izleme / {cluster.appliedInteractions} uygulama / {cluster.successfulItems} basarili kayit
                   </p>
+                  {cluster.primaryEntity ? (
+                    <p className="mt-2 text-xs muted-text">
+                      Baskin entity: {cluster.primaryEntity.label ?? "Bilinmeyen varlik"}
+                      {cluster.primaryEntity.context_label ? ` / ${cluster.primaryEntity.context_label}` : ""}
+                    </p>
+                  ) : null}
                 </Link>
               ))}
             </div>
@@ -264,6 +268,184 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+type RecommendationCluster = {
+  key: string;
+  label: string;
+  recommendations: number;
+  trackedInteractions: number;
+  appliedInteractions: number;
+  successfulItems: number;
+  attemptedItems: number;
+  applicationRate: number | null;
+  itemSuccessRate: number | null;
+  performanceScore: number;
+  primaryEntity: ReportDecisionQueueRecommendationAnalyticsItem["entities"][number] | null;
+};
+
+type RecommendationClusterAccumulator = {
+  key: string;
+  label: string;
+  recommendations: number;
+  trackedInteractions: number;
+  appliedInteractions: number;
+  successfulItems: number;
+  attemptedItems: number;
+  entities: Map<string, ReportDecisionQueueRecommendationAnalyticsItem["entities"][number]>;
+};
+
+function buildRecommendationClusters(
+  items: ReportDecisionQueueRecommendationAnalyticsItem[],
+  options: {
+    getKey: (item: ReportDecisionQueueRecommendationAnalyticsItem) => string;
+    getLabel: (item: ReportDecisionQueueRecommendationAnalyticsItem) => string;
+  },
+) {
+  return Array.from(
+    items.reduce((clusters, item) => {
+      const key = options.getKey(item);
+      const current = clusters.get(key) ?? {
+        key,
+        label: options.getLabel(item),
+        recommendations: 0,
+        trackedInteractions: 0,
+        appliedInteractions: 0,
+        successfulItems: 0,
+        attemptedItems: 0,
+        entities: new Map<string, ReportDecisionQueueRecommendationAnalyticsItem["entities"][number]>(),
+      };
+
+      current.recommendations += 1;
+      current.trackedInteractions += item.tracked_interactions;
+      current.appliedInteractions += item.applied_interactions;
+      current.successfulItems += item.total_successful_items;
+      current.attemptedItems += item.total_attempted_items;
+
+      item.entities.forEach((entity) => {
+        const entityKey = `${entity.entity_type}:${entity.entity_id}:${entity.surface_key}`;
+        const existing = current.entities.get(entityKey);
+
+        if (existing) {
+          existing.uses_count += entity.uses_count;
+        } else {
+          current.entities.set(entityKey, { ...entity });
+        }
+      });
+
+      clusters.set(key, current);
+
+      return clusters;
+    }, new Map<string, RecommendationClusterAccumulator>()).values(),
+  ).map((cluster) => {
+    const primaryEntity = Array.from(cluster.entities.values()).sort(
+      (left, right) =>
+        right.uses_count - left.uses_count ||
+        (left.label ?? "").localeCompare(right.label ?? "", "tr"),
+    )[0] ?? null;
+
+    const applicationRate = safeRate(cluster.appliedInteractions, cluster.trackedInteractions);
+    const itemSuccessRate = safeRate(cluster.successfulItems, cluster.attemptedItems);
+    const performanceScore =
+      (itemSuccessRate ?? 0) * 0.6
+      + (applicationRate ?? 0) * 0.25
+      + Math.min(cluster.successfulItems * 3, 15);
+
+    return {
+      key: cluster.key,
+      label: cluster.label,
+      recommendations: cluster.recommendations,
+      trackedInteractions: cluster.trackedInteractions,
+      appliedInteractions: cluster.appliedInteractions,
+      successfulItems: cluster.successfulItems,
+      attemptedItems: cluster.attemptedItems,
+      applicationRate,
+      itemSuccessRate,
+      performanceScore,
+      primaryEntity,
+    } satisfies RecommendationCluster;
+  });
+}
+
+function compareClusterPerformance(left: RecommendationCluster, right: RecommendationCluster) {
+  return (
+    right.performanceScore - left.performanceScore
+    || right.successfulItems - left.successfulItems
+    || right.trackedInteractions - left.trackedInteractions
+    || left.label.localeCompare(right.label, "tr")
+  );
+}
+
+function safeRate(value: number, total: number) {
+  if (total <= 0) {
+    return null;
+  }
+
+  return (value / total) * 100;
+}
+
+function ClusterPerformanceSpotlight({
+  title,
+  cluster,
+  variant,
+  queueHref,
+  buildEntityDetailHref,
+}: {
+  title: string;
+  cluster: RecommendationCluster;
+  variant: "warning" | "neutral";
+  queueHref: string;
+  buildEntityDetailHref: (route: string) => string;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge label={title} variant={variant} />
+        <Badge label={cluster.label} variant="success" />
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
+        <SummaryMetric label="Izleme" value={cluster.trackedInteractions} />
+        <SummaryMetric label="Uygulama" value={cluster.applicationRate !== null ? `%${formatRateValue(cluster.applicationRate)}` : "-"} />
+        <SummaryMetric label="Kayit Basarisi" value={cluster.itemSuccessRate !== null ? `%${formatRateValue(cluster.itemSuccessRate)}` : "-"} />
+      </div>
+      <p className="mt-3 text-sm muted-text">
+        {cluster.successfulItems} basarili kayit / {cluster.recommendations} recommendation
+      </p>
+      {cluster.primaryEntity ? (
+        <div className="mt-3 rounded-lg border border-[var(--border)] bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide muted-text">Baskin Entity</p>
+          <p className="mt-1 text-sm font-semibold">{cluster.primaryEntity.label ?? "Bilinmeyen varlik"}</p>
+          {cluster.primaryEntity.context_label ? <p className="mt-1 text-xs muted-text">{cluster.primaryEntity.context_label}</p> : null}
+          <p className="mt-1 text-xs muted-text">{cluster.primaryEntity.uses_count} izleme baglami</p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {cluster.primaryEntity.route ? (
+              <Link
+                href={buildEntityDetailHref(cluster.primaryEntity.route)}
+                className="inline-flex h-9 items-center rounded-md border border-[var(--border)] px-3 text-sm font-semibold hover:bg-[var(--surface-2)]"
+              >
+                Entity detayina git
+              </Link>
+            ) : null}
+            <Link
+              href={queueHref}
+              className="inline-flex h-9 items-center rounded-md border border-[var(--border)] px-3 text-sm font-semibold hover:bg-[var(--surface-2)]"
+            >
+              Kuyrukta incele
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <Link
+            href={queueHref}
+            className="inline-flex h-9 items-center rounded-md border border-[var(--border)] px-3 text-sm font-semibold hover:bg-[var(--surface-2)]"
+          >
+            Kuyrukta incele
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

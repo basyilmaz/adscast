@@ -554,6 +554,7 @@ export function ReportDecisionSurfaceQueuePanel({
         <div className="mt-4 rounded-lg border border-[var(--accent)]/30 bg-[var(--surface-2)] p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge label="Analytics Odagi" variant="success" />
+            {focusSource === "queue_analytics_cluster_performance" ? <Badge label="Performans Lideri" variant="warning" /> : null}
             {focusedRecommendation ? <Badge label={focusedRecommendation.title} variant={focusedRecommendation.variant} /> : null}
             {priorityBulkRecommendation?.code === focusRecommendationCode ? (
               <Badge label="Su An One Cikiyor" variant="success" />
@@ -566,6 +567,8 @@ export function ReportDecisionSurfaceQueuePanel({
           <p className="mt-2 text-sm muted-text">
             {focusSource === "queue_analytics"
               ? "Queue onerisi analytics panelinden geldiniz. Filtreler ilgili blok ve karar yuzeyine gore daraltildi."
+              : focusSource === "queue_analytics_cluster_performance"
+                ? "Queue performans lideri cluster'dan geldiniz. Filtreler ilgili cluster ve karar yuzeyine gore hazirlandi."
               : "Queue odagi ilgili onerinin baglamina gore filtrelendi."}
           </p>
           {focusedRecommendation?.selectionSummary ? (

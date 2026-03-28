@@ -316,3 +316,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 77. Queue recommendation analytics paneline reason ve surface bazli hizli kumeler ekleyip operatorun analytics'ten dogrudan ilgili queue slice'ina inmesini hizlandirmak
 78. Analytics odagi ile acilan operasyon kuyrugunda ilgili recommendation veya cluster kayitlarini otomatik secip bulk aksiyon oncesi hazir durum olusturmak
 79. Queue analytics cluster linkleri, focus query'leri ve queue secim akislarini tek batch'te hizalayip analytics -> queue gecisini iki tik altina indirmek
+80. Queue recommendation analytics panelinde reason ve surface kumelerinin uygulama/kayit basarisi metriklerini turetip hangi cluster'in daha hizli is kapattigini gorunur hale getirmek
+81. Queue analytics panelindeki cluster kartlarina baskin entity drill-down linki ekleyip operatoru analytics'ten dogrudan ilgili account/campaign detayina tasimak
+82. Cluster performans liderlerini ozel spotlight kartlarinda toplayip analytics -> queue -> entity drill-down akisini ayni yuzeyde aciklanabilir hale getirmek

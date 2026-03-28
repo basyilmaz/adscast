@@ -89,12 +89,12 @@ export default function ReportsPage() {
     });
   };
 
-  const buildQueueClusterFocusHref = (options: { reasonCode?: string | null; surfaceKey?: string | null }) =>
+  const buildQueueClusterFocusHref = (options: { reasonCode?: string | null; surfaceKey?: string | null; focusSource?: string | null }) =>
     buildReportsHrefWithFilters(searchParams, {
       hash: "decision-queue",
       queue_reason: options.reasonCode ?? null,
       queue_surface: options.surfaceKey ?? null,
-      queue_focus_source: "queue_analytics_cluster",
+      queue_focus_source: options.focusSource ?? "queue_analytics_cluster",
     });
 
   const handleToggleSchedule = async (schedule: ReportDeliveryScheduleListItem) => {
@@ -285,6 +285,7 @@ export default function ReportsPage() {
             focusedSurfaceKey={focusSurfaceKey}
             buildQueueFocusHref={buildQueueRecommendationFocusHref}
             buildQueueClusterHref={buildQueueClusterFocusHref}
+            buildEntityDetailHref={(route) => buildHrefWithHashAndFilters(route, searchParams, GLOBAL_DATE_FILTER_KEYS)}
           />
         </div>
       </Card>
