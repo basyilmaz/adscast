@@ -310,4 +310,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 71. Operasyon kuyrugunda onerilen bulk aksiyonlari guvenli statuler icin tek tikla uygulanabilir hale getirip secim ve uygulama adimini ayni yuzeyde birlestirmek
 72. Operasyon kuyrugundaki onerilen bulk aksiyonlarin secim ve uygulama sonucunu analytics olarak geri besleyip reports merkezinde hangi queue onerilerinin gercekten is kapattigini gostermek
 73. Queue onerilen bulk aksiyon siralamasini statik blok kuralindan analytics destekli adaptif secime tasiyip gecmiste daha iyi calisan onerileri one cikarmak
-72. Operasyon kuyrugundaki onerilen bulk aksiyonlarin secim ve uygulama sonucunu analytics olarak geri besleyip reports merkezinde hangi queue onerilerinin gercekten is kapattigini gostermek
+74. Queue recommendation analytics panelinden operasyon kuyruguna derin link ve odak query akisi ekleyip operatoru analytics'ten ilgili queue baglamina tasimak
+75. Operasyon kuyrugunda analytics odagini filtre, blok grubu ve queue item seviyesinde gorsel vurguya cevirip hangi onerinin incelendigi bilgisini kaybetmemek
+76. Queue analytics paneli ve operasyon kuyrugunun ayni recommendation engine'i kullanmasini saglayip queue'da su an one cikan oneriyi reports merkezinde acikca gostermek

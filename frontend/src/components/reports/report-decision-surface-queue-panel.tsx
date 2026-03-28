@@ -7,6 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { apiRequest } from "@/lib/api";
 import {
+  buildDecisionQueueRecommendationState,
+  compareQueueItems,
+  DecisionQueueRecommendation,
+  deferReasonPriority,
+  getDecisionQueueRecommendationFocus,
+  isDecisionQueueOpenStatus,
+  queueItemKey,
+} from "@/lib/report-decision-queue";
+import {
   ReportDecisionQueueRecommendationAnalyticsItem,
   ReportDecisionSurfaceQueueItem,
   ReportDecisionSurfaceQueueSummary,
@@ -18,28 +27,10 @@ type Props = {
   recommendationAnalyticsItems: ReportDecisionQueueRecommendationAnalyticsItem[];
   routeBuilder: (route: string) => string;
   onChanged?: () => Promise<void> | void;
-};
-
-type QueueRecommendation = {
-  code: string;
-  title: string;
-  statusLabel: string;
-  statusValue: "pending" | "reviewed" | "completed" | "deferred" | null;
-  variant: "success" | "warning" | "danger" | "neutral";
-  helperLabel: string;
-  helperDescription: string;
-  targetKeys: string[];
-  targetItems: ReportDecisionSurfaceQueueItem[];
-  basePriority: number;
-  staticOrder: number;
-  dominantReasonKey: string | null;
-  selectionStrategy?: "safety_override" | "analytics_boosted" | "static_priority";
-  selectionSummary?: string;
-  adaptiveScore?: number;
-  analytics?: Pick<
-    ReportDecisionQueueRecommendationAnalyticsItem,
-    "tracked_interactions" | "selection_only_interactions" | "applied_interactions" | "item_success_rate" | "health_status"
-  > | null;
+  focusRecommendationCode?: string | null;
+  focusReasonCode?: string | null;
+  focusSurfaceKey?: string | null;
+  focusSource?: string | null;
 };
 
 type BulkStatusChangeResult = {
@@ -98,52 +89,16 @@ const NOTE_FILTER_OPTIONS = [
   { value: "without_note", label: "Not Girilmeyenler" },
 ] as const;
 
-const OPEN_STATUSES = new Set(["pending", "reviewed", "deferred"]);
-const DEFER_REASON_PRIORITY = {
-  none: {
-    rank: 5,
-    label: "Acil",
-    variant: "danger" as const,
-    guidance: "Erteleme nedeni girilmemis. Once nedeni netlestirin.",
-  },
-  blocked_external_dependency: {
-    rank: 4,
-    label: "Yuksek",
-    variant: "warning" as const,
-    guidance: "Dis bagimlilik engeli var. Cozum sahibi netlestirilmeden kuyruk birikiyor.",
-  },
-  waiting_data_validation: {
-    rank: 4,
-    label: "Yuksek",
-    variant: "warning" as const,
-    guidance: "Veri dogrulamasi bekleyen isler karar akisini durduruyor.",
-  },
-  priority_window_shifted: {
-    rank: 3,
-    label: "Orta",
-    variant: "neutral" as const,
-    guidance: "Oncelik kaymasi var. Yeni pencereye gore yeniden planlayin.",
-  },
-  scheduled_followup: {
-    rank: 2,
-    label: "Planli",
-    variant: "neutral" as const,
-    guidance: "Planli takip bekleniyor. Tarih yaklastikca tekrar ele alin.",
-  },
-  waiting_client_feedback: {
-    rank: 1,
-    label: "Takip",
-    variant: "neutral" as const,
-    guidance: "Musteri geri donusu bekleniyor. Hemen teknik aksiyon beklenmez.",
-  },
-} as const;
-
 export function ReportDecisionSurfaceQueuePanel({
   summary,
   items,
   recommendationAnalyticsItems,
   routeBuilder,
   onChanged,
+  focusRecommendationCode,
+  focusReasonCode,
+  focusSurfaceKey,
+  focusSource,
 }: Props) {
   const [statusFilter, setStatusFilter] =
     useState<(typeof STATUS_FILTER_OPTIONS)[number]["value"]>("open");
@@ -164,14 +119,10 @@ export function ReportDecisionSurfaceQueuePanel({
   const [error, setError] = useState<string | null>(null);
 
   const normalizedSearchTerm = searchTerm.trim().toLocaleLowerCase("tr");
-  const recommendationAnalyticsIndex = useMemo(
-    () => new Map(recommendationAnalyticsItems.map((item) => [item.recommendation_code, item])),
-    [recommendationAnalyticsItems],
-  );
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      if (statusFilter === "open" && !OPEN_STATUSES.has(item.status)) {
+      if (statusFilter === "open" && !isDecisionQueueOpenStatus(item.status)) {
         return false;
       }
 
@@ -226,6 +177,19 @@ export function ReportDecisionSurfaceQueuePanel({
       return searchHaystack.includes(normalizedSearchTerm);
     });
   }, [entityFilter, items, normalizedSearchTerm, noteFilter, reasonFilter, statusFilter, surfaceFilter]);
+
+  const {
+    filteredDeferredItems,
+    deferredReasonGroups,
+    topPriorityGroups,
+    prioritySelectionCandidates,
+    prioritySelectionKeys,
+    recommendationCandidates,
+    priorityBulkRecommendation,
+  } = useMemo(
+    () => buildDecisionQueueRecommendationState(filteredItems, recommendationAnalyticsItems),
+    [filteredItems, recommendationAnalyticsItems],
+  );
 
   const filteredKeySet = useMemo(
     () => new Set(filteredItems.map((item) => queueItemKey(item))),
@@ -379,231 +343,58 @@ export function ReportDecisionSurfaceQueuePanel({
     };
   };
 
-  const filteredOpenItems = filteredItems.filter((item) => OPEN_STATUSES.has(item.status)).length;
-  const filteredDeferredItems = filteredItems.filter((item) => item.status === "deferred");
+  const filteredOpenItems = filteredItems.filter((item) => isDecisionQueueOpenStatus(item.status)).length;
   const filteredItemsWithNotes = filteredItems.filter((item) => item.operator_note).length;
   const deferredWithoutReasonCount = filteredDeferredItems.filter((item) => item.defer_reason_code === null).length;
-  const deferredWithoutReasonItems = filteredDeferredItems.filter((item) => item.defer_reason_code === null);
-  const deferredReasonGroups = useMemo(
-    () =>
-      Array.from(
-        filteredDeferredItems.reduce(
-          (groups, item) => {
-            const groupKey = item.defer_reason_code ?? "none";
-            const current = groups.get(groupKey) ?? {
-              key: groupKey,
-              label: item.defer_reason_label ?? "Erteleme Nedeni Girilmemis",
-              count: 0,
-              entities: new Set<string>(),
-              notes: 0,
-            };
-
-            current.count += 1;
-            current.entities.add(`${item.entity_type}:${item.entity_id}`);
-            current.notes += item.operator_note ? 1 : 0;
-            groups.set(groupKey, current);
-            return groups;
-          },
-          new Map<string, { key: string; label: string; count: number; entities: Set<string>; notes: number }>(),
-        ).values(),
-      )
-        .map((group) => ({
-          key: group.key,
-          label: group.label,
-          count: group.count,
-          entities: group.entities.size,
-          notes: group.notes,
-          priority: deferReasonPriority(group.key),
-        }))
-        .sort(
-          (left, right) =>
-            right.priority.rank - left.priority.rank ||
-            right.count - left.count ||
-            left.label.localeCompare(right.label, "tr"),
-        ),
-    [filteredDeferredItems],
-  );
-  const topPriorityGroups = deferredReasonGroups.filter((group) => group.priority.rank >= 3).slice(0, 3);
-  const prioritySelectionCandidates = useMemo(
-    () =>
-      filteredDeferredItems
-        .filter((item) => deferReasonPriority(item.defer_reason_code ?? "none").rank >= 3)
-        .sort(compareQueueItems),
-    [filteredDeferredItems],
-  );
-  const prioritySelectionKeys = useMemo(
-    () => prioritySelectionCandidates.map((item) => queueItemKey(item)),
-    [prioritySelectionCandidates],
-  );
-  const missingReasonSelectionKeys = useMemo(
-    () => deferredWithoutReasonItems.map((item) => queueItemKey(item)),
-    [deferredWithoutReasonItems],
-  );
   const allPrioritySelected =
     prioritySelectionKeys.length > 0 &&
     prioritySelectionKeys.every((key) => selectedKeys.includes(key));
-  const recommendationCandidates = useMemo<QueueRecommendation[]>(() => {
-    const candidates: QueueRecommendation[] = [];
-
-    if (deferredWithoutReasonItems.length > 0) {
-      candidates.push({
-        code: "fix_defer_reason",
-        title: "Erteleme nedenini duzelt",
-        statusLabel: "Ertelendi",
-        statusValue: null,
-        variant: "danger" as const,
-        helperLabel: "Nedensiz Ertelemeleri Sec",
-        helperDescription:
-          "Nedensiz ertelemeler en riskli bloklar. Bu kayitlari secip bir erteleme nedeni girerek tekrar kaydedin.",
-        targetKeys: missingReasonSelectionKeys,
-        targetItems: deferredWithoutReasonItems,
-        basePriority: 100,
-        staticOrder: 0,
-        dominantReasonKey: "none",
-      });
-    }
-
-    if (topPriorityGroups.some((group) => group.key === "blocked_external_dependency")) {
-      candidates.push({
-        code: "review_external_blockers",
-        title: "Once gozden gecir",
-        statusLabel: "Gozden Gecirildi",
-        statusValue: "reviewed" as const,
-        variant: "warning" as const,
-        helperLabel: "Once Cozulmelileri Sec",
-        helperDescription:
-          "Dis bagimlilik bloklari owner atamasi veya takip notu gerektiriyor. Yuzeyleri secip gozden gecirilmis olarak ayirin.",
-        targetKeys: prioritySelectionKeys,
-        targetItems: prioritySelectionCandidates,
-        basePriority: 80,
-        staticOrder: 1,
-        dominantReasonKey: "blocked_external_dependency",
-      });
-    }
-
-    if (topPriorityGroups.some((group) => group.key === "waiting_data_validation")) {
-      candidates.push({
-        code: "review_data_validation",
-        title: "Veri bloklarini gozden gecir",
-        statusLabel: "Gozden Gecirildi",
-        statusValue: "reviewed" as const,
-        variant: "warning" as const,
-        helperLabel: "Once Cozulmelileri Sec",
-        helperDescription:
-          "Veri dogrulamasi bekleyen bloklar karar akisini durduruyor. Yuzeyleri secip dogrulama sahibiyle birlikte tekrar ele alin.",
-        targetKeys: prioritySelectionKeys,
-        targetItems: prioritySelectionCandidates,
-        basePriority: 78,
-        staticOrder: 2,
-        dominantReasonKey: "waiting_data_validation",
-      });
-    }
-
-    if (topPriorityGroups.some((group) => group.key === "priority_window_shifted")) {
-      candidates.push({
-        code: "review_priority_shift",
-        title: "Durumu yeniden degerlendir",
-        statusLabel: "Gozden Gecirildi",
-        statusValue: "reviewed" as const,
-        variant: "neutral" as const,
-        helperLabel: "Once Cozulmelileri Sec",
-        helperDescription:
-          "Oncelik penceresi kayan bloklarin yeni takvime gore yeniden siniflanmasi gerekiyor.",
-        targetKeys: prioritySelectionKeys,
-        targetItems: prioritySelectionCandidates,
-        basePriority: 72,
-        staticOrder: 3,
-        dominantReasonKey: "priority_window_shifted",
-      });
-    }
-
-    if (prioritySelectionCandidates.length > 0) {
-      candidates.push({
-        code: "complete_priority_blockers",
-        title: "Simdi tamamla",
-        statusLabel: "Tamamlandi",
-        statusValue: "completed" as const,
-        variant: "success" as const,
-        helperLabel: "Once Cozulmelileri Sec",
-        helperDescription:
-          "Bu bloklar artik ek bekleme nedeni tasimiyor gibi gorunuyor. Gecerliligini kontrol edip tamamlamaya tasiyin.",
-        targetKeys: prioritySelectionKeys,
-        targetItems: prioritySelectionCandidates,
-        basePriority: 65,
-        staticOrder: 4,
-        dominantReasonKey: topPriorityGroups[0]?.key ?? null,
-      });
-    }
-
-    return candidates;
-  }, [
-    deferredWithoutReasonItems,
-    missingReasonSelectionKeys,
-    prioritySelectionCandidates,
-    prioritySelectionKeys,
-    topPriorityGroups,
-  ]);
-  const priorityBulkRecommendation = useMemo<QueueRecommendation | null>(() => {
-    if (recommendationCandidates.length === 0) {
+  const focusedRecommendation = useMemo(
+    () =>
+      focusRecommendationCode
+        ? recommendationCandidates.find((candidate) => candidate.code === focusRecommendationCode) ?? null
+        : null,
+    [focusRecommendationCode, recommendationCandidates],
+  );
+  const focusReasonLabel = useMemo(() => {
+    if (!focusReasonCode || focusReasonCode === "all") {
       return null;
     }
 
-    const staticTopCandidate = [...recommendationCandidates].sort(compareRecommendationStaticOrder)[0];
-    const rankedCandidates = recommendationCandidates
-      .map((candidate) => {
-        const analytics = recommendationAnalyticsIndex.get(candidate.code) ?? null;
-        const adaptiveScore =
-          candidate.code === "fix_defer_reason"
-            ? Number.MAX_SAFE_INTEGER
-            : candidate.basePriority * 100
-              + candidate.targetItems.length * 10
-              + recommendationAnalyticsScore(analytics);
-
-        return {
-          ...candidate,
-          adaptiveScore,
-          analytics: analytics
-            ? {
-                tracked_interactions: analytics.tracked_interactions,
-                selection_only_interactions: analytics.selection_only_interactions,
-                applied_interactions: analytics.applied_interactions,
-                item_success_rate: analytics.item_success_rate,
-                health_status: analytics.health_status,
-              }
-            : null,
-        };
-      })
-      .sort(compareRecommendationAdaptiveOrder);
-
-    const topCandidate = rankedCandidates[0];
-
-    if (topCandidate.code === "fix_defer_reason") {
-      return {
-        ...topCandidate,
-        selectionStrategy: "safety_override",
-        selectionSummary: "Nedensiz ertelemeler oldugu icin bu aksiyon guvenlik geregi her zaman once gelir.",
-      };
+    if (focusReasonCode === "none") {
+      return "Nedeni Girilmemis";
     }
 
-    if (
-      staticTopCandidate
-      && topCandidate.code !== staticTopCandidate.code
-      && topCandidate.analytics
-      && (topCandidate.analytics.applied_interactions > 0 || topCandidate.analytics.selection_only_interactions > 0)
-    ) {
-      return {
-        ...topCandidate,
-        selectionStrategy: "analytics_boosted",
-        selectionSummary: analyticsBoostSummary(topCandidate),
-      };
+    return (
+      REASON_FILTER_OPTIONS.find((option) => option.value === focusReasonCode)?.label
+      ?? focusReasonCode
+    );
+  }, [focusReasonCode]);
+
+  useEffect(() => {
+    if (!focusRecommendationCode && !focusReasonCode && !focusSurfaceKey) {
+      return;
     }
 
-    return {
-      ...topCandidate,
-      selectionStrategy: "static_priority",
-      selectionSummary: staticPrioritySummary(topCandidate),
-    };
-  }, [recommendationAnalyticsIndex, recommendationCandidates]);
+    const focusedAnalyticsItem = focusRecommendationCode
+      ? recommendationAnalyticsItems.find((item) => item.recommendation_code === focusRecommendationCode) ?? null
+      : null;
+    const defaults = getDecisionQueueRecommendationFocus(
+      focusRecommendationCode ?? null,
+      focusedAnalyticsItem?.dominant_reason_code ?? focusReasonCode ?? null,
+      focusedAnalyticsItem?.target_surface_keys ?? (focusSurfaceKey ? [focusSurfaceKey] : []),
+    );
+
+    setStatusFilter(defaults.statusFilter as (typeof STATUS_FILTER_OPTIONS)[number]["value"]);
+    setReasonFilter((focusReasonCode ?? defaults.reasonFilter) as (typeof REASON_FILTER_OPTIONS)[number]["value"]);
+    setSurfaceFilter((focusSurfaceKey ?? defaults.surfaceFilter) as (typeof SURFACE_FILTER_OPTIONS)[number]["value"]);
+    setEntityFilter("all");
+    setNoteFilter("all");
+    setSearchTerm("");
+    setSelectedKeys([]);
+    setMessage("Queue onerisi analytics panelinden odaklandi. Ilgili blok ve karar yuzeyleri filtrelendi.");
+    setError(null);
+  }, [focusReasonCode, focusRecommendationCode, focusSurfaceKey, recommendationAnalyticsItems]);
   const groupedItems = useMemo<Array<{
     key: string;
     label: string;
@@ -662,7 +453,7 @@ export function ReportDecisionSurfaceQueuePanel({
   };
 
   const trackRecommendationInteraction = async (
-    recommendation: QueueRecommendation,
+    recommendation: DecisionQueueRecommendation,
     executionMode: "selection_only" | "bulk_status_applied",
     result?: BulkStatusChangeResult | null,
   ) => {
@@ -731,11 +522,35 @@ export function ReportDecisionSurfaceQueuePanel({
   };
 
   return (
-    <Card>
+    <Card id="decision-queue" className={focusRecommendationCode ? "ring-1 ring-[var(--accent)]/20" : undefined}>
       <CardTitle>Operasyon Karar Kuyrugu</CardTitle>
       <p className="mt-2 text-sm muted-text">
         Detail ekranlarinda isaretlenen featured fix, retry rehberi ve profil onerisi durumlarini workspace genelinde tek listede izleyin.
       </p>
+
+      {focusRecommendationCode ? (
+        <div className="mt-4 rounded-lg border border-[var(--accent)]/30 bg-[var(--surface-2)] p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge label="Analytics Odagi" variant="success" />
+            {focusedRecommendation ? <Badge label={focusedRecommendation.title} variant={focusedRecommendation.variant} /> : null}
+            {priorityBulkRecommendation?.code === focusRecommendationCode ? (
+              <Badge label="Su An One Cikiyor" variant="success" />
+            ) : null}
+            {focusReasonLabel ? <Badge label={focusReasonLabel} variant="warning" /> : null}
+            {focusSurfaceKey && focusSurfaceKey !== "all" ? (
+              <Badge label={surfaceLabel(focusSurfaceKey)} variant="neutral" />
+            ) : null}
+          </div>
+          <p className="mt-2 text-sm muted-text">
+            {focusSource === "queue_analytics"
+              ? "Queue onerisi analytics panelinden geldiniz. Filtreler ilgili blok ve karar yuzeyine gore daraltildi."
+              : "Queue odagi ilgili onerinin baglamina gore filtrelendi."}
+          </p>
+          {focusedRecommendation?.selectionSummary ? (
+            <p className="mt-1 text-xs muted-text">{focusedRecommendation.selectionSummary}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap gap-3 text-sm muted-text">
         <span>Takipte entity: {summary?.tracked_entities ?? 0}</span>
@@ -863,10 +678,18 @@ export function ReportDecisionSurfaceQueuePanel({
             </div>
 
             {priorityBulkRecommendation ? (
-              <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
+              <div
+                className={[
+                  "mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4",
+                  priorityBulkRecommendation.code === focusRecommendationCode ? "ring-2 ring-[var(--accent)]/25" : "",
+                ].join(" ").trim()}
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge label="Onerilen Toplu Aksiyon" variant={priorityBulkRecommendation.variant} />
                   <Badge label={priorityBulkRecommendation.statusLabel} variant="neutral" />
+                  {priorityBulkRecommendation.code === focusRecommendationCode ? (
+                    <Badge label="Odakta" variant="success" />
+                  ) : null}
                   {priorityBulkRecommendation.selectionStrategy === "analytics_boosted" ? (
                     <Badge label="Analytics Destekli" variant="success" />
                   ) : null}
@@ -926,12 +749,16 @@ export function ReportDecisionSurfaceQueuePanel({
                 <button
                   key={`priority-${group.key}`}
                   type="button"
-                  className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-left hover:bg-white"
+                  className={[
+                    "rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3 text-left hover:bg-white",
+                    focusReasonCode === group.key ? "ring-2 ring-[var(--accent)]/20" : "",
+                  ].join(" ").trim()}
                   onClick={() => setReasonFilter(group.key as (typeof REASON_FILTER_OPTIONS)[number]["value"])}
                 >
                   <div className="flex flex-wrap gap-2">
                     <Badge label={group.priority.label} variant={group.priority.variant} />
                     <Badge label={group.label} variant="neutral" />
+                    {focusReasonCode === group.key ? <Badge label="Odakta" variant="success" /> : null}
                   </div>
                   <p className="mt-2 text-sm font-semibold">{group.count} karar yuzeyi blokta</p>
                   <p className="mt-1 text-xs muted-text">{group.priority.guidance}</p>
@@ -947,13 +774,17 @@ export function ReportDecisionSurfaceQueuePanel({
               <button
                 key={group.key}
                 type="button"
-                className="rounded-lg border border-[var(--border)] bg-white p-3 text-left hover:bg-[var(--surface-2)]"
+                className={[
+                  "rounded-lg border border-[var(--border)] bg-white p-3 text-left hover:bg-[var(--surface-2)]",
+                  focusReasonCode === group.key ? "ring-2 ring-[var(--accent)]/20" : "",
+                ].join(" ").trim()}
                 onClick={() => setReasonFilter(group.key as (typeof REASON_FILTER_OPTIONS)[number]["value"])}
               >
                 <div className="flex flex-wrap gap-2">
                   <Badge label={group.priority.label} variant={group.priority.variant} />
                   <Badge label={group.label} variant="warning" />
                   <Badge label={`${group.count} yuzey`} variant="neutral" />
+                  {focusReasonCode === group.key ? <Badge label="Odakta" variant="success" /> : null}
                 </div>
                 <p className="mt-2 text-xs muted-text">
                   {group.entities} entity / {group.notes} notlu kayit
@@ -1049,13 +880,25 @@ export function ReportDecisionSurfaceQueuePanel({
               ) : null}
               <Badge label={group.label} variant={group.tone === "warning" ? "warning" : "neutral"} />
               <Badge label={`${group.items.length} kayit`} variant="neutral" />
+              {(focusReasonCode === group.key.replace("deferred:", "") || (focusReasonCode === "none" && group.key === "deferred:none")) ? (
+                <Badge label="Odak Grubu" variant="success" />
+              ) : null}
             </div>
 
             {group.items.map((item) => {
               const itemKey = queueItemKey(item);
+              const isFocusedItem =
+                (focusSurfaceKey ? item.surface_key === focusSurfaceKey : false)
+                || (focusReasonCode === "none" ? item.defer_reason_code === null : focusReasonCode ? item.defer_reason_code === focusReasonCode : false);
 
               return (
-                <div key={itemKey} className="rounded-lg border border-[var(--border)] p-4">
+                <div
+                  key={itemKey}
+                  className={[
+                    "rounded-lg border border-[var(--border)] p-4",
+                    isFocusedItem ? "ring-2 ring-[var(--accent)]/20 bg-[var(--surface-2)]" : "",
+                  ].join(" ").trim()}
+                >
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="flex gap-3">
                       <label className="mt-1 flex items-start">
@@ -1074,6 +917,7 @@ export function ReportDecisionSurfaceQueuePanel({
                           <Badge label={item.surface_label} variant="neutral" />
                           <Badge label={item.status_label} variant={variantForStatus(item.status)} />
                           <Badge label={entityTypeLabel(item.entity_type)} variant="neutral" />
+                          {isFocusedItem ? <Badge label="Odakta" variant="success" /> : null}
                           {item.status === "deferred" ? (
                             <Badge
                               label={deferReasonPriority(item.defer_reason_code ?? "none").label}
@@ -1125,12 +969,8 @@ export function ReportDecisionSurfaceQueuePanel({
   );
 }
 
-function queueItemKey(item: ReportDecisionSurfaceQueueItem) {
-  return `${item.entity_type}:${item.entity_id}:${item.surface_key}`;
-}
-
 function buildQueueRecommendationTrackPayload(
-  recommendation: QueueRecommendation,
+  recommendation: DecisionQueueRecommendation,
   executionMode: "selection_only" | "bulk_status_applied",
   result?: BulkStatusChangeResult | null,
 ) {
@@ -1169,62 +1009,6 @@ function buildQueueRecommendationTrackPayload(
   };
 }
 
-function compareRecommendationStaticOrder(left: QueueRecommendation, right: QueueRecommendation) {
-  return left.staticOrder - right.staticOrder;
-}
-
-function compareRecommendationAdaptiveOrder(left: QueueRecommendation, right: QueueRecommendation) {
-  const scoreDifference = (right.adaptiveScore ?? 0) - (left.adaptiveScore ?? 0);
-
-  if (scoreDifference !== 0) {
-    return scoreDifference;
-  }
-
-  return compareRecommendationStaticOrder(left, right);
-}
-
-function recommendationAnalyticsScore(item: ReportDecisionQueueRecommendationAnalyticsItem | null) {
-  if (!item) {
-    return 0;
-  }
-
-  const successWeight = item.item_success_rate ?? 0;
-  const applicationWeight = Math.min(item.applied_interactions * 8, 32);
-  const confidenceWeight = Math.min(item.tracked_interactions * 2, 12);
-
-  if (item.health_status === "critical") {
-    return Math.max(0, successWeight / 4);
-  }
-
-  return successWeight + applicationWeight + confidenceWeight;
-}
-
-function analyticsBoostSummary(recommendation: QueueRecommendation) {
-  const analytics = recommendation.analytics;
-
-  if (!analytics) {
-    return staticPrioritySummary(recommendation);
-  }
-
-  return `%${formatRecommendationRate(analytics.item_success_rate)} kayit basarisi ve ${analytics.applied_interactions} uygulama gordugu icin bu aksiyon one alindi.`;
-}
-
-function staticPrioritySummary(recommendation: QueueRecommendation) {
-  if (recommendation.dominantReasonKey === "blocked_external_dependency") {
-    return "Dis bagimlilik bloklari aktif oldugu icin once gozden gecirme akisina oncelik verildi.";
-  }
-
-  if (recommendation.dominantReasonKey === "waiting_data_validation") {
-    return "Veri dogrulamasi bekleyen bloklar karar akisini durdurdugu icin once bu akis onerildi.";
-  }
-
-  if (recommendation.dominantReasonKey === "priority_window_shifted") {
-    return "Oncelik penceresi kayan kayitlar agirlikta oldugu icin yeniden degerlendirme akisina oncelik verildi.";
-  }
-
-  return "Mevcut blok dagilimi icinde en yuksek oncelikli grup bu aksiyonla eslesiyor.";
-}
-
 function statusLabel(status: string) {
   return (
     STATUS_UPDATE_OPTIONS.find((option) => option.value === status)?.label ??
@@ -1243,6 +1027,14 @@ function entityTypeLabel(entityType: string) {
   }
 
   return entityType;
+}
+
+function surfaceLabel(value: string) {
+  if (value === "featured_fix") return "Hizli Duzeltme";
+  if (value === "retry") return "Retry Rehberi";
+  if (value === "profile") return "Profil Onerisi";
+
+  return value;
 }
 
 function buttonVariantForBulkStatus(status: string) {
@@ -1266,56 +1058,6 @@ function variantForStatus(status: string) {
   if (status === "reviewed") return "neutral" as const;
 
   return "neutral" as const;
-}
-
-function deferReasonPriority(reasonCode: string) {
-  return (
-    DEFER_REASON_PRIORITY[reasonCode as keyof typeof DEFER_REASON_PRIORITY] ?? DEFER_REASON_PRIORITY.waiting_client_feedback
-  );
-}
-
-function compareQueueItems(left: ReportDecisionSurfaceQueueItem, right: ReportDecisionSurfaceQueueItem) {
-  const priorityDifference = queueItemPriorityScore(right) - queueItemPriorityScore(left);
-  if (priorityDifference !== 0) {
-    return priorityDifference;
-  }
-
-  const updatedDifference =
-    safeTimestamp(right.updated_at) - safeTimestamp(left.updated_at);
-  if (updatedDifference !== 0) {
-    return updatedDifference;
-  }
-
-  return (left.entity_label ?? "").localeCompare(right.entity_label ?? "", "tr");
-}
-
-function queueItemPriorityScore(item: ReportDecisionSurfaceQueueItem) {
-  if (item.status === "deferred") {
-    return deferReasonPriority(item.defer_reason_code ?? "none").rank * 10;
-  }
-
-  if (item.status === "pending") {
-    return 25;
-  }
-
-  if (item.status === "reviewed") {
-    return 20;
-  }
-
-  if (item.status === "completed") {
-    return 5;
-  }
-
-  return 10;
-}
-
-function safeTimestamp(value: string | null) {
-  if (!value) {
-    return 0;
-  }
-
-  const timestamp = Date.parse(value);
-  return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
 function recommendationRateVariant(value: number | null): "success" | "warning" | "danger" | "neutral" {

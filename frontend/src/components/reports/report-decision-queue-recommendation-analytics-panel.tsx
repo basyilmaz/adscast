@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
   ReportDecisionQueueRecommendationAnalyticsItem,
@@ -9,9 +10,20 @@ import {
 type Props = {
   summary: ReportDecisionQueueRecommendationAnalyticsSummary | null;
   items: ReportDecisionQueueRecommendationAnalyticsItem[];
+  featuredRecommendationCode?: string | null;
+  featuredRecommendationStrategy?: "safety_override" | "analytics_boosted" | "static_priority" | null;
+  focusedRecommendationCode?: string | null;
+  buildQueueFocusHref: (item: ReportDecisionQueueRecommendationAnalyticsItem) => string;
 };
 
-export function ReportDecisionQueueRecommendationAnalyticsPanel({ summary, items }: Props) {
+export function ReportDecisionQueueRecommendationAnalyticsPanel({
+  summary,
+  items,
+  featuredRecommendationCode,
+  featuredRecommendationStrategy,
+  focusedRecommendationCode,
+  buildQueueFocusHref,
+}: Props) {
   if (items.length === 0) {
     return <p className="text-sm muted-text">Queue onerileri icin henuz analytics verisi olusmadi.</p>;
   }
@@ -31,12 +43,25 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({ summary, items
 
       <div className="space-y-3">
         {items.map((item) => (
-          <div key={item.recommendation_code} className="rounded-lg border border-[var(--border)] p-3">
+          <div
+            key={item.recommendation_code}
+            className={[
+              "rounded-lg border border-[var(--border)] p-3",
+              item.recommendation_code === focusedRecommendationCode ? "ring-2 ring-[var(--accent)]/20" : "",
+            ].join(" ").trim()}
+          >
             <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2">
                   <Badge label={item.label} variant={variantForGuidance(item.guidance_variant)} />
                   {item.suggested_status_label ? <Badge label={item.suggested_status_label} variant="neutral" /> : null}
+                  {item.recommendation_code === featuredRecommendationCode ? (
+                    <Badge
+                      label={featuredStrategyLabel(featuredRecommendationStrategy)}
+                      variant={featuredRecommendationStrategy === "analytics_boosted" ? "success" : featuredRecommendationStrategy === "safety_override" ? "danger" : "neutral"}
+                    />
+                  ) : null}
+                  {item.recommendation_code === focusedRecommendationCode ? <Badge label="Odakta" variant="success" /> : null}
                   <Badge label={`${item.tracked_interactions} izleme`} variant="neutral" />
                   {item.item_success_rate !== null ? (
                     <Badge label={`%${formatRateValue(item.item_success_rate)} kayit basarisi`} variant={rateVariant(item.item_success_rate)} />
@@ -57,6 +82,14 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({ summary, items
                   <span>Denenen: {item.total_attempted_items}</span>
                   <span>Basarili kayit: {item.total_successful_items}</span>
                   <span>Hatali kayit: {item.total_failed_items}</span>
+                </div>
+                <div className="pt-1">
+                  <Link
+                    href={buildQueueFocusHref(item)}
+                    className="inline-flex h-9 items-center rounded-md border border-[var(--border)] px-3 text-sm font-semibold hover:bg-[var(--surface-2)]"
+                  >
+                    Kuyrukta incele
+                  </Link>
                 </div>
               </div>
 
@@ -126,6 +159,14 @@ function surfaceLabel(value: string): string {
   if (value === "profile") return "Profil Onerisi";
 
   return value;
+}
+
+function featuredStrategyLabel(value: Props["featuredRecommendationStrategy"]) {
+  if (value === "analytics_boosted") return "Queue'da Analytics Destekli";
+  if (value === "safety_override") return "Queue'da Guvenlik Oncelemesi";
+  if (value === "static_priority") return "Queue'da Oneriliyor";
+
+  return "Queue'da Oneriliyor";
 }
 
 function SummaryMetric({ label, value }: { label: string; value: number | string }) {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { ReportContactForm } from "@/components/reports/report-contact-form";
@@ -33,6 +33,11 @@ import { QUERY_TTLS } from "@/lib/api-query-config";
 import { apiRequest } from "@/lib/api";
 import { buildHrefWithFilters, GLOBAL_DATE_FILTER_KEYS } from "@/lib/filters";
 import {
+  buildDecisionQueueRecommendationState,
+  getDecisionQueueRecommendationFocus,
+  isDecisionQueueOpenStatus,
+} from "@/lib/report-decision-queue";
+import {
   ReportContactSegmentListItem,
   ReportDeliveryScheduleListItem,
   ReportDeliveryRunListItem,
@@ -58,6 +63,31 @@ export default function ReportsPage() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [activeActionKey, setActiveActionKey] = useState<string | null>(null);
+  const focusRecommendationCode = searchParams.get("queue_recommendation");
+  const focusReasonCode = searchParams.get("queue_reason");
+  const focusSurfaceKey = searchParams.get("queue_surface");
+  const focusSource = searchParams.get("queue_focus_source");
+
+  const queueDefaultRecommendation = useMemo(() => {
+    const queueItems = (data?.decision_surface_queue ?? []).filter((item) => isDecisionQueueOpenStatus(item.status));
+    return buildDecisionQueueRecommendationState(queueItems, data?.decision_queue_recommendation_analytics ?? []).priorityBulkRecommendation;
+  }, [data?.decision_queue_recommendation_analytics, data?.decision_surface_queue]);
+
+  const buildQueueRecommendationFocusHref = (item: NonNullable<ReportIndexResponse["data"]>["decision_queue_recommendation_analytics"][number]) => {
+    const defaults = getDecisionQueueRecommendationFocus(
+      item.recommendation_code,
+      item.dominant_reason_code,
+      item.target_surface_keys,
+    );
+
+    return buildReportsHrefWithFilters(searchParams, {
+      hash: "decision-queue",
+      queue_recommendation: item.recommendation_code,
+      queue_reason: item.dominant_reason_code ?? defaults.reasonFilter,
+      queue_surface: item.target_surface_keys.length === 1 ? item.target_surface_keys[0] : defaults.surfaceFilter,
+      queue_focus_source: "queue_analytics",
+    });
+  };
 
   const handleToggleSchedule = async (schedule: ReportDeliveryScheduleListItem) => {
     const actionKey = `toggle:${schedule.id}`;
@@ -219,6 +249,10 @@ export default function ReportsPage() {
         recommendationAnalyticsItems={data?.decision_queue_recommendation_analytics ?? []}
         routeBuilder={(route) => buildHrefWithHashAndFilters(route, searchParams, GLOBAL_DATE_FILTER_KEYS)}
         onChanged={reload}
+        focusRecommendationCode={focusRecommendationCode}
+        focusReasonCode={focusReasonCode}
+        focusSurfaceKey={focusSurfaceKey}
+        focusSource={focusSource}
       />
 
       <Card>
@@ -236,6 +270,10 @@ export default function ReportsPage() {
           <ReportDecisionQueueRecommendationAnalyticsPanel
             summary={data?.decision_queue_recommendation_analytics_summary ?? null}
             items={data?.decision_queue_recommendation_analytics ?? []}
+            featuredRecommendationCode={queueDefaultRecommendation?.code ?? null}
+            featuredRecommendationStrategy={queueDefaultRecommendation?.selectionStrategy ?? null}
+            focusedRecommendationCode={focusRecommendationCode}
+            buildQueueFocusHref={buildQueueRecommendationFocusHref}
           />
         </div>
       </Card>
@@ -916,4 +954,45 @@ function buildHrefWithHashAndFilters(
   const href = query ? `${path}?${query}` : path;
 
   return hash ? `${href}#${hash}` : href;
+}
+
+function buildReportsHrefWithFilters(
+  searchParams: { get(name: string): string | null },
+  options: {
+    hash?: string;
+    queue_recommendation?: string | null;
+    queue_reason?: string | null;
+    queue_surface?: string | null;
+    queue_focus_source?: string | null;
+  },
+) {
+  const params = new URLSearchParams();
+
+  GLOBAL_DATE_FILTER_KEYS.forEach((key) => {
+    const value = searchParams.get(key);
+    if (value) {
+      params.set(key, value);
+    }
+  });
+
+  if (options.queue_recommendation) {
+    params.set("queue_recommendation", options.queue_recommendation);
+  }
+
+  if (options.queue_reason && options.queue_reason !== "all") {
+    params.set("queue_reason", options.queue_reason);
+  }
+
+  if (options.queue_surface && options.queue_surface !== "all") {
+    params.set("queue_surface", options.queue_surface);
+  }
+
+  if (options.queue_focus_source) {
+    params.set("queue_focus_source", options.queue_focus_source);
+  }
+
+  const query = params.toString();
+  const href = query ? `/reports?${query}` : "/reports";
+
+  return options.hash ? `${href}#${options.hash}` : href;
 }
