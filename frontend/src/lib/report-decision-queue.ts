@@ -10,6 +10,22 @@ export type DecisionQueueRecommendationAnalyticsMeta = Pick<
   "tracked_interactions" | "selection_only_interactions" | "applied_interactions" | "item_success_rate" | "health_status"
 >;
 
+export type DecisionQueueRecommendationClusterEntity = ReportDecisionQueueRecommendationAnalyticsItem["entities"][number];
+
+export type DecisionQueueRecommendationCluster = {
+  key: string;
+  label: string;
+  recommendations: number;
+  trackedInteractions: number;
+  appliedInteractions: number;
+  successfulItems: number;
+  attemptedItems: number;
+  applicationRate: number | null;
+  itemSuccessRate: number | null;
+  performanceScore: number;
+  primaryEntity: DecisionQueueRecommendationClusterEntity | null;
+};
+
 export type DecisionQueueRecommendation = {
   code: string;
   title: string;
@@ -86,6 +102,17 @@ const DEFER_REASON_PRIORITY = {
   },
 } as const;
 
+type DecisionQueueRecommendationClusterAccumulator = {
+  key: string;
+  label: string;
+  recommendations: number;
+  trackedInteractions: number;
+  appliedInteractions: number;
+  successfulItems: number;
+  attemptedItems: number;
+  entities: Map<string, DecisionQueueRecommendationClusterEntity>;
+};
+
 export function isDecisionQueueOpenStatus(status: string) {
   return OPEN_STATUSES.has(status);
 }
@@ -129,6 +156,98 @@ export function recommendationAnalyticsScore(item: ReportDecisionQueueRecommenda
   }
 
   return successWeight + applicationWeight + confidenceWeight;
+}
+
+export function buildDecisionQueueRecommendationClusters(
+  items: ReportDecisionQueueRecommendationAnalyticsItem[],
+  options: {
+    getKey: (item: ReportDecisionQueueRecommendationAnalyticsItem) => string;
+    getLabel: (item: ReportDecisionQueueRecommendationAnalyticsItem) => string;
+  },
+) {
+  return Array.from(
+    items.reduce((clusters, item) => {
+      const key = options.getKey(item);
+      const current = clusters.get(key) ?? {
+        key,
+        label: options.getLabel(item),
+        recommendations: 0,
+        trackedInteractions: 0,
+        appliedInteractions: 0,
+        successfulItems: 0,
+        attemptedItems: 0,
+        entities: new Map<string, DecisionQueueRecommendationClusterEntity>(),
+      };
+
+      current.recommendations += 1;
+      current.trackedInteractions += item.tracked_interactions;
+      current.appliedInteractions += item.applied_interactions;
+      current.successfulItems += item.total_successful_items;
+      current.attemptedItems += item.total_attempted_items;
+
+      item.entities.forEach((entity) => {
+        const entityKey = `${entity.entity_type}:${entity.entity_id}:${entity.surface_key}`;
+        const existing = current.entities.get(entityKey);
+
+        if (existing) {
+          existing.uses_count += entity.uses_count;
+        } else {
+          current.entities.set(entityKey, { ...entity });
+        }
+      });
+
+      clusters.set(key, current);
+
+      return clusters;
+    }, new Map<string, DecisionQueueRecommendationClusterAccumulator>()).values(),
+  ).map((cluster) => {
+    const primaryEntity = Array.from(cluster.entities.values()).sort(
+      (left, right) =>
+        right.uses_count - left.uses_count
+        || (left.label ?? "").localeCompare(right.label ?? "", "tr"),
+    )[0] ?? null;
+
+    const applicationRate = decisionQueueClusterRate(cluster.appliedInteractions, cluster.trackedInteractions);
+    const itemSuccessRate = decisionQueueClusterRate(cluster.successfulItems, cluster.attemptedItems);
+    const performanceScore =
+      (itemSuccessRate ?? 0) * 0.6
+      + (applicationRate ?? 0) * 0.25
+      + Math.min(cluster.successfulItems * 3, 15);
+
+    return {
+      key: cluster.key,
+      label: cluster.label,
+      recommendations: cluster.recommendations,
+      trackedInteractions: cluster.trackedInteractions,
+      appliedInteractions: cluster.appliedInteractions,
+      successfulItems: cluster.successfulItems,
+      attemptedItems: cluster.attemptedItems,
+      applicationRate,
+      itemSuccessRate,
+      performanceScore,
+      primaryEntity,
+    } satisfies DecisionQueueRecommendationCluster;
+  });
+}
+
+export function compareDecisionQueueRecommendationClusters(
+  left: DecisionQueueRecommendationCluster,
+  right: DecisionQueueRecommendationCluster,
+) {
+  return (
+    right.performanceScore - left.performanceScore
+    || right.successfulItems - left.successfulItems
+    || right.trackedInteractions - left.trackedInteractions
+    || left.label.localeCompare(right.label, "tr")
+  );
+}
+
+export function decisionQueueClusterRate(value: number, total: number) {
+  if (total <= 0) {
+    return null;
+  }
+
+  return (value / total) * 100;
 }
 
 export function buildDecisionQueueRecommendationState(

@@ -489,6 +489,46 @@ class AdAccountReportingTest extends TestCase
             'occurred_at' => now()->subMinutes(18),
         ]);
 
+        AuditLog::query()->create([
+            'organization_id' => $workspace->organization_id,
+            'workspace_id' => $workspace->id,
+            'actor_id' => $user->id,
+            'action' => 'report_decision_surface_queue_recommendation_tracked',
+            'target_type' => 'report_decision_surface_queue',
+            'target_id' => null,
+            'metadata' => [
+                'recommendation_code' => 'review_external_blockers',
+                'recommendation_label' => 'Once gozden gecir',
+                'suggested_status' => 'reviewed',
+                'suggested_status_label' => 'Gozden Gecirildi',
+                'execution_mode' => 'bulk_status_applied',
+                'guidance_variant' => 'warning',
+                'guidance_message' => 'Dis bagimlilik bloklari owner atamasi gerektiriyor.',
+                'target_count' => 2,
+                'attempted_count' => 2,
+                'successful_count' => 2,
+                'failed_count' => 0,
+                'outcome_status' => 'success',
+                'reason_codes' => ['blocked_external_dependency'],
+                'priority_group_keys' => ['blocked_external_dependency'],
+                'target_entity_types' => ['account'],
+                'target_surface_keys' => ['featured_fix', 'retry'],
+                'targets' => [
+                    [
+                        'entity_type' => 'account',
+                        'entity_id' => $account->id,
+                        'surface_key' => 'featured_fix',
+                    ],
+                    [
+                        'entity_type' => 'account',
+                        'entity_id' => $account->id,
+                        'surface_key' => 'retry',
+                    ],
+                ],
+            ],
+            'occurred_at' => now()->subMinutes(10),
+        ]);
+
         ReportDeliveryRun::query()->create([
             'workspace_id' => $workspace->id,
             'report_delivery_schedule_id' => $schedule->id,
@@ -599,6 +639,12 @@ class AdAccountReportingTest extends TestCase
             ->assertJsonPath('data.decision_surface_statuses.1.status', 'reviewed')
             ->assertJsonPath('data.decision_surface_statuses.2.surface_key', 'profile')
             ->assertJsonPath('data.decision_surface_statuses.2.status', 'pending')
+            ->assertJsonPath('data.decision_queue_recommendation_analytics_summary.tracked_recommendations', 1)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics_summary.applied_recommendations', 1)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics_summary.best_success_recommendation_label', 'Once gozden gecir')
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.recommendation_code', 'review_external_blockers')
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.item_success_rate', 100)
+            ->assertJsonPath('data.decision_queue_recommendation_analytics.0.entities.0.entity_type', 'account')
             ->assertJsonPath('data.retry_recommendation_summary.total_recommendations', 1)
             ->assertJsonPath('data.retry_recommendation_summary.auto_retry_recommendations', 1)
             ->assertJsonPath('data.retry_recommendation_summary.blocked_retry_recommendations', 0)

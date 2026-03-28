@@ -72,6 +72,32 @@ class ReportDecisionSurfaceQueueRecommendationAnalyticsService
      */
     public function index(string $workspaceId, int $windowDays = 90): array
     {
+        return $this->buildIndex($workspaceId, $windowDays);
+    }
+
+    /**
+     * @return array{summary: array<string, mixed>, items: array<int, array<string, mixed>>}
+     */
+    public function forEntity(
+        string $workspaceId,
+        string $entityType,
+        string $entityId,
+        int $windowDays = 90,
+    ): array
+    {
+        return $this->buildIndex($workspaceId, $windowDays, $entityType, $entityId);
+    }
+
+    /**
+     * @return array{summary: array<string, mixed>, items: array<int, array<string, mixed>>}
+     */
+    private function buildIndex(
+        string $workspaceId,
+        int $windowDays = 90,
+        ?string $entityType = null,
+        ?string $entityId = null,
+    ): array
+    {
         $windowStart = now()->subDays($windowDays);
         $logs = AuditLog::query()
             ->where('workspace_id', $workspaceId)
@@ -95,7 +121,20 @@ class ReportDecisionSurfaceQueueRecommendationAnalyticsService
                 continue;
             }
 
+            $targets = $this->targetsFromMetadata($metadata);
+            $matchedTargets = $this->matchedTargets($targets, $entityType, $entityId);
+
+            if (($entityType !== null || $entityId !== null) && $matchedTargets === []) {
+                continue;
+            }
+
             $record = $items[$recommendationCode] ?? $this->seedRecord($recommendationCode, $metadata);
+            $allocationRatio = $this->allocationRatio(
+                targets: $targets,
+                matchedTargets: $matchedTargets,
+                targetCount: (int) data_get($metadata, 'target_count', count($targets)),
+                isEntityScoped: $entityType !== null && $entityId !== null,
+            );
             $record['tracked_interactions']++;
             $record['last_tracked_at'] = $this->maxDateString(
                 $record['last_tracked_at'],
@@ -105,10 +144,10 @@ class ReportDecisionSurfaceQueueRecommendationAnalyticsService
             $executionMode = (string) data_get($metadata, 'execution_mode', 'selection_only');
             $record['selection_only_interactions'] += $executionMode === 'selection_only' ? 1 : 0;
             $record['applied_interactions'] += $executionMode === 'bulk_status_applied' ? 1 : 0;
-            $record['total_target_items'] += max(0, (int) data_get($metadata, 'target_count', 0));
-            $record['total_attempted_items'] += max(0, (int) data_get($metadata, 'attempted_count', 0));
-            $record['total_successful_items'] += max(0, (int) data_get($metadata, 'successful_count', 0));
-            $record['total_failed_items'] += max(0, (int) data_get($metadata, 'failed_count', 0));
+            $record['total_target_items'] += $this->scaledCount((int) data_get($metadata, 'target_count', count($targets)), $allocationRatio);
+            $record['total_attempted_items'] += $this->scaledCount((int) data_get($metadata, 'attempted_count', 0), $allocationRatio);
+            $record['total_successful_items'] += $this->scaledCount((int) data_get($metadata, 'successful_count', 0), $allocationRatio);
+            $record['total_failed_items'] += $this->scaledCount((int) data_get($metadata, 'failed_count', 0), $allocationRatio);
 
             if ($executionMode === 'bulk_status_applied') {
                 match (data_get($metadata, 'outcome_status')) {
@@ -121,10 +160,16 @@ class ReportDecisionSurfaceQueueRecommendationAnalyticsService
 
             $this->mergeStringCounts($record['reason_index'], data_get($metadata, 'reason_codes', []));
             $this->mergeStringCounts($record['priority_group_index'], data_get($metadata, 'priority_group_keys', []));
-            $this->mergeStringCounts($record['entity_type_index'], data_get($metadata, 'target_entity_types', []));
-            $this->mergeStringCounts($record['surface_key_index'], data_get($metadata, 'target_surface_keys', []));
+            $this->mergeStringCounts(
+                $record['entity_type_index'],
+                collect($matchedTargets !== [] ? $matchedTargets : $targets)->pluck('entity_type')->all(),
+            );
+            $this->mergeStringCounts(
+                $record['surface_key_index'],
+                collect($matchedTargets !== [] ? $matchedTargets : $targets)->pluck('surface_key')->all(),
+            );
 
-            foreach ($this->targetsFromMetadata($metadata) as $target) {
+            foreach (($matchedTargets !== [] ? $matchedTargets : $targets) as $target) {
                 $context = $contexts[$this->entityContextResolver->key($target['entity_type'], $target['entity_id'])] ?? null;
 
                 $this->attachEntity($record, [
@@ -219,10 +264,10 @@ class ReportDecisionSurfaceQueueRecommendationAnalyticsService
             'successful_applications' => 0,
             'partial_applications' => 0,
             'failed_applications' => 0,
-            'total_target_items' => 0,
-            'total_attempted_items' => 0,
-            'total_successful_items' => 0,
-            'total_failed_items' => 0,
+            'total_target_items' => 0.0,
+            'total_attempted_items' => 0.0,
+            'total_successful_items' => 0.0,
+            'total_failed_items' => 0.0,
             'last_tracked_at' => null,
             'reason_index' => [],
             'priority_group_index' => [],
@@ -238,6 +283,10 @@ class ReportDecisionSurfaceQueueRecommendationAnalyticsService
      */
     private function finalizeRecord(array $record): array
     {
+        $record['total_target_items'] = (int) round((float) $record['total_target_items']);
+        $record['total_attempted_items'] = (int) round((float) $record['total_attempted_items']);
+        $record['total_successful_items'] = (int) round((float) $record['total_successful_items']);
+        $record['total_failed_items'] = (int) round((float) $record['total_failed_items']);
         $applicationSuccessRate = $record['applied_interactions'] > 0
             ? round(($record['successful_applications'] / $record['applied_interactions']) * 100, 1)
             : null;
@@ -570,5 +619,50 @@ class ReportDecisionSurfaceQueueRecommendationAnalyticsService
         }
 
         return strcmp((string) $left['label'], (string) $right['label']);
+    }
+
+    /**
+     * @param  array<int, array{entity_type: string, entity_id: string, surface_key: string}>  $targets
+     * @return array<int, array{entity_type: string, entity_id: string, surface_key: string}>
+     */
+    private function matchedTargets(array $targets, ?string $entityType, ?string $entityId): array
+    {
+        if ($entityType === null || $entityId === null) {
+            return $targets;
+        }
+
+        return array_values(array_filter(
+            $targets,
+            fn (array $target): bool => $target['entity_type'] === $entityType && $target['entity_id'] === $entityId,
+        ));
+    }
+
+    /**
+     * @param  array<int, array{entity_type: string, entity_id: string, surface_key: string}>  $targets
+     * @param  array<int, array{entity_type: string, entity_id: string, surface_key: string}>  $matchedTargets
+     */
+    private function allocationRatio(
+        array $targets,
+        array $matchedTargets,
+        int $targetCount,
+        bool $isEntityScoped,
+    ): float {
+        if (! $isEntityScoped) {
+            return 1.0;
+        }
+
+        $effectiveTotal = max(1, $targetCount, count($targets));
+        $effectiveMatched = max(1, count($matchedTargets));
+
+        return min(1, $effectiveMatched / $effectiveTotal);
+    }
+
+    private function scaledCount(int $value, float $ratio): float
+    {
+        if ($value <= 0) {
+            return 0.0;
+        }
+
+        return round($value * $ratio, 4);
     }
 }

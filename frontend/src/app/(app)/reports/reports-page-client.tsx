@@ -285,7 +285,8 @@ export default function ReportsPage() {
             focusedSurfaceKey={focusSurfaceKey}
             buildQueueFocusHref={buildQueueRecommendationFocusHref}
             buildQueueClusterHref={buildQueueClusterFocusHref}
-            buildEntityDetailHref={(route) => buildHrefWithHashAndFilters(route, searchParams, GLOBAL_DATE_FILTER_KEYS)}
+            buildEntityDetailHref={(route, options) =>
+              buildEntityDetailHrefWithReportFocus(route, searchParams, options)}
           />
         </div>
       </Card>
@@ -1007,4 +1008,36 @@ function buildReportsHrefWithFilters(
   const href = query ? `/reports?${query}` : "/reports";
 
   return options.hash ? `${href}#${options.hash}` : href;
+}
+
+function buildEntityDetailHrefWithReportFocus(
+  route: string,
+  searchParams: { get(name: string): string | null },
+  options?: {
+    reasonCode?: string | null;
+    surfaceKey?: string | null;
+    focusSource?: string | null;
+  },
+) {
+  const href = buildHrefWithHashAndFilters(route, searchParams, GLOBAL_DATE_FILTER_KEYS);
+  const [beforeHash] = href.split("#", 2);
+  const [path, query = ""] = beforeHash.split("?", 2);
+  const params = new URLSearchParams(query);
+
+  if (options?.reasonCode) {
+    params.set("focus_reason_code", options.reasonCode);
+  }
+
+  if (options?.surfaceKey) {
+    params.set("focus_surface", options.surfaceKey);
+  }
+
+  if (options?.focusSource) {
+    params.set("focus_source", options.focusSource);
+  }
+
+  const nextQuery = params.toString();
+  const nextHref = nextQuery ? `${path}?${nextQuery}` : path;
+
+  return options?.surfaceKey ? `${nextHref}#report-decision-surface-${options.surfaceKey}` : `${nextHref}#report-decision-queue-insights`;
 }

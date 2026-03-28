@@ -31,6 +31,7 @@ class AdAccountQueryService
         private readonly ReportRecipientGroupFailureAlignmentAnalyticsService $reportRecipientGroupFailureAlignmentAnalyticsService,
         private readonly ReportRecipientGroupFailureReasonAnalyticsService $reportRecipientGroupFailureReasonAnalyticsService,
         private readonly ReportDeliveryRetryRecommendationService $reportDeliveryRetryRecommendationService,
+        private readonly ReportDecisionSurfaceQueueRecommendationAnalyticsService $reportDecisionSurfaceQueueRecommendationAnalyticsService,
     ) {
     }
 
@@ -336,6 +337,11 @@ class AdAccountQueryService
             'account',
             $account->id,
         );
+        $decisionQueueRecommendationAnalytics = $this->reportDecisionSurfaceQueueRecommendationAnalyticsService->forEntity(
+            $account->workspace_id,
+            'account',
+            $account->id,
+        );
 
         return [
             'range' => [
@@ -384,6 +390,8 @@ class AdAccountQueryService
             'featured_failure_resolution' => $featuredFailureResolution,
             'decision_surface_status_summary' => $decisionSurfaceStatuses['summary'],
             'decision_surface_statuses' => $decisionSurfaceStatuses['items'],
+            'decision_queue_recommendation_analytics_summary' => $decisionQueueRecommendationAnalytics['summary'],
+            'decision_queue_recommendation_analytics' => $decisionQueueRecommendationAnalytics['items'],
             'retry_recommendation_summary' => $retryRecommendations['summary'],
             'retry_recommendations' => $retryRecommendations['items'],
             'failure_resolution_summary' => $failureResolutionActions['summary'],

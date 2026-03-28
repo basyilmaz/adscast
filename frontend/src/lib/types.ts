@@ -202,6 +202,8 @@ export type AdAccountDetailResponse = {
     featured_failure_resolution: ReportFeaturedFailureResolution | null;
     decision_surface_status_summary: ReportDecisionSurfaceStatusSummary;
     decision_surface_statuses: ReportDecisionSurfaceStatusItem[];
+    decision_queue_recommendation_analytics_summary: ReportDecisionQueueRecommendationAnalyticsSummary;
+    decision_queue_recommendation_analytics: ReportDecisionQueueRecommendationAnalyticsItem[];
     retry_recommendation_summary: ReportDeliveryRetryRecommendationSummary;
     retry_recommendations: ReportDeliveryRetryRecommendationItem[];
     failure_resolution_summary: ReportFailureResolutionSummary;
@@ -354,6 +356,8 @@ export type CampaignDetailResponse = {
     featured_failure_resolution: ReportFeaturedFailureResolution | null;
     decision_surface_status_summary: ReportDecisionSurfaceStatusSummary;
     decision_surface_statuses: ReportDecisionSurfaceStatusItem[];
+    decision_queue_recommendation_analytics_summary: ReportDecisionQueueRecommendationAnalyticsSummary;
+    decision_queue_recommendation_analytics: ReportDecisionQueueRecommendationAnalyticsItem[];
     retry_recommendation_summary: ReportDeliveryRetryRecommendationSummary;
     retry_recommendations: ReportDeliveryRetryRecommendationItem[];
     failure_resolution_summary: ReportFailureResolutionSummary;

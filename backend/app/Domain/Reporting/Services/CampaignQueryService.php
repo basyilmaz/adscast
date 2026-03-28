@@ -31,6 +31,7 @@ class CampaignQueryService
         private readonly ReportRecipientGroupFailureAlignmentAnalyticsService $reportRecipientGroupFailureAlignmentAnalyticsService,
         private readonly ReportRecipientGroupFailureReasonAnalyticsService $reportRecipientGroupFailureReasonAnalyticsService,
         private readonly ReportDeliveryRetryRecommendationService $reportDeliveryRetryRecommendationService,
+        private readonly ReportDecisionSurfaceQueueRecommendationAnalyticsService $reportDecisionSurfaceQueueRecommendationAnalyticsService,
     ) {
     }
 
@@ -355,6 +356,11 @@ class CampaignQueryService
             'campaign',
             $campaign->id,
         );
+        $decisionQueueRecommendationAnalytics = $this->reportDecisionSurfaceQueueRecommendationAnalyticsService->forEntity(
+            $campaign->workspace_id,
+            'campaign',
+            $campaign->id,
+        );
 
         return [
             'range' => [
@@ -405,6 +411,8 @@ class CampaignQueryService
             'featured_failure_resolution' => $featuredFailureResolution,
             'decision_surface_status_summary' => $decisionSurfaceStatuses['summary'],
             'decision_surface_statuses' => $decisionSurfaceStatuses['items'],
+            'decision_queue_recommendation_analytics_summary' => $decisionQueueRecommendationAnalytics['summary'],
+            'decision_queue_recommendation_analytics' => $decisionQueueRecommendationAnalytics['items'],
             'retry_recommendation_summary' => $retryRecommendations['summary'],
             'retry_recommendations' => $retryRecommendations['items'],
             'failure_resolution_summary' => $failureResolutionActions['summary'],

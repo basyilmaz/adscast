@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
+  buildDecisionQueueRecommendationClusters,
+  compareDecisionQueueRecommendationClusters,
+  DecisionQueueRecommendationCluster,
+} from "@/lib/report-decision-queue";
+import {
   ReportDecisionQueueRecommendationAnalyticsItem,
   ReportDecisionQueueRecommendationAnalyticsSummary,
 } from "@/lib/types";
@@ -18,7 +23,7 @@ type Props = {
   focusedSurfaceKey?: string | null;
   buildQueueFocusHref: (item: ReportDecisionQueueRecommendationAnalyticsItem) => string;
   buildQueueClusterHref: (options: { reasonCode?: string | null; surfaceKey?: string | null; focusSource?: string | null }) => string;
-  buildEntityDetailHref: (route: string) => string;
+  buildEntityDetailHref: (route: string, options?: { reasonCode?: string | null; surfaceKey?: string | null; focusSource?: string | null }) => string;
 };
 
 export function ReportDecisionQueueRecommendationAnalyticsPanel({
@@ -35,22 +40,22 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
 }: Props) {
   const reasonClusters = useMemo(
     () =>
-      buildRecommendationClusters(items, {
+      buildDecisionQueueRecommendationClusters(items, {
         getKey: (item) => item.dominant_reason_code ?? "unknown",
         getLabel: (item) => reasonLabel(item.dominant_reason_code),
       })
-        .sort(compareClusterPerformance)
+        .sort(compareDecisionQueueRecommendationClusters)
         .slice(0, 4),
     [items],
   );
 
   const surfaceClusters = useMemo(
     () =>
-      buildRecommendationClusters(items, {
+      buildDecisionQueueRecommendationClusters(items, {
         getKey: (item) => (item.target_surface_keys.length === 1 ? item.target_surface_keys[0] : "multi_surface"),
         getLabel: (item) => surfaceGroupLabel(item.target_surface_keys.length === 1 ? item.target_surface_keys[0] : "multi_surface"),
       })
-        .sort(compareClusterPerformance)
+        .sort(compareDecisionQueueRecommendationClusters)
         .slice(0, 3),
     [items],
   );
@@ -85,6 +90,7 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
                 reasonCode: topReasonPerformanceCluster.key,
                 focusSource: "queue_analytics_cluster_performance",
               })}
+              focusReasonCode={topReasonPerformanceCluster.key}
               buildEntityDetailHref={buildEntityDetailHref}
             />
           ) : null}
@@ -97,6 +103,7 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
                 surfaceKey: topSurfacePerformanceCluster.key === "multi_surface" ? null : topSurfacePerformanceCluster.key,
                 focusSource: "queue_analytics_cluster_performance",
               })}
+              focusSurfaceKey={topSurfacePerformanceCluster.key === "multi_surface" ? null : topSurfacePerformanceCluster.key}
               buildEntityDetailHref={buildEntityDetailHref}
             />
           ) : null}
@@ -272,132 +279,22 @@ export function ReportDecisionQueueRecommendationAnalyticsPanel({
   );
 }
 
-type RecommendationCluster = {
-  key: string;
-  label: string;
-  recommendations: number;
-  trackedInteractions: number;
-  appliedInteractions: number;
-  successfulItems: number;
-  attemptedItems: number;
-  applicationRate: number | null;
-  itemSuccessRate: number | null;
-  performanceScore: number;
-  primaryEntity: ReportDecisionQueueRecommendationAnalyticsItem["entities"][number] | null;
-};
-
-type RecommendationClusterAccumulator = {
-  key: string;
-  label: string;
-  recommendations: number;
-  trackedInteractions: number;
-  appliedInteractions: number;
-  successfulItems: number;
-  attemptedItems: number;
-  entities: Map<string, ReportDecisionQueueRecommendationAnalyticsItem["entities"][number]>;
-};
-
-function buildRecommendationClusters(
-  items: ReportDecisionQueueRecommendationAnalyticsItem[],
-  options: {
-    getKey: (item: ReportDecisionQueueRecommendationAnalyticsItem) => string;
-    getLabel: (item: ReportDecisionQueueRecommendationAnalyticsItem) => string;
-  },
-) {
-  return Array.from(
-    items.reduce((clusters, item) => {
-      const key = options.getKey(item);
-      const current = clusters.get(key) ?? {
-        key,
-        label: options.getLabel(item),
-        recommendations: 0,
-        trackedInteractions: 0,
-        appliedInteractions: 0,
-        successfulItems: 0,
-        attemptedItems: 0,
-        entities: new Map<string, ReportDecisionQueueRecommendationAnalyticsItem["entities"][number]>(),
-      };
-
-      current.recommendations += 1;
-      current.trackedInteractions += item.tracked_interactions;
-      current.appliedInteractions += item.applied_interactions;
-      current.successfulItems += item.total_successful_items;
-      current.attemptedItems += item.total_attempted_items;
-
-      item.entities.forEach((entity) => {
-        const entityKey = `${entity.entity_type}:${entity.entity_id}:${entity.surface_key}`;
-        const existing = current.entities.get(entityKey);
-
-        if (existing) {
-          existing.uses_count += entity.uses_count;
-        } else {
-          current.entities.set(entityKey, { ...entity });
-        }
-      });
-
-      clusters.set(key, current);
-
-      return clusters;
-    }, new Map<string, RecommendationClusterAccumulator>()).values(),
-  ).map((cluster) => {
-    const primaryEntity = Array.from(cluster.entities.values()).sort(
-      (left, right) =>
-        right.uses_count - left.uses_count ||
-        (left.label ?? "").localeCompare(right.label ?? "", "tr"),
-    )[0] ?? null;
-
-    const applicationRate = safeRate(cluster.appliedInteractions, cluster.trackedInteractions);
-    const itemSuccessRate = safeRate(cluster.successfulItems, cluster.attemptedItems);
-    const performanceScore =
-      (itemSuccessRate ?? 0) * 0.6
-      + (applicationRate ?? 0) * 0.25
-      + Math.min(cluster.successfulItems * 3, 15);
-
-    return {
-      key: cluster.key,
-      label: cluster.label,
-      recommendations: cluster.recommendations,
-      trackedInteractions: cluster.trackedInteractions,
-      appliedInteractions: cluster.appliedInteractions,
-      successfulItems: cluster.successfulItems,
-      attemptedItems: cluster.attemptedItems,
-      applicationRate,
-      itemSuccessRate,
-      performanceScore,
-      primaryEntity,
-    } satisfies RecommendationCluster;
-  });
-}
-
-function compareClusterPerformance(left: RecommendationCluster, right: RecommendationCluster) {
-  return (
-    right.performanceScore - left.performanceScore
-    || right.successfulItems - left.successfulItems
-    || right.trackedInteractions - left.trackedInteractions
-    || left.label.localeCompare(right.label, "tr")
-  );
-}
-
-function safeRate(value: number, total: number) {
-  if (total <= 0) {
-    return null;
-  }
-
-  return (value / total) * 100;
-}
-
 function ClusterPerformanceSpotlight({
   title,
   cluster,
   variant,
   queueHref,
+  focusReasonCode,
+  focusSurfaceKey,
   buildEntityDetailHref,
 }: {
   title: string;
-  cluster: RecommendationCluster;
+  cluster: DecisionQueueRecommendationCluster;
   variant: "warning" | "neutral";
   queueHref: string;
-  buildEntityDetailHref: (route: string) => string;
+  focusReasonCode?: string | null;
+  focusSurfaceKey?: string | null;
+  buildEntityDetailHref: (route: string, options?: { reasonCode?: string | null; surfaceKey?: string | null; focusSource?: string | null }) => string;
 }) {
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
@@ -422,7 +319,11 @@ function ClusterPerformanceSpotlight({
           <div className="mt-3 flex flex-wrap gap-3">
             {cluster.primaryEntity.route ? (
               <Link
-                href={buildEntityDetailHref(cluster.primaryEntity.route)}
+                href={buildEntityDetailHref(cluster.primaryEntity.route, {
+                  reasonCode: focusReasonCode,
+                  surfaceKey: focusSurfaceKey ?? cluster.primaryEntity.surface_key ?? null,
+                  focusSource: "queue_analytics_cluster_performance",
+                })}
                 className="inline-flex h-9 items-center rounded-md border border-[var(--border)] px-3 text-sm font-semibold hover:bg-[var(--surface-2)]"
               >
                 Entity detayina git

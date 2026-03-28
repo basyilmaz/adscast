@@ -319,3 +319,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 80. Queue recommendation analytics panelinde reason ve surface kumelerinin uygulama/kayit basarisi metriklerini turetip hangi cluster'in daha hizli is kapattigini gorunur hale getirmek
 81. Queue analytics panelindeki cluster kartlarina baskin entity drill-down linki ekleyip operatoru analytics'ten dogrudan ilgili account/campaign detayina tasimak
 82. Cluster performans liderlerini ozel spotlight kartlarinda toplayip analytics -> queue -> entity drill-down akisini ayni yuzeyde aciklanabilir hale getirmek
+83. Queue recommendation analytics'i entity-scope filtreleme ile account/campaign detail payload'ina tasiyip detail report sekmesinde queue etkisini ozetlemek
+84. Reports merkezindeki cluster -> entity drill-down linklerinde reason ve surface focus parametrelerini tasiyip detail report sekmesini dogru karara hizalayarak acmak
+85. Entity detail report sekmesinde queue etkisi, en iyi cluster ve en cok izlenen bulk oneriyi ayni kartta gosterip cluster bazli bulk sonucunu operasyon ozetine geri beslemek

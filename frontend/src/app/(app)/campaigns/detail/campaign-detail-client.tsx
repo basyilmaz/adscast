@@ -3,7 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { type ReadonlyURLSearchParams, useSearchParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { ReportFailureResolutionActionsCard } from "@/components/reports/report-
 import { ReportOperationalDecisionSummaryCard } from "@/components/reports/report-operational-decision-summary-card";
 import { ReportDeliveryProfileSuggestionCard } from "@/components/reports/report-delivery-profile-suggestion-card";
 import { ReportDeliveryRetryRecommendationsPanel } from "@/components/reports/report-delivery-retry-recommendations-panel";
+import { ReportDecisionQueueEntityInsightsPanel } from "@/components/reports/report-decision-queue-entity-insights-panel";
 import { ReportRecipientGroupEntityInsightsPanel } from "@/components/reports/report-recipient-group-entity-insights-panel";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { QUERY_TTLS } from "@/lib/api-query-config";
@@ -50,6 +51,38 @@ function formatNumber(value: number | null) {
   return value.toFixed(value % 1 === 0 ? 0 : 2);
 }
 
+function buildReportDetailFocusHref(
+  basePath: string,
+  searchParams: ReadonlyURLSearchParams,
+  options: {
+    reasonCode?: string | null;
+    surfaceKey?: string | null;
+  },
+) {
+  const href = buildHrefWithFilters(basePath, searchParams, GLOBAL_DATE_FILTER_KEYS);
+  const [path, query = ""] = href.split("?", 2);
+  const params = new URLSearchParams(query);
+
+  if (options.reasonCode) {
+    params.set("focus_reason_code", options.reasonCode);
+  } else {
+    params.delete("focus_reason_code");
+  }
+
+  if (options.surfaceKey) {
+    params.set("focus_surface", options.surfaceKey);
+  } else {
+    params.delete("focus_surface");
+  }
+
+  params.set("focus_source", "entity_queue_cluster");
+
+  const nextQuery = params.toString();
+  const nextHref = nextQuery ? `${path}?${nextQuery}` : path;
+
+  return options.surfaceKey ? `${nextHref}#report-decision-surface-${options.surfaceKey}` : `${nextHref}#report-decision-queue-insights`;
+}
+
 function variantFor(value: string) {
   if (value === "critical" || value === "high") return "danger" as const;
   if (value === "warning" || value === "medium") return "warning" as const;
@@ -77,7 +110,7 @@ export function CampaignDetailClient() {
   const focusSurface = searchParams.get("focus_surface");
   const hasCampaignId = Boolean(campaignId);
   const [activeTab, setActiveTab] = useState<TabId>(() => (
-    focusReasonCode || focusActionCode || focusSurface ? "report" : "overview"
+    focusReasonCode || focusActionCode || focusSurface || focusSource ? "report" : "overview"
   ));
 
   const { data, error, isLoading, isRefreshing, reload } = useApiQuery<CampaignDetailResponse, CampaignDetailResponse["data"]>(
@@ -575,6 +608,18 @@ export function CampaignDetailClient() {
               onApplied={reload}
             />
           </ReportDecisionSurfaceSection>
+
+          <ReportDecisionQueueEntityInsightsPanel
+            summary={data.decision_queue_recommendation_analytics_summary}
+            items={data.decision_queue_recommendation_analytics}
+            entityLabel={data.campaign.name}
+            buildFocusedEntityHref={(options) =>
+              buildReportDetailFocusHref(
+                `/campaigns/detail?id=${encodeURIComponent(data.campaign.id)}`,
+                searchParams,
+                options,
+              )}
+          />
 
           <ReportRecipientGroupEntityInsightsPanel
             analyticsSummary={data.recipient_group_analytics_summary}
