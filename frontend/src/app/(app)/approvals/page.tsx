@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -455,7 +455,7 @@ function ApprovalsPageContent({
     return () => window.clearTimeout(timeoutId);
   }, [focusedApprovalId, items]);
 
-  const clusterItems = (cluster: QuickCluster) =>
+  const clusterItems = useCallback((cluster: QuickCluster) =>
     publishFailureItems.filter((item) => {
       if (cluster.filters.status !== "all" && item.status !== cluster.filters.status) {
         return false;
@@ -500,7 +500,7 @@ function ApprovalsPageContent({
       }
 
       return true;
-    });
+    }), [publishFailureItems]);
 
   const focusQuickCluster = (cluster: QuickCluster, selectMatches = true) => {
     setStatusFilter(cluster.filters.status);
@@ -833,29 +833,23 @@ function ApprovalsPageContent({
     setActionError(extractErrorMessage(failureResults[0].reason));
   };
 
-  const buildDraftRoute = (item: Approval) => {
-    if (!item.approvable_route) {
-      return null;
+  const featuredClusterMatches = useMemo(() => {
+    if (!featuredRecommendation) {
+      return [];
     }
 
-    const [path, queryString = ""] = item.approvable_route.split("?");
-    const params = new URLSearchParams(queryString);
-    const focusPublishState = deriveFocusPublishState(item);
+    const cluster = clusterByKey.get(featuredRecommendation.cluster_key);
 
-    if (focusPublishState) {
-      params.set("focus_publish_state", focusPublishState);
-    }
+    return cluster ? clusterItems(cluster) : [];
+  }, [clusterByKey, clusterItems, featuredRecommendation]);
 
-    if (item.publish_state?.recommended_action_code) {
-      params.set("focus_recommended_action", item.publish_state.recommended_action_code);
-    }
-
-    params.set("focus_source", "approvals");
-
-    const nextQuery = params.toString();
-
-    return nextQuery ? `${path}?${nextQuery}` : path;
-  };
+  const featuredDraftRoute = useMemo(
+    () =>
+      featuredClusterMatches.length > 0
+        ? buildDraftRoute(featuredClusterMatches[0], analyticsWindowDays, "approvals_featured")
+        : null,
+    [analyticsWindowDays, featuredClusterMatches],
+  );
 
   return (
     <Card>
@@ -1111,6 +1105,13 @@ function ApprovalsPageContent({
                 >
                   Ilk Alt Aksiyona Git
                 </Button>
+                {featuredDraftRoute ? (
+                  <Link href={featuredDraftRoute}>
+                    <Button variant="outline" size="sm">
+                      Ilk Draft Detayina Git
+                    </Button>
+                  </Link>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -1122,6 +1123,8 @@ function ApprovalsPageContent({
           const analyticsItem = analyticsByCluster.get(cluster.key);
           const matches = clusterItems(cluster);
           const retryableMatches = matches.filter((item) => canRetryPublish(item));
+          const clusterDraftRoute =
+            matches.length > 0 ? buildDraftRoute(matches[0], analyticsWindowDays, "approvals_cluster") : null;
 
           return (
             <div
@@ -1203,6 +1206,13 @@ function ApprovalsPageContent({
                 >
                   {clusterActionLabel(cluster.key)}
                 </Button>
+                {clusterDraftRoute ? (
+                  <Link href={clusterDraftRoute}>
+                    <Button type="button" variant="outline" size="sm">
+                      Draft Detayina Git
+                    </Button>
+                  </Link>
+                ) : null}
               </div>
             </div>
           );
@@ -1264,7 +1274,7 @@ function ApprovalsPageContent({
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {item.approvable_route ? (
-                    <Link href={buildDraftRoute(item) ?? item.approvable_route}>
+                    <Link href={buildDraftRoute(item, analyticsWindowDays, "approvals_retry_ready") ?? item.approvable_route}>
                       <Button variant="outline" size="sm">
                         Drafta Git
                       </Button>
@@ -1381,7 +1391,7 @@ function ApprovalsPageContent({
             ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
               {item.approvable_route ? (
-                <Link href={buildDraftRoute(item) ?? item.approvable_route}>
+                <Link href={buildDraftRoute(item, analyticsWindowDays, "approvals_item") ?? item.approvable_route}>
                   <Button variant="outline" size="sm">
                     Drafta Git
                   </Button>
@@ -1515,6 +1525,43 @@ function effectivenessStatusVariant(status: string): "success" | "warning" | "da
   };
 
   return variants[status] ?? "neutral";
+}
+
+function buildDraftRoute(
+  item: Approval,
+  analyticsWindowDays: number,
+  focusSource: "approvals" | "approvals_featured" | "approvals_cluster" | "approvals_retry_ready" | "approvals_item",
+): string | null {
+  if (!item.approvable_route) {
+    return null;
+  }
+
+  const [path, queryString = ""] = item.approvable_route.split("?");
+  const params = new URLSearchParams(queryString);
+  const focusPublishState = deriveFocusPublishState(item);
+  const clusterKey = approvalClusterKey(item);
+
+  if (focusPublishState) {
+    params.set("focus_publish_state", focusPublishState);
+  }
+
+  if (item.publish_state?.recommended_action_code) {
+    params.set("focus_recommended_action", item.publish_state.recommended_action_code);
+  }
+
+  if (clusterKey) {
+    params.set("focus_cluster_key", clusterKey);
+  }
+
+  if (analyticsWindowDays !== 30) {
+    params.set("window_days", String(analyticsWindowDays));
+  }
+
+  params.set("focus_source", focusSource);
+
+  const nextQuery = params.toString();
+
+  return nextQuery ? `${path}?${nextQuery}` : path;
 }
 
 function readApprovalsRouteState(search: string): {

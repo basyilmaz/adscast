@@ -350,3 +350,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 111. Featured remediation kararini manual attention sonrasinda effectiveness destekli adaptif secime tasiyip approvals ekraninda neden o cluster'in one ciktigini daha acik hale getirmek
 112. Approvals remediation analytics penceresini approvals route query state'ine baglayip operatorun 7/30/90 gun secimini URL uzerinden kalici ve paylasilabilir hale getirmek
 113. Approvals sayfasini query'den hydrate olup ayni query'ye geri yazan route-state modeline tasiyarak featured remediation ve filtre baglamini sayfa yenileme ve derin linklerde kaybetmemek
+114. Approvals featured ve cluster kartlarindan draft detail'e geciste analytics penceresi ile remediation odagini ayni URL baglaminda tasiyip operatorun karar penceresini kaybetmemesini saglamak
+115. Draft detail remediation bloguna approvals slice'ina geri don linki ekleyip ayni recommended action ve analytics penceresiyle approvals merkezine donulebilir hale getirmek
+116. Featured, cluster, retry-ready ve item seviyesindeki approvals -> draft detail odak kaynaklarini ayristirip remediation guidance metnini uc uca daha acik hale getirmek

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +57,9 @@ export function DraftDetailClient() {
   const draftId = searchParams.get("id");
   const focusPublishState = searchParams.get("focus_publish_state");
   const focusRecommendedAction = searchParams.get("focus_recommended_action");
+  const focusClusterKey = searchParams.get("focus_cluster_key");
   const focusSource = searchParams.get("focus_source");
+  const analyticsWindowDays = resolveAnalyticsWindow(searchParams.get("window_days"));
   const hasDraftId = Boolean(draftId);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -104,7 +107,13 @@ export function DraftDetailClient() {
   if (!draft) return <p className="text-sm text-[var(--danger)]">Draft bulunamadi.</p>;
 
   const hasPublishFocus = Boolean(
-    draft.approval?.publish_state && (focusPublishState || focusRecommendedAction || focusSource === "approvals"),
+    draft.approval?.publish_state
+    && (focusPublishState || focusRecommendedAction || focusClusterKey || Boolean(focusSource?.startsWith("approvals"))),
+  );
+  const approvalsReturnRoute = buildApprovalsReturnRoute(
+    focusRecommendedAction,
+    focusPublishState,
+    analyticsWindowDays,
   );
 
   return (
@@ -144,10 +153,25 @@ export function DraftDetailClient() {
                   {focusRecommendedAction ? (
                     <Badge label={focusRecommendedActionLabel(focusRecommendedAction)} variant="neutral" />
                   ) : null}
+                  {focusClusterKey ? (
+                    <Badge label={focusClusterKeyLabel(focusClusterKey)} variant="neutral" />
+                  ) : null}
+                  {analyticsWindowDays ? (
+                    <Badge label={`${analyticsWindowDays} gun analytics`} variant="neutral" />
+                  ) : null}
                 </div>
                 <p className="mt-2 text-sm muted-text">
-                  {buildFocusGuidance(focusPublishState, focusRecommendedAction)}
+                  {buildFocusGuidance(focusPublishState, focusRecommendedAction, focusSource, analyticsWindowDays)}
                 </p>
+                {approvalsReturnRoute ? (
+                  <div className="mt-3">
+                    <Link href={approvalsReturnRoute}>
+                      <Button variant="outline" size="sm">
+                        Approvals Akisina Geri Don
+                      </Button>
+                    </Link>
+                  </div>
+                ) : null}
               </div>
             ) : null}
             <div className="flex flex-wrap items-center gap-2">
@@ -248,29 +272,103 @@ function focusRecommendedActionLabel(code: string): string {
   );
 }
 
+function focusClusterKeyLabel(code: string): string {
+  return (
+    {
+      "manual-check-required": "Manuel Kontrol Kumesi",
+      "retry-ready": "Retry-Hazir Kumesi",
+      "cleanup-recovered": "Cleanup-Recovered Kumesi",
+      "review-error": "Hata Inceleme Kumesi",
+    }[code] ?? code
+  );
+}
+
 function buildFocusGuidance(
   focusPublishState: string | null,
   focusRecommendedAction: string | null,
+  focusSource: string | null,
+  analyticsWindowDays: number | null,
 ): string {
+  const windowPrefix = analyticsWindowDays
+    ? `Bu odak ${analyticsWindowDays} gunluk approvals analytics penceresinden geldi. `
+    : "";
+
   if (focusRecommendedAction === "retry_publish_after_manual_check") {
-    return "Approvals merkezinden tekrar publish'e hazir kayit olarak geldiniz. Kontrol notunu ve cleanup sonucunu dogrulayip publish aksiyonunu buradan tekrar deneyin.";
+    return `${windowPrefix}Approvals merkezinden tekrar publish'e hazir kayit olarak geldiniz. Kontrol notunu ve cleanup sonucunu dogrulayip publish aksiyonunu buradan tekrar deneyin.`;
   }
 
   if (focusRecommendedAction === "manual_meta_check") {
-    return "Approvals merkezinden manuel kontrol bekleyen kayit olarak geldiniz. Meta tarafini kontrol etmeden tekrar publish denemeyin.";
+    return `${windowPrefix}Approvals merkezinden manuel kontrol bekleyen kayit olarak geldiniz. Meta tarafini kontrol etmeden tekrar publish denemeyin.`;
   }
 
   if (focusRecommendedAction === "fix_and_retry_publish") {
-    return "Cleanup tamamlanmis. Draft girdilerini duzeltip publish islemini guvenli sekilde tekrar deneyebilirsiniz.";
+    return `${windowPrefix}Cleanup tamamlanmis. Draft girdilerini duzeltip publish islemini guvenli sekilde tekrar deneyebilirsiniz.`;
   }
 
   if (focusPublishState === "cleanup_failed") {
-    return "Bu draft cleanup basarisiz remediation odagiyla acildi. Cleanup mesajini ve Meta referanslarini once burada inceleyin.";
+    return `${windowPrefix}Bu draft cleanup basarisiz remediation odagiyla acildi. Cleanup mesajini ve Meta referanslarini once burada inceleyin.`;
   }
 
   if (focusPublishState === "manual_check_completed") {
-    return "Bu draft manuel kontrol tamamlandi odagiyla acildi. Publish tekrar denemesi icin gereken baglam burada sabitlendi.";
+    return `${windowPrefix}Bu draft manuel kontrol tamamlandi odagiyla acildi. Publish tekrar denemesi icin gereken baglam burada sabitlendi.`;
   }
 
-  return "Bu draft approvals merkezinden remediation odagiyla acildi. Publish durumunu ve onerilen aksiyonu once bu blokta dogrulayin.";
+  if (focusSource === "approvals_featured") {
+    return `${windowPrefix}Bu draft featured remediation kararindan acildi. Onerilen remediation akisini uygulamadan once publish durumunu bu blokta dogrulayin.`;
+  }
+
+  if (focusSource === "approvals_cluster") {
+    return `${windowPrefix}Bu draft approvals cluster odagindan acildi. Ayni remediation kumesindeki diger kayitlarla tutarli karar vermek icin bu publish blokunu once inceleyin.`;
+  }
+
+  return `${windowPrefix}Bu draft approvals merkezinden remediation odagiyla acildi. Publish durumunu ve onerilen aksiyonu once bu blokta dogrulayin.`;
+}
+
+function resolveAnalyticsWindow(rawValue: string | null): 7 | 30 | 90 | null {
+  const parsedValue = Number(rawValue);
+
+  if (parsedValue === 7 || parsedValue === 30 || parsedValue === 90) {
+    return parsedValue;
+  }
+
+  return null;
+}
+
+function buildApprovalsReturnRoute(
+  focusRecommendedAction: string | null,
+  focusPublishState: string | null,
+  analyticsWindowDays: 7 | 30 | 90 | null,
+): string | null {
+  const params = new URLSearchParams();
+  params.set("status", "publish_failed");
+
+  if (focusRecommendedAction) {
+    params.set("recommended_action_code", focusRecommendedAction);
+  }
+
+  if (focusRecommendedAction === "manual_meta_check" || focusPublishState === "manual_check_required") {
+    params.set("cleanup_state", "failed");
+    params.set("manual_check_state", "required");
+  }
+
+  if (focusRecommendedAction === "retry_publish_after_manual_check" || focusPublishState === "manual_check_completed") {
+    params.set("manual_check_state", "completed");
+  }
+
+  if (focusRecommendedAction === "fix_and_retry_publish" || focusPublishState === "cleanup_successful") {
+    params.set("cleanup_state", "successful");
+    params.set("manual_check_state", "not_required");
+  }
+
+  if (focusRecommendedAction === "review_publish_error") {
+    params.set("manual_check_state", "not_required");
+  }
+
+  if (analyticsWindowDays && analyticsWindowDays !== 30) {
+    params.set("window_days", String(analyticsWindowDays));
+  }
+
+  const query = params.toString();
+
+  return query ? `/approvals?${query}` : "/approvals";
 }
