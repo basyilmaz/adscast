@@ -65,6 +65,33 @@ class MetaDraftPublishAdapterTest extends TestCase
         });
     }
 
+    public function test_publish_campaign_draft_attempts_campaign_cleanup_when_ad_set_creation_fails(): void
+    {
+        config()->set('services.meta.mode', 'live');
+        config()->set('services.meta.graph_base_url', 'https://graph.facebook.com');
+
+        Http::fake([
+            'graph.facebook.com/v20.0/act_123456789/campaigns' => Http::response(['id' => 'meta_campaign_cleanup'], 200),
+            'graph.facebook.com/v20.0/act_123456789/adsets' => Http::response([
+                'error' => ['message' => 'Invalid targeting payload.'],
+            ], 400),
+            'graph.facebook.com/v20.0/meta_campaign_cleanup' => Http::response(['success' => true], 200),
+        ]);
+
+        [$connection, $draft] = $this->seedDraftFixture('TR');
+
+        $response = app(MetaGraphV20Adapter::class)->publishCampaignDraft($connection, $draft);
+
+        $this->assertFalse($response['success']);
+        $this->assertSame('error', $response['status']);
+        $this->assertSame('meta_campaign_cleanup', data_get($response, 'meta_reference.campaign_id'));
+        $this->assertTrue((bool) data_get($response, 'cleanup.attempted'));
+        $this->assertTrue((bool) data_get($response, 'cleanup.success'));
+        $this->assertSame('meta_campaign_cleanup', data_get($response, 'cleanup.deleted_campaign_id'));
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'DELETE' && str_contains($request->url(), '/v20.0/meta_campaign_cleanup'));
+    }
+
     /**
      * @return array{0: MetaConnection, 1: CampaignDraft}
      */

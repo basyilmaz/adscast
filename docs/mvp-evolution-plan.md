@@ -325,3 +325,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 86. Sibling performance kurallarini gercek parent scope'a cekip ad set/ad seviyesinde cross-campaign false positive riskini kapatmak
 87. Meta draft publish akisini lokasyon normalizasyonu ile guvenli hale getirip gecersiz sehir girdilerini API'ye gondermeden bloklamak
 88. Creative performance ranking, export ve email ozetlerinde null CPA kayitlarini yaris disi birakip en iyi/en kotu etiketlerini yalnizca olculen kreatiflere vermek
+89. Meta draft publish akisina partial publish cleanup guvenligi ekleyip kampanya olusup ad set dusen durumlarda rollback denemesi ve cleanup metadata'si eklemek

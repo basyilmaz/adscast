@@ -444,6 +444,19 @@ class MetaGraphV20Adapter implements MetaApiAdapter
 
             $metaAdSetId = $adSetResponse['body']['id'] ?? null;
 
+            if (! $metaAdSetId) {
+                return [
+                    'success' => false,
+                    'status' => 'error',
+                    'message' => 'Meta ad set olusturuldu ancak ID donmedi.',
+                    'meta_reference' => [
+                        'campaign_id' => $metaCampaignId,
+                        'ad_set_id' => null,
+                    ],
+                    'cleanup' => $this->attemptCampaignCleanup($accessToken, $metaCampaignId),
+                ];
+            }
+
             return [
                 'success' => true,
                 'status' => 'published',
@@ -454,6 +467,8 @@ class MetaGraphV20Adapter implements MetaApiAdapter
                 ],
             ];
         } catch (\Throwable $e) {
+            $cleanup = $metaCampaignId ? $this->attemptCampaignCleanup($accessToken, $metaCampaignId) : null;
+
             return [
                 'success' => false,
                 'status' => 'error',
@@ -462,6 +477,7 @@ class MetaGraphV20Adapter implements MetaApiAdapter
                     'campaign_id' => $metaCampaignId,
                     'ad_set_id' => null,
                 ] : null,
+                'cleanup' => $cleanup,
             ];
         }
     }
@@ -522,6 +538,33 @@ class MetaGraphV20Adapter implements MetaApiAdapter
             'UK' => 'GB',
             'ENGLAND' => 'GB',
         ][$normalized] ?? null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function attemptCampaignCleanup(string $accessToken, string $metaCampaignId): array
+    {
+        try {
+            $response = $this->graphClient->deleteObject(
+                apiVersion: 'v20.0',
+                path: $metaCampaignId,
+                accessToken: $accessToken,
+            );
+
+            return [
+                'attempted' => true,
+                'success' => (bool) ($response['body']['success'] ?? false),
+                'deleted_campaign_id' => $metaCampaignId,
+            ];
+        } catch (\Throwable $cleanupException) {
+            return [
+                'attempted' => true,
+                'success' => false,
+                'deleted_campaign_id' => $metaCampaignId,
+                'message' => $cleanupException->getMessage(),
+            ];
+        }
     }
 
     /**
