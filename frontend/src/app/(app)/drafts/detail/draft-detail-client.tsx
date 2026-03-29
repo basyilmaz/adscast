@@ -52,6 +52,8 @@ type DraftDetailResponse = {
   };
 };
 
+type DraftPublishState = NonNullable<DraftDetailResponse["data"]["approval"]>["publish_state"];
+
 export function DraftDetailClient() {
   const searchParams = useSearchParams();
   const draftId = searchParams.get("id");
@@ -62,7 +64,9 @@ export function DraftDetailClient() {
   const analyticsWindowDays = resolveAnalyticsWindow(searchParams.get("window_days"));
   const hasDraftId = Boolean(draftId);
   const [submitting, setSubmitting] = useState(false);
+  const [remediationSubmitting, setRemediationSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [remediationMessage, setRemediationMessage] = useState<string | null>(null);
   const {
     data: draft,
     error,
@@ -101,6 +105,49 @@ export function DraftDetailClient() {
     }
   };
 
+  const applyApprovalRemediation = async (mode: "manual_check_completed" | "retry_publish") => {
+    const approvalId = draft?.approval?.id;
+
+    if (!approvalId) {
+      setActionError("Approval baglantisi bulunamadi.");
+      return;
+    }
+
+    setRemediationSubmitting(true);
+    setActionError(null);
+    setRemediationMessage(null);
+
+    try {
+      if (mode === "manual_check_completed") {
+        await apiRequest(`/approvals/${approvalId}/manual-check-completed`, {
+          method: "POST",
+          requireWorkspace: true,
+        });
+        setRemediationMessage("Manuel kontrol tamamlandi. Publish aksiyonu tekrar denenebilir.");
+      } else {
+        await apiRequest(`/approvals/${approvalId}/publish`, {
+          method: "POST",
+          requireWorkspace: true,
+        });
+        setRemediationMessage("Tekrar publish denemesi baslatildi.");
+      }
+
+      invalidateApiCache(`/drafts/${draftId as string}`, { requireWorkspace: true });
+      invalidateApiCache("/drafts", { requireWorkspace: true });
+      invalidateApiCache("/approvals", { requireWorkspace: true });
+
+      if (approvalsReturnRoute) {
+        invalidateApiCache(approvalsReturnRoute, { requireWorkspace: true });
+      }
+
+      await reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Remediation aksiyonu basarisiz.");
+    } finally {
+      setRemediationSubmitting(false);
+    }
+  };
+
   if (!hasDraftId) return <p className="text-sm text-[var(--danger)]">Draft id eksik.</p>;
   if (error) return <p className="text-sm text-[var(--danger)]">{error}</p>;
   if (isLoading && !draft) return <p className="text-sm muted-text">Yukleniyor...</p>;
@@ -110,10 +157,15 @@ export function DraftDetailClient() {
     draft.approval?.publish_state
     && (focusPublishState || focusRecommendedAction || focusClusterKey || Boolean(focusSource?.startsWith("approvals"))),
   );
+  const remediationPublishState = draft.approval?.publish_state ?? null;
   const approvalsReturnRoute = buildApprovalsReturnRoute(
     focusRecommendedAction,
     focusPublishState,
     analyticsWindowDays,
+  );
+  const remediationPrimaryAction = resolveRemediationPrimaryAction(
+    focusRecommendedAction,
+    remediationPublishState,
   );
 
   return (
@@ -217,6 +269,20 @@ export function DraftDetailClient() {
             {draft.approval.publish_state.manual_check_note ? (
               <p className="mt-2 text-xs muted-text">Kontrol notu: {draft.approval.publish_state.manual_check_note}</p>
             ) : null}
+            {remediationPrimaryAction ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => void applyApprovalRemediation(remediationPrimaryAction.mode)}
+                  disabled={remediationSubmitting}
+                >
+                  {remediationSubmitting ? "Isleniyor..." : remediationPrimaryAction.label}
+                </Button>
+                {remediationPrimaryAction.hint ? (
+                  <span className="self-center text-xs muted-text">{remediationPrimaryAction.hint}</span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -227,6 +293,7 @@ export function DraftDetailClient() {
             </Button>
           </div>
         ) : null}
+        {remediationMessage ? <p className="mt-3 text-sm text-[var(--success)]">{remediationMessage}</p> : null}
         {actionError ? <p className="mt-3 text-sm text-[var(--danger)]">{actionError}</p> : null}
       </Card>
 
@@ -329,6 +396,37 @@ function resolveAnalyticsWindow(rawValue: string | null): 7 | 30 | 90 | null {
 
   if (parsedValue === 7 || parsedValue === 30 || parsedValue === 90) {
     return parsedValue;
+  }
+
+  return null;
+}
+
+function resolveRemediationPrimaryAction(
+  focusRecommendedAction: string | null,
+  publishState: DraftPublishState,
+): { label: string; mode: "manual_check_completed" | "retry_publish"; hint: string } | null {
+  if (!publishState) {
+    return null;
+  }
+
+  if (focusRecommendedAction === "manual_meta_check" || publishState.manual_check_required) {
+    return {
+      label: "Manuel Kontrol Tamamlandi",
+      mode: "manual_check_completed",
+      hint: "Bu aksiyon approvals kuyrugundaki manuel kontrol durumunu kapatir.",
+    };
+  }
+
+  if (
+    focusRecommendedAction === "retry_publish_after_manual_check"
+    || focusRecommendedAction === "fix_and_retry_publish"
+    || publishState.manual_check_completed
+  ) {
+    return {
+      label: "Tekrar Publish Dene",
+      mode: "retry_publish",
+      hint: "Bu aksiyon approvals kuyrugundaki retry hazir akisi baslatir.",
+    };
   }
 
   return null;
