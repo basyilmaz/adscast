@@ -3,6 +3,7 @@
 namespace App\Domain\Approvals\Http\Controllers;
 
 use App\Domain\Approvals\Http\Requests\CompleteApprovalManualCheckRequest;
+use App\Domain\Approvals\Http\Requests\ResolveApprovalRemediationAnalyticsRequest;
 use App\Domain\Approvals\Http\Requests\TrackApprovalRemediationFeaturedInteractionRequest;
 use App\Domain\Approvals\Services\ApprovalRemediationAnalyticsService;
 use App\Domain\Approvals\Services\ApprovalPayloadPresenter;
@@ -57,12 +58,13 @@ class ApprovalController
         ]);
     }
 
-    public function remediationAnalytics(Request $request): JsonResponse
+    public function remediationAnalytics(ResolveApprovalRemediationAnalyticsRequest $request): JsonResponse
     {
         $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
+        $windowDays = (int) ($request->validated('window_days') ?? 30);
 
         return new JsonResponse([
-            'data' => $this->approvalRemediationAnalyticsService->build($workspaceId),
+            'data' => $this->approvalRemediationAnalyticsService->build($workspaceId, $windowDays),
         ]);
     }
 

@@ -345,3 +345,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 106. Featured remediation karti ve cluster aksiyonlari kullanildiginda follow/override telemetrisi kaydedip approvals analytics'e geri beslemek
 107. Featured remediation icin publish retry sonucunu ayri metrik olarak izleyip hangi one cikan remediation akisinin gercekte publish toparladigini gostermek
 108. Approvals featured kartindan draft detail yerine dogrudan ilgili approval remediation satirina inen kisa odak akislarini eklemek
+109. Approvals remediation analytics icin 7/30/90 gunluk secilebilir pencere ekleyip operatorun featured karari farkli zaman araliklarinda karsilastirabilmesini saglamak
+110. Remediation cluster'larini effectiveness score ve status ile derecelendirip publish toparlama kapasitesini yalnizca ham success-rate yerine backlog ve takip sinyaliyle de olcmek
+111. Featured remediation kararini manual attention sonrasinda effectiveness destekli adaptif secime tasiyip approvals ekraninda neden o cluster'in one ciktigini daha acik hale getirmek

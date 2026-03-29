@@ -61,6 +61,8 @@ type ApprovalRemediationAnalyticsResponse = {
       tracked_publish_attempts: number;
       successful_publish_attempts: number;
       top_working_cluster_label: string | null;
+      top_effective_cluster_label: string | null;
+      top_effective_cluster_score: number | null;
       featured_cluster_label: string | null;
       tracked_featured_interactions: number;
       followed_featured_interactions: number;
@@ -82,6 +84,8 @@ type ApprovalRemediationAnalyticsResponse = {
       successful_publishes: number;
       failed_publishes: number;
       publish_success_rate: number | null;
+      effectiveness_score: number;
+      effectiveness_status: string;
       last_activity_at: string | null;
       health_status: string;
       health_summary: string;
@@ -108,6 +112,8 @@ type ApprovalRemediationAnalyticsResponse = {
       successful_publishes: number;
       failed_publishes: number;
       publish_success_rate: number | null;
+      effectiveness_score: number;
+      effectiveness_status: string;
       last_activity_at: string | null;
       health_status: string;
       health_summary: string;
@@ -124,6 +130,11 @@ type ApprovalRemediationAnalyticsResponse = {
 };
 
 const PUBLISH_FAILURES_PATH = "/approvals?status=publish_failed";
+const ANALYTICS_WINDOW_OPTIONS = [
+  { value: 7, label: "7 Gun" },
+  { value: 30, label: "30 Gun" },
+  { value: 90, label: "90 Gun" },
+] as const;
 
 const STATUS_FILTER_OPTIONS = [
   { value: "all", label: "Tum Durumlar" },
@@ -185,6 +196,8 @@ export default function ApprovalsPage() {
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
   const [bulkPublishing, setBulkPublishing] = useState(false);
   const [focusedApprovalId, setFocusedApprovalId] = useState<string | null>(null);
+  const [analyticsWindowDays, setAnalyticsWindowDays] =
+    useState<(typeof ANALYTICS_WINDOW_OPTIONS)[number]["value"]>(30);
 
   const approvalsPath = useMemo(() => {
     const params = new URLSearchParams();
@@ -223,10 +236,14 @@ export default function ApprovalsPage() {
     ttlMs: QUERY_TTLS.approvals,
     select: (response) => response.data.data ?? [],
   });
+  const remediationAnalyticsPath = useMemo(
+    () => `/approvals/remediation-analytics?window_days=${analyticsWindowDays}`,
+    [analyticsWindowDays],
+  );
   const remediationAnalyticsQuery = useApiQuery<
     ApprovalRemediationAnalyticsResponse,
     ApprovalRemediationAnalyticsResponse["data"]
-  >("/approvals/remediation-analytics", {
+  >(remediationAnalyticsPath, {
     requestOptions: {
       requireWorkspace: true,
     },
@@ -884,9 +901,27 @@ export default function ApprovalsPage() {
       {remediationAnalytics ? (
         <div className="mt-4 grid gap-3 xl:grid-cols-4">
           <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge label="Remediation Analytics" variant="neutral" />
-              <Badge label={`${remediationAnalytics.summary.window_days} gun`} variant="neutral" />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge label="Remediation Analytics" variant="neutral" />
+                <Badge label={`${remediationAnalytics.summary.window_days} gun`} variant="neutral" />
+              </div>
+              <label className="space-y-1 text-xs">
+                <span className="block font-medium">Analytics Penceresi</span>
+                <select
+                  className="h-9 rounded-md border border-[var(--border)] bg-white px-3 text-xs"
+                  value={analyticsWindowDays}
+                  onChange={(event) =>
+                    setAnalyticsWindowDays(Number(event.target.value) as (typeof ANALYTICS_WINDOW_OPTIONS)[number]["value"])
+                  }
+                >
+                  {ANALYTICS_WINDOW_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
             <p className="mt-3 text-sm font-semibold">Cluster performans ozeti</p>
             <div className="mt-3 space-y-1 text-sm muted-text">
@@ -901,6 +936,14 @@ export default function ApprovalsPage() {
                 En iyi calisan cluster: {remediationAnalytics.summary.top_working_cluster_label}
               </p>
             ) : null}
+            {remediationAnalytics.summary.top_effective_cluster_label ? (
+              <p className="mt-2 text-xs muted-text">
+                En etkili cluster: {remediationAnalytics.summary.top_effective_cluster_label}
+                {remediationAnalytics.summary.top_effective_cluster_score != null
+                  ? ` (skor ${remediationAnalytics.summary.top_effective_cluster_score})`
+                  : ""}
+              </p>
+            ) : null}
             {remediationAnalytics.summary.featured_follow_rate != null ? (
               <p className="mt-2 text-xs muted-text">
                 Featured takip orani %{remediationAnalytics.summary.featured_follow_rate}
@@ -913,11 +956,14 @@ export default function ApprovalsPage() {
           {featuredRecommendation ? (
             <div className="rounded-lg border border-[var(--accent)]/30 bg-[var(--surface-2)] p-4 xl:col-span-3">
               <div className="flex flex-wrap items-center gap-2">
+                <Badge label="Remediation Analytics" variant="neutral" />
                 <Badge label="One Cikan Remediation" variant="success" />
                 <Badge
                   label={
                     featuredRecommendation.decision_status === "manual_attention"
                       ? "Manuel Dikkat"
+                      : featuredRecommendation.decision_status === "effectiveness_preferred"
+                        ? "Effectiveness Destekli"
                       : featuredRecommendation.decision_status === "analytics_preferred"
                         ? "Analytics Destekli"
                         : "Kural Tabanli"
@@ -925,6 +971,8 @@ export default function ApprovalsPage() {
                   variant={
                     featuredRecommendation.decision_status === "manual_attention"
                       ? "danger"
+                      : featuredRecommendation.decision_status === "effectiveness_preferred"
+                        ? "success"
                       : featuredRecommendation.decision_status === "analytics_preferred"
                         ? "success"
                         : "warning"
@@ -941,6 +989,14 @@ export default function ApprovalsPage() {
                     variant="success"
                   />
                 ) : null}
+                <Badge
+                  label={`Effectiveness ${featuredRecommendation.effectiveness_score}`}
+                  variant={featuredRecommendation.effectiveness_status === "proven" ? "success" : "neutral"}
+                />
+                <Badge
+                  label={effectivenessStatusLabel(featuredRecommendation.effectiveness_status)}
+                  variant={effectivenessStatusVariant(featuredRecommendation.effectiveness_status)}
+                />
                 {featuredRecommendation.featured_publish_success_rate != null ? (
                   <Badge
                     label={`%${featuredRecommendation.featured_publish_success_rate} featured publish basarisi`}
@@ -953,6 +1009,9 @@ export default function ApprovalsPage() {
               </p>
               <p className="mt-1 text-sm muted-text">
                 {featuredRecommendation.health_summary}
+              </p>
+              <p className="mt-2 text-xs muted-text">
+                Bu karar {remediationAnalytics.summary.window_days} gunluk analytics penceresinden uretildi.
               </p>
               <p className="mt-2 text-xs muted-text">
                 {featuredRecommendation.featured_interactions} izlenen featured etkileşim /
@@ -1013,12 +1072,19 @@ export default function ApprovalsPage() {
                 {analyticsItem?.publish_success_rate != null ? (
                   <Badge label={`%${analyticsItem.publish_success_rate} publish basarisi`} variant="success" />
                 ) : null}
+                {analyticsItem ? (
+                  <Badge
+                    label={`Effectiveness ${analyticsItem.effectiveness_score}`}
+                    variant={analyticsItem.effectiveness_status === "proven" ? "success" : "neutral"}
+                  />
+                ) : null}
               </div>
               <p className="mt-3 text-sm font-semibold">{cluster.label}</p>
               <p className="mt-1 text-sm muted-text">{cluster.detail}</p>
               {analyticsItem ? (
                 <div className="mt-3 space-y-1 text-xs muted-text">
                   <p>{analyticsItem.health_summary}</p>
+                  <p>{effectivenessStatusLabel(analyticsItem.effectiveness_status)}</p>
                   <p>
                     {analyticsItem.manual_check_completions} manuel kontrol / {analyticsItem.publish_attempts} publish denemesi
                   </p>
@@ -1357,4 +1423,28 @@ function clusterActionLabel(clusterKey: string): string {
       "review-error": "Hatalari Filtrele",
     }[clusterKey] ?? "Kumeyi Filtrele"
   );
+}
+
+function effectivenessStatusLabel(status: string): string {
+  return (
+    {
+      proven: "Kanitlandi",
+      mixed: "Karisik Sonuc",
+      weak: "Zayif",
+      insufficient_data: "Veri Yetersiz",
+      idle: "Pasif",
+    }[status] ?? "Veri Yetersiz"
+  );
+}
+
+function effectivenessStatusVariant(status: string): "success" | "warning" | "danger" | "neutral" {
+  const variants: Record<string, "success" | "warning" | "danger" | "neutral"> = {
+    proven: "success",
+    mixed: "warning",
+    weak: "danger",
+    insufficient_data: "neutral",
+    idle: "neutral",
+  };
+
+  return variants[status] ?? "neutral";
 }

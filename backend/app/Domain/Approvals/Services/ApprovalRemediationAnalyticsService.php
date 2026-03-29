@@ -87,6 +87,17 @@ class ApprovalRemediationAnalyticsService
                         ? round(($successfulPublishes->count() / $publishAttempts->count()) * 100, 1)
                         : null,
                     'last_activity_at' => optional($clusterLogs->first()?->occurred_at)?->toIso8601String(),
+                    'effectiveness_score' => $this->effectivenessScore(
+                        $publishAttempts->count(),
+                        $successfulPublishes->count(),
+                        $currentItems->count(),
+                        $featuredMetrics['featured_follow_rate'],
+                    ),
+                    'effectiveness_status' => $this->effectivenessStatus(
+                        $publishAttempts->count(),
+                        $successfulPublishes->count(),
+                        $currentItems->count(),
+                    ),
                     'health_status' => $this->healthStatus($cluster['recommended_action_code'], $currentItems->count(), $publishAttempts->count(), $successfulPublishes->count()),
                     'health_summary' => $this->healthSummary($cluster['recommended_action_code'], $currentItems->count(), $publishAttempts->count(), $successfulPublishes->count()),
                     'route' => $route,
@@ -101,7 +112,12 @@ class ApprovalRemediationAnalyticsService
             ->sortByDesc(fn (array $item): float => (float) $item['publish_success_rate'])
             ->first();
 
-        $featuredRecommendation = $this->buildFeaturedRecommendation($items, $topWorkingCluster);
+        $topEffectiveCluster = $items
+            ->filter(fn (array $item): bool => ($item['effectiveness_score'] ?? 0) > 0)
+            ->sortByDesc(fn (array $item): float => (float) ($item['effectiveness_score'] ?? 0))
+            ->first();
+
+        $featuredRecommendation = $this->buildFeaturedRecommendation($items, $topWorkingCluster, $topEffectiveCluster, $windowDays);
         $featuredSummary = $this->featuredSummary($featuredInteractionLogs);
 
         return [
@@ -121,6 +137,8 @@ class ApprovalRemediationAnalyticsService
                     ->filter(fn (AuditLog $log): bool => (bool) data_get($log->metadata, 'success', false))
                     ->count(),
                 'top_working_cluster_label' => $topWorkingCluster['label'] ?? null,
+                'top_effective_cluster_label' => $topEffectiveCluster['label'] ?? null,
+                'top_effective_cluster_score' => $topEffectiveCluster['effectiveness_score'] ?? null,
                 'featured_cluster_label' => $featuredRecommendation['label'] ?? null,
                 ...$featuredSummary,
                 'window_days' => $windowDays,
@@ -218,9 +236,15 @@ class ApprovalRemediationAnalyticsService
     /**
      * @param Collection<int, array<string, mixed>> $items
      * @param array<string, mixed>|null $topWorkingCluster
+     * @param array<string, mixed>|null $topEffectiveCluster
      * @return array<string, mixed>|null
      */
-    private function buildFeaturedRecommendation(Collection $items, ?array $topWorkingCluster): ?array
+    private function buildFeaturedRecommendation(
+        Collection $items,
+        ?array $topWorkingCluster,
+        ?array $topEffectiveCluster,
+        int $windowDays,
+    ): ?array
     {
         $manualCheckRequired = $items->first(
             fn (array $item): bool => $item['cluster_key'] === 'manual-check-required' && $item['current_items'] > 0
@@ -235,11 +259,32 @@ class ApprovalRemediationAnalyticsService
             ];
         }
 
+        if (
+            is_array($topEffectiveCluster)
+            && ($topEffectiveCluster['current_items'] ?? 0) > 0
+            && ($topEffectiveCluster['effectiveness_score'] ?? 0) >= 40
+        ) {
+            return [
+                ...$topEffectiveCluster,
+                'decision_status' => 'effectiveness_preferred',
+                'decision_reason' => sprintf(
+                    'Son %d gunun effectiveness skoruna gore publish toparlama ihtimali en guclu remediation cluster one cikarildi.',
+                    $windowDays,
+                ),
+                'action_mode' => in_array($topEffectiveCluster['cluster_key'], ['retry-ready', 'cleanup-recovered'], true)
+                    ? 'bulk_retry_publish'
+                    : 'focus_cluster',
+            ];
+        }
+
         if (is_array($topWorkingCluster) && ($topWorkingCluster['current_items'] ?? 0) > 0) {
             return [
                 ...$topWorkingCluster,
                 'decision_status' => 'analytics_preferred',
-                'decision_reason' => 'Gecmis publish sonucuna gore su an en iyi toparlayan remediation cluster one cikarildi.',
+                'decision_reason' => sprintf(
+                    'Son %d gunun publish sonucuna gore su an en iyi toparlayan remediation cluster one cikarildi.',
+                    $windowDays,
+                ),
                 'action_mode' => in_array($topWorkingCluster['cluster_key'], ['retry-ready', 'cleanup-recovered'], true)
                     ? 'bulk_retry_publish'
                     : 'focus_cluster',
@@ -255,11 +300,51 @@ class ApprovalRemediationAnalyticsService
         return [
             ...$fallback,
             'decision_status' => 'rule_based',
-            'decision_reason' => 'Aktif remediation cluster durumuna gore kurala dayali oncelik secildi.',
+            'decision_reason' => sprintf(
+                'Son %d gun icinde yeterli publish sonucu olmadigi icin aktif remediation durumuna gore kurala dayali oncelik secildi.',
+                $windowDays,
+            ),
             'action_mode' => in_array($fallback['cluster_key'], ['retry-ready', 'cleanup-recovered'], true)
                 ? 'bulk_retry_publish'
                 : 'focus_cluster',
         ];
+    }
+
+    private function effectivenessScore(
+        int $publishAttempts,
+        int $successfulPublishes,
+        int $currentItems,
+        ?float $featuredFollowRate,
+    ): float {
+        if ($publishAttempts === 0) {
+            return $currentItems > 0 ? 10.0 : 0.0;
+        }
+
+        $publishSuccessRate = ($successfulPublishes / max($publishAttempts, 1)) * 100;
+        $volumeScore = min($publishAttempts, 5) * 5;
+        $followScore = $featuredFollowRate !== null ? min($featuredFollowRate, 100.0) * 0.15 : 0.0;
+        $backlogPressure = $currentItems > 0 ? min($currentItems, 5) * 2 : 0;
+
+        return round($publishSuccessRate * 0.7 + $volumeScore + $followScore + $backlogPressure, 1);
+    }
+
+    private function effectivenessStatus(int $publishAttempts, int $successfulPublishes, int $currentItems): string
+    {
+        if ($publishAttempts === 0) {
+            return $currentItems > 0 ? 'insufficient_data' : 'idle';
+        }
+
+        $rate = $successfulPublishes / max($publishAttempts, 1);
+
+        if ($rate >= 0.75) {
+            return 'proven';
+        }
+
+        if ($rate >= 0.4) {
+            return 'mixed';
+        }
+
+        return 'weak';
     }
 
     /**
