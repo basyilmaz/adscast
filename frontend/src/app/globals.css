@@ -106,3 +106,77 @@ body {
   background-color: rgba(193, 83, 43, 0.15);
   color: var(--foreground);
 }
+
+/* Print styles for PDF export */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .app-background {
+    background: white !important;
+    min-height: auto;
+  }
+
+  /* Hide navigation, sidebar, buttons */
+  nav,
+  aside,
+  .no-print,
+  button,
+  [data-no-print] {
+    display: none !important;
+  }
+
+  /* Keep print buttons visible only when explicitly marked */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Cards: remove shadows and rounded corners for clean PDF */
+  .surface-card {
+    box-shadow: none !important;
+    border-radius: 4px !important;
+    border-color: #ccc !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Tables: ensure borders print */
+  table {
+    border-collapse: collapse;
+  }
+
+  th, td {
+    border-bottom: 1px solid #ddd;
+  }
+
+  /* Prevent page breaks inside important sections */
+  section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Force grid to single column for narrow PDF */
+  .grid {
+    display: block !important;
+  }
+
+  .grid > * {
+    margin-bottom: 12px;
+  }
+
+  /* Ensure chart area has reasonable height */
+  canvas {
+    max-height: 200px !important;
+  }
+
+  /* Page margins */
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+}

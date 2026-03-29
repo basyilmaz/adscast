@@ -117,6 +117,11 @@ class ReportBuilderService
                 'status' => $adSet['status'],
                 'note' => $adSet['health_summary'],
                 'route' => sprintf('/ad-sets/detail?id=%s', $adSet['id']),
+                'spend' => $adSet['spend'] ?? null,
+                'results' => $adSet['results'] ?? null,
+                'cpa_cpl' => $adSet['cpa_cpl'] ?? null,
+                'ctr' => $adSet['ctr'] ?? null,
+                'cpm' => $adSet['cpm'] ?? null,
             ])
             ->concat(
                 collect($detail['ads'])->take(3)->map(fn (array $ad): array => [
@@ -126,6 +131,11 @@ class ReportBuilderService
                     'status' => $ad['status'],
                     'note' => $ad['health_summary'],
                     'route' => sprintf('/ads/detail?id=%s', $ad['id']),
+                    'spend' => $ad['spend'] ?? null,
+                    'results' => $ad['results'] ?? null,
+                    'cpa_cpl' => $ad['cpa_cpl'] ?? null,
+                    'ctr' => $ad['ctr'] ?? null,
+                    'cpm' => $ad['cpm'] ?? null,
                 ])
             )
             ->values()
@@ -162,6 +172,7 @@ class ReportBuilderService
             'what_we_tested' => $whatWeTested,
             'risks' => array_slice($detail['alerts'], 0, 5),
             'recommendations' => array_slice($detail['recommendations'], 0, 5),
+            'creative_performance' => $detail['creative_performance'] ?? [],
             'next_best_actions' => $detail['next_best_actions'],
             'snapshot_history' => $this->snapshotHistory('campaign', $detail['campaign']['id']),
             'snapshot_defaults' => [
@@ -240,6 +251,23 @@ class ReportBuilderService
 
         foreach ($detail['ads'] as $ad) {
             $rows[] = ['ad', $ad['name'], (string) ($ad['spend'] ?? ''), (string) ($ad['results'] ?? '')];
+        }
+
+        $rows[] = ['creative_performance', 'ad_name', 'headline', 'cta', 'asset_type', 'spend', 'results', 'cpa_cpl', 'ctr', 'cpm', 'rank_label'];
+        foreach ($detail['creative_performance'] ?? [] as $cp) {
+            $rows[] = [
+                'creative_performance',
+                $cp['ad_name'],
+                $cp['headline'] ?? '',
+                $cp['call_to_action'] ?? '',
+                $cp['asset_type'] ?? '',
+                (string) ($cp['spend'] ?? ''),
+                (string) ($cp['results'] ?? ''),
+                (string) ($cp['cpa_cpl'] ?? ''),
+                (string) ($cp['ctr'] ?? ''),
+                (string) ($cp['cpm'] ?? ''),
+                $cp['rank_label'] ?? '',
+            ];
         }
 
         foreach ($detail['alerts'] as $alert) {

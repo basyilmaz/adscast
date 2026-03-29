@@ -1931,10 +1931,30 @@ export type ClientReportPayload = {
     status: string;
     note: string;
     route: string | null;
+    spend?: number | null;
+    results?: number | null;
+    cpa_cpl?: number | null;
+    ctr?: number | null;
+    cpm?: number | null;
   }>;
   risks: AlertFeedItem[];
   recommendations: RecommendationFeedItem[];
   next_best_actions: NextBestActionItem[];
+  creative_performance?: Array<{
+    ad_id: string;
+    ad_name: string;
+    headline: string | null;
+    body: string | null;
+    call_to_action: string | null;
+    asset_type: string | null;
+    spend: number;
+    results: number;
+    cpa_cpl: number | null;
+    ctr: number | null;
+    cpm: number | null;
+    status: string;
+    rank_label: string | null;
+  }>;
   snapshot_defaults: {
     report_type: string;
   };

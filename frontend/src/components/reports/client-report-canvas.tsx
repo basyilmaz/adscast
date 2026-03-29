@@ -26,6 +26,11 @@ function formatNumber(value: number | null | undefined) {
   return value.toFixed(value % 1 === 0 ? 0 : 2);
 }
 
+function formatPercent(value: number | null | undefined) {
+  if (value === null || value === undefined) return "-";
+  return `${value.toFixed(2)}%`;
+}
+
 type Props = {
   data: ClientReportPayload;
   onSaveSnapshot?: () => void;
@@ -60,19 +65,21 @@ export function ClientReportCanvas({
             <Badge label={data.entity.type === "account" ? "Account Report" : "Campaign Report"} variant="neutral" />
             <Badge label={`${data.range.start_date} / ${data.range.end_date}`} variant="neutral" />
             {data.share_link ? <Badge label="Musteri Paylasimi" variant="success" /> : null}
-            {onDownloadCsv ? (
-              <Button type="button" variant="secondary" onClick={onDownloadCsv}>
-                CSV Indir
+            <div className="no-print flex flex-wrap gap-2">
+              {onDownloadCsv ? (
+                <Button type="button" variant="secondary" onClick={onDownloadCsv}>
+                  CSV Indir
+                </Button>
+              ) : null}
+              <Button type="button" variant="secondary" onClick={() => window.print()}>
+                Yazdir / PDF
               </Button>
-            ) : null}
-            <Button type="button" variant="secondary" onClick={() => window.print()}>
-              Yazdir / PDF
-            </Button>
-            {onSaveSnapshot ? (
-              <Button type="button" onClick={onSaveSnapshot} disabled={snapshotLoading}>
-                {snapshotLoading ? "Kaydediliyor..." : snapshotActionLabel}
-              </Button>
-            ) : null}
+              {onSaveSnapshot ? (
+                <Button type="button" onClick={onSaveSnapshot} disabled={snapshotLoading}>
+                  {snapshotLoading ? "Kaydediliyor..." : snapshotActionLabel}
+                </Button>
+              ) : null}
+            </div>
           </div>
         </div>
         {snapshotMessage ? <p className="mt-3 text-sm text-[var(--accent)]">{snapshotMessage}</p> : null}
@@ -179,6 +186,15 @@ export function ClientReportCanvas({
                 </div>
                 <p className="mt-2 font-semibold">{item.title}</p>
                 <p className="mt-1 text-sm muted-text">{item.subtitle}</p>
+                {item.spend != null ? (
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                    <span>Harcama: <strong>{formatCurrency(item.spend)}</strong></span>
+                    <span>Sonuc: <strong>{formatNumber(item.results)}</strong></span>
+                    <span>CPA: <strong>{formatCurrency(item.cpa_cpl)}</strong></span>
+                    <span>CTR: <strong>{formatPercent(item.ctr)}</strong></span>
+                    <span>CPM: <strong>{formatCurrency(item.cpm)}</strong></span>
+                  </div>
+                ) : null}
                 <p className="mt-2 text-sm">{item.note}</p>
                 {mode === "operator" && item.route ? (
                   <Link href={item.route} className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] hover:underline">
@@ -259,6 +275,53 @@ export function ClientReportCanvas({
           </div>
         </Card>
       </section>
+
+      {(data.creative_performance ?? []).length > 0 ? (
+        <Card>
+          <CardTitle>Kreatif Performans Siralamasi</CardTitle>
+          <p className="mt-1 text-sm muted-text">Reklamlar CPA/CPL sirasiyla listelenmistir. Dusuk CPA = daha iyi performans.</p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-xs uppercase tracking-wider text-[var(--muted)]">
+                  <th className="px-3 py-2">#</th>
+                  <th className="px-3 py-2">Reklam</th>
+                  <th className="px-3 py-2">Baslik</th>
+                  <th className="px-3 py-2">CTA</th>
+                  <th className="px-3 py-2">Tur</th>
+                  <th className="px-3 py-2 text-right">Harcama</th>
+                  <th className="px-3 py-2 text-right">Sonuc</th>
+                  <th className="px-3 py-2 text-right">CPA/CPL</th>
+                  <th className="px-3 py-2 text-right">CTR</th>
+                  <th className="px-3 py-2 text-right">CPM</th>
+                  <th className="px-3 py-2">Etiket</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.creative_performance ?? []).map((cp, idx) => (
+                  <tr key={cp.ad_id} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)]">
+                    <td className="px-3 py-2 text-[var(--muted)]">{idx + 1}</td>
+                    <td className="px-3 py-2 max-w-[180px] truncate">{cp.ad_name}</td>
+                    <td className="px-3 py-2 max-w-[160px] truncate">{cp.headline ?? "-"}</td>
+                    <td className="px-3 py-2">{cp.call_to_action ?? "-"}</td>
+                    <td className="px-3 py-2">{cp.asset_type ?? "-"}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(cp.spend)}</td>
+                    <td className="px-3 py-2 text-right">{formatNumber(cp.results)}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(cp.cpa_cpl)}</td>
+                    <td className="px-3 py-2 text-right">{formatPercent(cp.ctr)}</td>
+                    <td className="px-3 py-2 text-right">{formatCurrency(cp.cpm)}</td>
+                    <td className="px-3 py-2">
+                      {cp.rank_label ? (
+                        <Badge label={cp.rank_label} variant={cp.rank_label === "En Iyi Performans" ? "success" : "danger"} />
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }
