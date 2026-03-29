@@ -297,7 +297,7 @@ class CampaignQueryService
         $summary['open_recommendations'] = $recommendations->count();
 
         $creativePerformance = $adRows
-            ->filter(fn (array $ad): bool => $ad['has_performance_data'] && ($ad['spend'] ?? 0) > 0)
+            ->filter(fn (array $ad): bool => $ad['has_performance_data'] && ($ad['spend'] ?? 0) > 0 && $ad['cpa_cpl'] !== null)
             ->sortBy('cpa_cpl')
             ->values()
             ->map(fn (array $ad): array => [

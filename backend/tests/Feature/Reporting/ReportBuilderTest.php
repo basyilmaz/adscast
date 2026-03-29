@@ -46,8 +46,25 @@ class ReportBuilderTest extends TestCase
             ->assertJsonPath('data.entity.name', 'Lead Engine Campaign')
             ->assertJsonPath('data.report.type', 'client_campaign_summary_v1')
             ->assertJsonPath('data.what_we_tested.0.type', 'ad_set')
+            ->assertJsonCount(2, 'data.creative_performance')
             ->assertJsonPath('data.export_options.pdf_foundation.mode', 'browser_print')
+            ->assertJsonPath('data.creative_performance.0.ad_name', 'Primary Ad')
+            ->assertJsonPath('data.creative_performance.0.rank_label', 'En Iyi Performans')
+            ->assertJsonPath('data.creative_performance.1.ad_name', 'Secondary Ad')
+            ->assertJsonPath('data.creative_performance.1.rank_label', 'En Dusuk Performans')
             ->assertJsonPath('data.next_best_actions.0.source', 'alert');
+
+        $campaignCsvResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspace->id)
+            ->get("/api/v1/reports/campaign/{$campaign->id}/export.csv?start_date=2026-03-10&end_date=2026-03-16");
+
+        $campaignCsvResponse->assertOk();
+        $campaignCsv = $campaignCsvResponse->streamedContent();
+        $creativeRows = collect(preg_split('/\r\n|\r|\n/', $campaignCsv))
+            ->filter(fn (?string $line): bool => is_string($line) && str_starts_with($line, 'creative_performance,'))
+            ->values();
+        $this->assertCount(3, $creativeRows);
+        $this->assertFalse($creativeRows->contains(fn (string $line): bool => str_contains($line, 'No Result Ad')));
     }
 
     public function test_report_snapshot_can_be_created_listed_and_exported(): void
@@ -91,8 +108,9 @@ class ReportBuilderTest extends TestCase
             ->get("/api/v1/reports/snapshots/{$snapshotId}/export.csv");
 
         $csvResponse->assertOk();
-        $this->assertStringContainsString('section,label,value,secondary', $csvResponse->streamedContent());
-        $this->assertStringContainsString('Castintech Reporting Account hesap raporu', $csvResponse->streamedContent());
+        $csvContent = $csvResponse->streamedContent();
+        $this->assertStringContainsString('section,label,value,secondary', $csvContent);
+        $this->assertStringContainsString('Castintech Reporting Account hesap raporu', $csvContent);
     }
 
     /**
@@ -182,10 +200,64 @@ class ReportBuilderTest extends TestCase
             'last_synced_at' => now(),
         ]);
 
+        $secondaryCreative = Creative::query()->create([
+            'workspace_id' => $workspace->id,
+            'meta_ad_account_id' => $account->id,
+            'meta_creative_id' => 'crt_report_secondary',
+            'name' => 'Creative Secondary',
+            'asset_type' => 'image',
+            'headline' => 'Ikinci kreatif varyasyonu',
+            'body' => 'Ikincil kreatif varyasyonu ile yeni aci test edin.',
+            'call_to_action' => 'LEARN_MORE',
+            'destination_url' => 'https://example.com/report-secondary',
+            'last_synced_at' => now(),
+        ]);
+
+        $noResultCreative = Creative::query()->create([
+            'workspace_id' => $workspace->id,
+            'meta_ad_account_id' => $account->id,
+            'meta_creative_id' => 'crt_report_no_result',
+            'name' => 'Creative No Result',
+            'asset_type' => 'image',
+            'headline' => 'Sonuc almayan kreatif',
+            'body' => 'Sonuc almayan kreatif testi.',
+            'call_to_action' => 'LEARN_MORE',
+            'destination_url' => 'https://example.com/report-no-result',
+            'last_synced_at' => now(),
+        ]);
+
+        Ad::query()->create([
+            'workspace_id' => $workspace->id,
+            'campaign_id' => $campaign->id,
+            'ad_set_id' => $adSet->id,
+            'creative_id' => $secondaryCreative->id,
+            'meta_ad_id' => 'ad_report_secondary',
+            'name' => 'Secondary Ad',
+            'status' => 'active',
+            'effective_status' => 'ACTIVE',
+            'preview_url' => 'https://example.com/preview/report-secondary',
+            'last_synced_at' => now(),
+        ]);
+
+        Ad::query()->create([
+            'workspace_id' => $workspace->id,
+            'campaign_id' => $campaign->id,
+            'ad_set_id' => $adSet->id,
+            'creative_id' => $noResultCreative->id,
+            'meta_ad_id' => 'ad_report_no_result',
+            'name' => 'No Result Ad',
+            'status' => 'active',
+            'effective_status' => 'ACTIVE',
+            'preview_url' => 'https://example.com/preview/report-no-result',
+            'last_synced_at' => now(),
+        ]);
+
         foreach ([
             ['level' => 'campaign', 'external' => 'cmp_report', 'spend' => 840, 'results' => 18, 'ctr' => 2.8, 'cpm' => 24.5, 'frequency' => 1.4],
             ['level' => 'adset', 'external' => 'adset_report', 'spend' => 540, 'results' => 11, 'ctr' => 2.5, 'cpm' => 21.2, 'frequency' => 1.2],
             ['level' => 'ad', 'external' => 'ad_report', 'spend' => 390, 'results' => 8, 'ctr' => 2.9, 'cpm' => 18.4, 'frequency' => 1.1],
+            ['level' => 'ad', 'external' => 'ad_report_secondary', 'spend' => 200, 'results' => 4, 'ctr' => 2.2, 'cpm' => 20.1, 'frequency' => 1.0],
+            ['level' => 'ad', 'external' => 'ad_report_no_result', 'spend' => 150, 'results' => 0, 'ctr' => 1.1, 'cpm' => 22.3, 'frequency' => 1.5],
         ] as $item) {
             \App\Models\InsightDaily::factory()->create([
                 'workspace_id' => $workspace->id,
@@ -196,7 +268,7 @@ class ReportBuilderTest extends TestCase
                 'results' => $item['results'],
                 'leads' => $item['results'],
                 'conversions' => $item['results'],
-                'cost_per_result' => round($item['spend'] / $item['results'], 4),
+                'cost_per_result' => $item['results'] > 0 ? round($item['spend'] / $item['results'], 4) : null,
                 'ctr' => $item['ctr'],
                 'cpm' => $item['cpm'],
                 'frequency' => $item['frequency'],

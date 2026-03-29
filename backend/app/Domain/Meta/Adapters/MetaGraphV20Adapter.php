@@ -9,6 +9,7 @@ use App\Models\MetaConnection;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class MetaGraphV20Adapter implements MetaApiAdapter
@@ -365,6 +366,19 @@ class MetaGraphV20Adapter implements MetaApiAdapter
         }
 
         $normalizedAccountId = str_starts_with($adAccountId, 'act_') ? $adAccountId : "act_{$adAccountId}";
+        $countryCode = $this->resolvePublishCountryCode($draft->location);
+
+        if (! $countryCode) {
+            return [
+                'success' => false,
+                'status' => 'error',
+                'message' => 'Canli publish icin lokasyon alani ISO ulke kodu veya taninan bir ulke adi olmali.',
+                'meta_reference' => null,
+            ];
+        }
+
+        $locationLabel = $this->normalizeDraftLocationLabel($draft->location, $countryCode);
+        $metaCampaignId = null;
 
         try {
             $objectiveMap = [
@@ -385,7 +399,7 @@ class MetaGraphV20Adapter implements MetaApiAdapter
                 path: "{$normalizedAccountId}/campaigns",
                 accessToken: $accessToken,
                 data: [
-                    'name' => strtoupper($draft->objective ?? 'CAMPAIGN') . '_' . ($draft->location ?? 'TR') . '_' . now()->format('Ymd'),
+                    'name' => strtoupper($draft->objective ?? 'CAMPAIGN') . '_' . $locationLabel . '_' . now()->format('Ymd'),
                     'objective' => $metaObjective,
                     'status' => 'PAUSED',
                     'special_ad_categories' => '[]',
@@ -407,7 +421,7 @@ class MetaGraphV20Adapter implements MetaApiAdapter
             $dailyBudget = (int) (($draft->budget_min ?? 50) * 100); // Meta expects cents
 
             $adSetData = [
-                'name' => 'AS_' . ($draft->location ?? 'TR') . '_' . now()->format('Ymd'),
+                'name' => 'AS_' . $locationLabel . '_' . now()->format('Ymd'),
                 'campaign_id' => $metaCampaignId,
                 'billing_event' => 'IMPRESSIONS',
                 'optimization_goal' => $metaObjective === 'OUTCOME_LEADS' ? 'LEAD_GENERATION' : 'OFFSITE_CONVERSIONS',
@@ -416,7 +430,7 @@ class MetaGraphV20Adapter implements MetaApiAdapter
                 'status' => 'PAUSED',
                 'targeting' => json_encode([
                     'geo_locations' => [
-                        'countries' => [strtoupper($draft->location ?? 'TR')],
+                        'countries' => [$countryCode],
                     ],
                 ]),
             ];
@@ -444,7 +458,10 @@ class MetaGraphV20Adapter implements MetaApiAdapter
                 'success' => false,
                 'status' => 'error',
                 'message' => 'Meta API hatasi: ' . $e->getMessage(),
-                'meta_reference' => null,
+                'meta_reference' => $metaCampaignId ? [
+                    'campaign_id' => $metaCampaignId,
+                    'ad_set_id' => null,
+                ] : null,
             ];
         }
     }
@@ -463,6 +480,48 @@ class MetaGraphV20Adapter implements MetaApiAdapter
         }
 
         return $token;
+    }
+
+    private function normalizeDraftLocationLabel(?string $location, string $fallbackCountryCode): string
+    {
+        $normalized = Str::of((string) $location)
+            ->squish()
+            ->upper()
+            ->replaceMatches('/[^A-Z0-9]+/u', '_')
+            ->trim('_')
+            ->value();
+
+        return $normalized !== '' ? $normalized : $fallbackCountryCode;
+    }
+
+    private function resolvePublishCountryCode(?string $location): ?string
+    {
+        $normalized = Str::of((string) $location)->squish()->ascii()->upper()->value();
+
+        if ($normalized === '') {
+            return 'TR';
+        }
+
+        if (preg_match('/^[A-Z]{2}$/', $normalized) === 1) {
+            return $normalized;
+        }
+
+        return [
+            'TURKIYE' => 'TR',
+            'TURKEY' => 'TR',
+            'TUR' => 'TR',
+            'UNITED STATES' => 'US',
+            'UNITED_STATES' => 'US',
+            'USA' => 'US',
+            'AMERIKA' => 'US',
+            'GERMANY' => 'DE',
+            'DEUTSCHLAND' => 'DE',
+            'DEU' => 'DE',
+            'UNITED KINGDOM' => 'GB',
+            'UNITED_KINGDOM' => 'GB',
+            'UK' => 'GB',
+            'ENGLAND' => 'GB',
+        ][$normalized] ?? null;
     }
 
     /**

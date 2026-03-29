@@ -322,3 +322,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 83. Queue recommendation analytics'i entity-scope filtreleme ile account/campaign detail payload'ina tasiyip detail report sekmesinde queue etkisini ozetlemek
 84. Reports merkezindeki cluster -> entity drill-down linklerinde reason ve surface focus parametrelerini tasiyip detail report sekmesini dogru karara hizalayarak acmak
 85. Entity detail report sekmesinde queue etkisi, en iyi cluster ve en cok izlenen bulk oneriyi ayni kartta gosterip cluster bazli bulk sonucunu operasyon ozetine geri beslemek
+86. Sibling performance kurallarini gercek parent scope'a cekip ad set/ad seviyesinde cross-campaign false positive riskini kapatmak
+87. Meta draft publish akisini lokasyon normalizasyonu ile guvenli hale getirip gecersiz sehir girdilerini API'ye gondermeden bloklamak
+88. Creative performance ranking, export ve email ozetlerinde null CPA kayitlarini yaris disi birakip en iyi/en kotu etiketlerini yalnizca olculen kreatiflere vermek

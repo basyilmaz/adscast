@@ -253,17 +253,9 @@ class RulesEngineService
             return [];
         }
 
-        $efficiencies = $current
-            ->filter(fn (array $row): bool => (float) $row['results'] > 0)
-            ->map(fn (array $row): float => (float) $row['cpa_cpl']);
-
-        if ($efficiencies->isEmpty()) {
-            return [];
-        }
-
-        $median = (float) $efficiencies->sort()->values()->get((int) floor(($efficiencies->count() - 1) / 2));
         $entityType = $this->normalizeEntityType($level);
         $entityMap = $this->resolveEntityMap($workspaceId, $level, $current->pluck('entity_external_id')->all());
+        $siblingScopes = $this->resolveSiblingScopes($workspaceId, $level, $current->pluck('entity_external_id')->all());
         $results = [];
 
         $labels = [
@@ -274,27 +266,69 @@ class RulesEngineService
 
         [$summary, $explanation, $action] = $labels[$level] ?? $labels['campaign'];
 
-        foreach ($current as $row) {
-            $cpa = (float) $row['cpa_cpl'];
-            if ($cpa <= 0 || $cpa < ($median * 1.6)) {
-                continue;
-            }
+        $current
+            ->groupBy(fn (array $row): string => (string) ($siblingScopes[$row['entity_external_id']] ?? '__missing__'))
+            ->each(function (Collection $scopeRows) use (&$results, $entityMap, $entityType, $summary, $explanation, $action, $endDate, $workspaceId): void {
+                if ($scopeRows->count() < 2) {
+                    return;
+                }
 
-            $signal = new RuleSignal(
-                code: 'weak_winner_loser',
-                severity: 'medium',
-                summary: $summary,
-                explanation: $explanation,
-                recommendedAction: $action,
-                confidence: 0.74,
-                entityType: $entityType,
-                entityId: $entityMap[$row['entity_external_id']] ?? null,
-                dateDetected: $endDate->toDateString(),
-            );
+                $efficiencies = $scopeRows
+                    ->filter(fn (array $row): bool => (float) $row['results'] > 0)
+                    ->map(fn (array $row): float => (float) $row['cpa_cpl']);
 
-            $results[] = $this->persistSignal($workspaceId, $signal);
-        }
+                if ($efficiencies->isEmpty()) {
+                    return;
+                }
+
+                $median = (float) $efficiencies->sort()->values()->get((int) floor(($efficiencies->count() - 1) / 2));
+
+                foreach ($scopeRows as $row) {
+                    $cpa = (float) $row['cpa_cpl'];
+                    if ($cpa <= 0 || $cpa < ($median * 1.6)) {
+                        continue;
+                    }
+
+                    $signal = new RuleSignal(
+                        code: 'weak_winner_loser',
+                        severity: 'medium',
+                        summary: $summary,
+                        explanation: $explanation,
+                        recommendedAction: $action,
+                        confidence: 0.74,
+                        entityType: $entityType,
+                        entityId: $entityMap[$row['entity_external_id']] ?? null,
+                        dateDetected: $endDate->toDateString(),
+                    );
+
+                    $results[] = $this->persistSignal($workspaceId, $signal);
+                }
+            });
 
         return $results;
+    }
+
+    /**
+     * @param array<int, string> $externalIds
+     * @return array<string, string>
+     */
+    private function resolveSiblingScopes(string $workspaceId, string $level, array $externalIds): array
+    {
+        return match ($level) {
+            'campaign' => collect($externalIds)->mapWithKeys(fn (string $externalId): array => [$externalId => $workspaceId])->all(),
+            'adset' => AdSet::query()
+                ->where('workspace_id', $workspaceId)
+                ->whereIn('meta_ad_set_id', $externalIds)
+                ->pluck('campaign_id', 'meta_ad_set_id')
+                ->map(fn (?string $campaignId, string $externalId): string => $campaignId ?: "__missing__::{$externalId}")
+                ->all(),
+            'ad' => Ad::query()
+                ->where('workspace_id', $workspaceId)
+                ->whereIn('meta_ad_id', $externalIds)
+                ->pluck('ad_set_id', 'meta_ad_id')
+                ->map(fn (?string $adSetId, string $externalId): string => $adSetId ?: "__missing__::{$externalId}")
+                ->all(),
+            default => [],
+        };
     }
 }
