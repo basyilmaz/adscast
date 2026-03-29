@@ -65,6 +65,8 @@ export function DraftDetailClient() {
   const hasDraftId = Boolean(draftId);
   const [submitting, setSubmitting] = useState(false);
   const [remediationSubmitting, setRemediationSubmitting] = useState(false);
+  const [remediationMode, setRemediationMode] =
+    useState<"manual_check_completed" | "retry_publish" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [remediationMessage, setRemediationMessage] = useState<string | null>(null);
   const {
@@ -113,7 +115,18 @@ export function DraftDetailClient() {
       return;
     }
 
+    let notePayload: string | undefined;
+    if (mode === "manual_check_completed") {
+      const note = window.prompt("Manuel kontrol notu (opsiyonel)");
+      if (note === null) {
+        return;
+      }
+
+      notePayload = note.trim() || undefined;
+    }
+
     setRemediationSubmitting(true);
+    setRemediationMode(mode);
     setActionError(null);
     setRemediationMessage(null);
 
@@ -122,6 +135,9 @@ export function DraftDetailClient() {
         await apiRequest(`/approvals/${approvalId}/manual-check-completed`, {
           method: "POST",
           requireWorkspace: true,
+          body: {
+            note: notePayload,
+          },
         });
         setRemediationMessage("Manuel kontrol tamamlandi. Publish aksiyonu tekrar denenebilir.");
       } else {
@@ -135,9 +151,23 @@ export function DraftDetailClient() {
       invalidateApiCache(`/drafts/${draftId as string}`, { requireWorkspace: true });
       invalidateApiCache("/drafts", { requireWorkspace: true });
       invalidateApiCache("/approvals", { requireWorkspace: true });
+      invalidateApiCache("/approvals?status=publish_failed", { requireWorkspace: true });
+      invalidateApiCache(`/approvals/remediation-analytics?window_days=${analyticsWindowDays ?? 30}`, {
+        requireWorkspace: true,
+      });
 
       if (approvalsReturnRoute) {
         invalidateApiCache(approvalsReturnRoute, { requireWorkspace: true });
+      }
+
+      const retryReadyReturnRoute = buildApprovalsReturnRoute(
+        "retry_publish_after_manual_check",
+        "manual_check_completed",
+        analyticsWindowDays,
+      );
+
+      if (retryReadyReturnRoute) {
+        invalidateApiCache(retryReadyReturnRoute, { requireWorkspace: true });
       }
 
       await reload();
@@ -145,6 +175,7 @@ export function DraftDetailClient() {
       setActionError(err instanceof Error ? err.message : "Remediation aksiyonu basarisiz.");
     } finally {
       setRemediationSubmitting(false);
+      setRemediationMode(null);
     }
   };
 
@@ -158,13 +189,16 @@ export function DraftDetailClient() {
     && (focusPublishState || focusRecommendedAction || focusClusterKey || Boolean(focusSource?.startsWith("approvals"))),
   );
   const remediationPublishState = draft.approval?.publish_state ?? null;
+  const currentPublishFocusState = derivePublishFocusState(remediationPublishState);
+  const currentRecommendedAction =
+    remediationPublishState?.recommended_action_code ?? focusRecommendedAction;
   const approvalsReturnRoute = buildApprovalsReturnRoute(
-    focusRecommendedAction,
-    focusPublishState,
+    currentRecommendedAction,
+    currentPublishFocusState ?? focusPublishState,
     analyticsWindowDays,
   );
   const remediationPrimaryAction = resolveRemediationPrimaryAction(
-    focusRecommendedAction,
+    currentRecommendedAction,
     remediationPublishState,
   );
 
@@ -274,9 +308,11 @@ export function DraftDetailClient() {
                 <Button
                   size="sm"
                   onClick={() => void applyApprovalRemediation(remediationPrimaryAction.mode)}
-                  disabled={remediationSubmitting}
+                  disabled={Boolean(remediationSubmitting)}
                 >
-                  {remediationSubmitting ? "Isleniyor..." : remediationPrimaryAction.label}
+                  {remediationSubmitting && remediationMode === remediationPrimaryAction.mode
+                    ? "Isleniyor..."
+                    : remediationPrimaryAction.label}
                 </Button>
                 {remediationPrimaryAction.hint ? (
                   <span className="self-center text-xs muted-text">{remediationPrimaryAction.hint}</span>
@@ -288,7 +324,7 @@ export function DraftDetailClient() {
 
         {draft.status === "draft" ? (
           <div className="mt-4">
-            <Button onClick={submitForReview} disabled={submitting}>
+            <Button onClick={submitForReview} disabled={submitting || remediationSubmitting}>
               {submitting ? "Gonderiliyor..." : "Incelemeye Gonder"}
             </Button>
           </div>
@@ -396,6 +432,42 @@ function resolveAnalyticsWindow(rawValue: string | null): 7 | 30 | 90 | null {
 
   if (parsedValue === 7 || parsedValue === 30 || parsedValue === 90) {
     return parsedValue;
+  }
+
+  return null;
+}
+
+function derivePublishFocusState(publishState: DraftPublishState): string | null {
+  if (!publishState) {
+    return null;
+  }
+
+  if (publishState.manual_check_required) {
+    return "manual_check_required";
+  }
+
+  if (publishState.manual_check_completed) {
+    return "manual_check_completed";
+  }
+
+  if (publishState.cleanup_attempted && publishState.cleanup_success === false) {
+    return "cleanup_failed";
+  }
+
+  if (publishState.cleanup_attempted && publishState.cleanup_success === true) {
+    return "cleanup_successful";
+  }
+
+  if (publishState.partial_publish_detected) {
+    return "partial_publish";
+  }
+
+  if (publishState.success === false) {
+    return "publish_failed";
+  }
+
+  if (publishState.success === true) {
+    return "published";
   }
 
   return null;

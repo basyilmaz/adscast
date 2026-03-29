@@ -353,3 +353,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 114. Approvals featured ve cluster kartlarindan draft detail'e geciste analytics penceresi ile remediation odagini ayni URL baglaminda tasiyip operatorun karar penceresini kaybetmemesini saglamak
 115. Draft detail remediation bloguna approvals slice'ina geri don linki ekleyip ayni recommended action ve analytics penceresiyle approvals merkezine donulebilir hale getirmek
 116. Featured, cluster, retry-ready ve item seviyesindeki approvals -> draft detail odak kaynaklarini ayristirip remediation guidance metnini uc uca daha acik hale getirmek
+117. Draft detail remediation bloguna approvals odagindan gelindiginde manuel kontrol tamamlandi aksiyonunu dogrudan calistiran kisa yol ekleyip operatorun bir tik kazanmasini saglamak
+118. Retry-ready ve cleanup-recovered odagindan acilan draft detail remediation bloguna dogrudan tekrar publish aksiyonu ekleyip approvals -> detail -> publish akislarini kisaltmak
+119. Draft detail uzerinden calistirilan remediation aksiyonlarinda approvals filtreli slice'i, publish failed listesi ve approvals remediation analytics cache'lerini birlikte invalid edip geri donuste stale remediation verisi riskini kapatmak
