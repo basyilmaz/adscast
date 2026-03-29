@@ -333,3 +333,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 94. Approvals index'e recommended_action_code filtresi ekleyip publish failed remediation akisini aksiyon kodu bazinda daraltabilir hale getirmek
 95. Approvals ekranina manuel kontrol, cleanup ve retry-ready odakli hizli cluster kartlari ekleyip operatorun tek tikla ilgili remediation slice'ina inmesini saglamak
 96. Manuel kontrolu tamamlanan publish failed approval'lari ayrik bir "tekrar publish'e hazir" operasyon bandinda toplayip approvals merkezinden dogrudan tekrar publish akisi sunmak
+97. Approvals ekraninda gorunen ve retry-hazir kayitlar icin secim akisi ekleyip cluster bazli toplu retry publish denemesi yapilabilir hale getirmek
+98. Approvals ekranindan draft detail'e giderken focus_publish_state ve focus_recommended_action baglamini tasiyip operatoru dogru remediation bloguna indirmek
+99. Draft detail publish metadata kartini approvals odagina gore vurgulayip neden bu remediation yuzeyine gelindigini aciklayan focus guidance katmani eklemek

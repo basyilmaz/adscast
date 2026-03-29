@@ -54,6 +54,9 @@ type DraftDetailResponse = {
 export function DraftDetailClient() {
   const searchParams = useSearchParams();
   const draftId = searchParams.get("id");
+  const focusPublishState = searchParams.get("focus_publish_state");
+  const focusRecommendedAction = searchParams.get("focus_recommended_action");
+  const focusSource = searchParams.get("focus_source");
   const hasDraftId = Boolean(draftId);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -100,6 +103,10 @@ export function DraftDetailClient() {
   if (isLoading && !draft) return <p className="text-sm muted-text">Yukleniyor...</p>;
   if (!draft) return <p className="text-sm text-[var(--danger)]">Draft bulunamadi.</p>;
 
+  const hasPublishFocus = Boolean(
+    draft.approval?.publish_state && (focusPublishState || focusRecommendedAction || focusSource === "approvals"),
+  );
+
   return (
     <div className="space-y-4">
       <Card>
@@ -117,7 +124,32 @@ export function DraftDetailClient() {
         <p className="mt-3 text-sm">{draft.target_audience}</p>
         {draft.notes ? <p className="mt-2 text-xs muted-text">{draft.notes}</p> : null}
         {draft.approval?.publish_state ? (
-          <div className={`mt-4 rounded-md border p-3 ${draft.approval.publish_state.manual_check_required ? "border-[var(--danger)] bg-[var(--surface-2)]" : "border-[var(--border)] bg-[var(--surface-2)]"}`}>
+          <div
+            id="publish-remediation"
+            className={[
+              "mt-4 rounded-md border p-3",
+              draft.approval.publish_state.manual_check_required
+                ? "border-[var(--danger)] bg-[var(--surface-2)]"
+                : "border-[var(--border)] bg-[var(--surface-2)]",
+              hasPublishFocus ? "ring-2 ring-[var(--accent)]/25" : "",
+            ].join(" ").trim()}
+          >
+            {hasPublishFocus ? (
+              <div className="mb-3 rounded-md border border-[var(--accent)]/30 bg-white p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge label="Approvals Odagi" variant="success" />
+                  {focusPublishState ? (
+                    <Badge label={focusPublishStateLabel(focusPublishState)} variant="warning" />
+                  ) : null}
+                  {focusRecommendedAction ? (
+                    <Badge label={focusRecommendedActionLabel(focusRecommendedAction)} variant="neutral" />
+                  ) : null}
+                </div>
+                <p className="mt-2 text-sm muted-text">
+                  {buildFocusGuidance(focusPublishState, focusRecommendedAction)}
+                </p>
+              </div>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2">
               <Badge
                 label={
@@ -189,4 +221,56 @@ export function DraftDetailClient() {
       </Card>
     </div>
   );
+}
+
+function focusPublishStateLabel(code: string): string {
+  return (
+    {
+      manual_check_required: "Manuel Kontrol Gerekli",
+      manual_check_completed: "Manuel Kontrol Tamamlandi",
+      cleanup_failed: "Cleanup Basarisiz",
+      cleanup_successful: "Cleanup Basarili",
+      partial_publish: "Partial Publish",
+      publish_failed: "Publish Hatasi",
+      published: "Published",
+    }[code] ?? code
+  );
+}
+
+function focusRecommendedActionLabel(code: string): string {
+  return (
+    {
+      manual_meta_check: "Manuel Meta Kontrolu",
+      retry_publish_after_manual_check: "Kontrol Sonrasi Tekrar Publish",
+      fix_and_retry_publish: "Duzelt ve Tekrar Publish",
+      review_publish_error: "Publish Hatasini Incele",
+    }[code] ?? code
+  );
+}
+
+function buildFocusGuidance(
+  focusPublishState: string | null,
+  focusRecommendedAction: string | null,
+): string {
+  if (focusRecommendedAction === "retry_publish_after_manual_check") {
+    return "Approvals merkezinden tekrar publish'e hazir kayit olarak geldiniz. Kontrol notunu ve cleanup sonucunu dogrulayip publish aksiyonunu buradan tekrar deneyin.";
+  }
+
+  if (focusRecommendedAction === "manual_meta_check") {
+    return "Approvals merkezinden manuel kontrol bekleyen kayit olarak geldiniz. Meta tarafini kontrol etmeden tekrar publish denemeyin.";
+  }
+
+  if (focusRecommendedAction === "fix_and_retry_publish") {
+    return "Cleanup tamamlanmis. Draft girdilerini duzeltip publish islemini guvenli sekilde tekrar deneyebilirsiniz.";
+  }
+
+  if (focusPublishState === "cleanup_failed") {
+    return "Bu draft cleanup basarisiz remediation odagiyla acildi. Cleanup mesajini ve Meta referanslarini once burada inceleyin.";
+  }
+
+  if (focusPublishState === "manual_check_completed") {
+    return "Bu draft manuel kontrol tamamlandi odagiyla acildi. Publish tekrar denemesi icin gereken baglam burada sabitlendi.";
+  }
+
+  return "Bu draft approvals merkezinden remediation odagiyla acildi. Publish durumunu ve onerilen aksiyonu once bu blokta dogrulayin.";
 }

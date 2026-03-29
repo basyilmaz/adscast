@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -108,6 +108,9 @@ export default function ApprovalsPage() {
   const [recommendedActionFilter, setRecommendedActionFilter] =
     useState<(typeof RECOMMENDED_ACTION_FILTER_OPTIONS)[number]["value"]>("all");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
+  const [bulkPublishing, setBulkPublishing] = useState(false);
 
   const approvalsPath = useMemo(() => {
     const params = new URLSearchParams();
@@ -170,6 +173,10 @@ export default function ApprovalsPage() {
       .filter((item) => item.publish_state?.recommended_action_code === "retry_publish_after_manual_check")
       .slice(0, 4);
   }, [publishFailureItems]);
+
+  const visibleRetryReadyItems = useMemo(() => {
+    return items.filter((item) => canRetryPublish(item));
+  }, [items]);
 
   const quickClusters = useMemo<QuickCluster[]>(() => {
     const manualCheckRequired = publishFailureItems.filter(
@@ -248,12 +255,18 @@ export default function ApprovalsPage() {
         ? "danger"
         : "warning";
 
+  useEffect(() => {
+    const visibleIds = new Set(items.map((item) => item.id));
+    setSelectedApprovalIds((current) => current.filter((id) => visibleIds.has(id)));
+  }, [items]);
+
   const focusQuickCluster = (cluster: QuickCluster) => {
     setStatusFilter(cluster.filters.status);
     setCleanupFilter(cluster.filters.cleanup);
     setManualCheckFilter(cluster.filters.manualCheck);
     setRecommendedActionFilter(cluster.filters.recommendedAction);
     setActionError(null);
+    setActionMessage(`${cluster.label} kumesi filtrelendi. Gerekirse gorunenleri secip toplu islem uygulayin.`);
   };
 
   const resetFilters = () => {
@@ -262,6 +275,8 @@ export default function ApprovalsPage() {
     setManualCheckFilter("all");
     setRecommendedActionFilter("all");
     setActionError(null);
+    setActionMessage(null);
+    setSelectedApprovalIds([]);
   };
 
   const invalidateApprovalCaches = (item: Approval) => {
@@ -286,6 +301,7 @@ export default function ApprovalsPage() {
   const callAction = async (item: Approval, action: "approve" | "reject" | "publish") => {
     try {
       setActionError(null);
+      setActionMessage(null);
       if (action === "reject") {
         const reason = window.prompt("Reddetme nedeni");
         if (!reason) return;
@@ -315,6 +331,7 @@ export default function ApprovalsPage() {
 
     try {
       setActionError(null);
+      setActionMessage(null);
       await apiRequest(`/approvals/${item.id}/manual-check-completed`, {
         method: "POST",
         requireWorkspace: true,
@@ -327,6 +344,128 @@ export default function ApprovalsPage() {
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Manuel kontrol guncellenemedi.");
     }
+  };
+
+  const selectedItems = useMemo(
+    () => items.filter((item) => selectedApprovalIds.includes(item.id)),
+    [items, selectedApprovalIds],
+  );
+  const selectedRetryReadyItems = useMemo(
+    () => selectedItems.filter((item) => canRetryPublish(item)),
+    [selectedItems],
+  );
+  const allVisibleSelected = items.length > 0 && selectedApprovalIds.length === items.length;
+  const allVisibleRetryReadySelected =
+    visibleRetryReadyItems.length > 0 &&
+    visibleRetryReadyItems.every((item) => selectedApprovalIds.includes(item.id));
+
+  const toggleApprovalSelection = (approvalId: string, checked: boolean) => {
+    setSelectedApprovalIds((current) => {
+      if (checked) {
+        return current.includes(approvalId) ? current : [...current, approvalId];
+      }
+
+      return current.filter((id) => id !== approvalId);
+    });
+  };
+
+  const toggleVisibleSelection = () => {
+    if (allVisibleSelected) {
+      setSelectedApprovalIds([]);
+      return;
+    }
+
+    setSelectedApprovalIds(items.map((item) => item.id));
+  };
+
+  const toggleRetryReadySelection = () => {
+    if (visibleRetryReadyItems.length === 0) {
+      return;
+    }
+
+    if (allVisibleRetryReadySelected) {
+      setSelectedApprovalIds((current) =>
+        current.filter((id) => !visibleRetryReadyItems.some((item) => item.id === id)),
+      );
+      return;
+    }
+
+    setSelectedApprovalIds(Array.from(new Set(visibleRetryReadyItems.map((item) => item.id))));
+  };
+
+  const runBulkPublishRetry = async (targetItems: Approval[]) => {
+    if (targetItems.length === 0) {
+      setActionError(null);
+      setActionMessage("Toplu retry publish icin once retry-hazir kayit secin.");
+      return;
+    }
+
+    setBulkPublishing(true);
+    setActionError(null);
+    setActionMessage(null);
+
+    const results = await Promise.allSettled(
+      targetItems.map((item) =>
+        apiRequest(`/approvals/${item.id}/publish`, {
+          method: "POST",
+          requireWorkspace: true,
+        }),
+      ),
+    );
+
+    const successCount = results.filter((result) => result.status === "fulfilled").length;
+    const failureResults = results.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+
+    try {
+      if (successCount > 0) {
+        await Promise.all([
+          reload(),
+          publishFailureQuery.reload(),
+        ]);
+      }
+    } finally {
+      setBulkPublishing(false);
+      setSelectedApprovalIds([]);
+    }
+
+    if (failureResults.length === 0) {
+      setActionMessage(`${successCount} approval icin retry publish denemesi baslatildi.`);
+      return;
+    }
+
+    if (successCount > 0) {
+      setActionMessage(`${successCount} approval icin retry publish basladi, ${failureResults.length} kayit hata verdi.`);
+      setActionError(extractErrorMessage(failureResults[0].reason));
+      return;
+    }
+
+    setActionError(extractErrorMessage(failureResults[0].reason));
+  };
+
+  const buildDraftRoute = (item: Approval) => {
+    if (!item.approvable_route) {
+      return null;
+    }
+
+    const [path, queryString = ""] = item.approvable_route.split("?");
+    const params = new URLSearchParams(queryString);
+    const focusPublishState = deriveFocusPublishState(item);
+
+    if (focusPublishState) {
+      params.set("focus_publish_state", focusPublishState);
+    }
+
+    if (item.publish_state?.recommended_action_code) {
+      params.set("focus_recommended_action", item.publish_state.recommended_action_code);
+    }
+
+    params.set("focus_source", "approvals");
+
+    const nextQuery = params.toString();
+
+    return nextQuery ? `${path}?${nextQuery}` : path;
   };
 
   return (
@@ -416,6 +555,26 @@ export default function ApprovalsPage() {
         <Button variant="outline" size="sm" onClick={resetFilters}>
           Filtreleri Sifirla
         </Button>
+        <Button variant="outline" size="sm" onClick={toggleVisibleSelection}>
+          {allVisibleSelected ? "Gorunen Secimi Temizle" : "Gorunenleri Sec"}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleRetryReadySelection}
+          disabled={visibleRetryReadyItems.length === 0}
+        >
+          {allVisibleRetryReadySelected ? "Retry-Hazir Secimi Temizle" : "Retry-Hazirlari Sec"}
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => runBulkPublishRetry(selectedRetryReadyItems)}
+          disabled={bulkPublishing || selectedRetryReadyItems.length === 0}
+        >
+          {bulkPublishing ? "Toplu Publish Calisiyor..." : "Secili Kayitlarda Retry Publish"}
+        </Button>
+        <Badge label={`${selectedApprovalIds.length} secili`} variant="neutral" />
+        <Badge label={`${visibleRetryReadyItems.length} gorunen retry-hazir`} variant="success" />
       </div>
 
       <div className="mt-4 grid gap-3 xl:grid-cols-4">
@@ -459,6 +618,13 @@ export default function ApprovalsPage() {
             >
               Retry-hazir kayitlari filtrele
             </Button>
+            <Button
+              size="sm"
+              onClick={() => runBulkPublishRetry(publishFailureItems.filter((item) => canRetryPublish(item)))}
+              disabled={bulkPublishing || summary.retryReady === 0}
+            >
+              Retry-Hazirlarda Toplu Publish
+            </Button>
           </div>
 
           <div className="mt-4 space-y-3">
@@ -484,7 +650,7 @@ export default function ApprovalsPage() {
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {item.approvable_route ? (
-                    <Link href={item.approvable_route}>
+                    <Link href={buildDraftRoute(item) ?? item.approvable_route}>
                       <Button variant="outline" size="sm">
                         Drafta Git
                       </Button>
@@ -501,17 +667,30 @@ export default function ApprovalsPage() {
       ) : null}
 
       {combinedError ? <p className="mt-4 text-sm text-[var(--danger)]">{combinedError}</p> : null}
+      {actionMessage ? <p className="mt-4 text-sm text-[var(--success)]">{actionMessage}</p> : null}
       {isLoading && items.length === 0 ? <p className="mt-4 text-sm muted-text">Onay kayitlari yukleniyor.</p> : null}
 
       <div className="mt-4 space-y-3">
         {items.map((item) => (
           <div key={item.id} className="rounded-md border border-[var(--border)] p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="font-semibold">{item.approvable_label}</p>
-                <p className="text-xs muted-text">{item.approvable_type_label} - {item.approvable_id}</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border border-[var(--border)]"
+                  checked={selectedApprovalIds.includes(item.id)}
+                  onChange={(event) => toggleApprovalSelection(item.id, event.target.checked)}
+                  aria-label={`${item.approvable_label} sec`}
+                />
+                <div>
+                  <p className="font-semibold">{item.approvable_label}</p>
+                  <p className="text-xs muted-text">{item.approvable_type_label} - {item.approvable_id}</p>
+                </div>
               </div>
-              <Badge label={item.status} variant={statusVariant(item.status)} />
+              <div className="flex flex-wrap items-center gap-2">
+                {canRetryPublish(item) ? <Badge label="Retry-Hazir" variant="success" /> : null}
+                <Badge label={item.status} variant={statusVariant(item.status)} />
+              </div>
             </div>
             {item.publish_state ? (
               <div
@@ -582,7 +761,7 @@ export default function ApprovalsPage() {
             ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
               {item.approvable_route ? (
-                <Link href={item.approvable_route}>
+                <Link href={buildDraftRoute(item) ?? item.approvable_route}>
                   <Button variant="outline" size="sm">
                     Drafta Git
                   </Button>
@@ -616,4 +795,58 @@ export default function ApprovalsPage() {
       ) : null}
     </Card>
   );
+}
+
+function canRetryPublish(item: Approval): boolean {
+  return (
+    item.status === "publish_failed"
+    && (
+      item.publish_state?.recommended_action_code === "retry_publish_after_manual_check"
+      || item.publish_state?.recommended_action_code === "fix_and_retry_publish"
+    )
+  );
+}
+
+function deriveFocusPublishState(item: Approval): string | null {
+  if (!item.publish_state) {
+    return null;
+  }
+
+  if (item.publish_state.manual_check_required) {
+    return "manual_check_required";
+  }
+
+  if (item.publish_state.manual_check_completed) {
+    return "manual_check_completed";
+  }
+
+  if (item.publish_state.cleanup_attempted && item.publish_state.cleanup_success === false) {
+    return "cleanup_failed";
+  }
+
+  if (item.publish_state.cleanup_attempted && item.publish_state.cleanup_success === true) {
+    return "cleanup_successful";
+  }
+
+  if (item.publish_state.partial_publish_detected) {
+    return "partial_publish";
+  }
+
+  if (item.publish_state.success === false) {
+    return "publish_failed";
+  }
+
+  if (item.publish_state.success === true) {
+    return "published";
+  }
+
+  return null;
+}
+
+function extractErrorMessage(reason: unknown): string {
+  if (reason instanceof Error && reason.message.trim()) {
+    return reason.message;
+  }
+
+  return "Toplu publish retry aksiyonu basarisiz.";
 }
