@@ -2,6 +2,7 @@
 
 namespace App\Domain\Approvals\Http\Controllers;
 
+use App\Domain\Approvals\Services\ApprovalPayloadPresenter;
 use App\Domain\Audit\Services\AuditLogService;
 use App\Domain\Meta\Services\MetaAdapterFactory;
 use App\Domain\Tenants\Support\WorkspaceContext;
@@ -16,6 +17,7 @@ class ApprovalController
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly MetaAdapterFactory $adapterFactory,
+        private readonly ApprovalPayloadPresenter $approvalPayloadPresenter,
     ) {
     }
 
@@ -25,6 +27,7 @@ class ApprovalController
 
         $query = Approval::query()
             ->where('workspace_id', $workspaceId)
+            ->with('approvable')
             ->latest();
 
         if ($request->filled('status')) {
@@ -32,7 +35,9 @@ class ApprovalController
         }
 
         return new JsonResponse([
-            'data' => $query->paginate(20),
+            'data' => $query
+                ->paginate(20)
+                ->through(fn (Approval $approval): array => $this->approvalPayloadPresenter->present($approval)),
         ]);
     }
 

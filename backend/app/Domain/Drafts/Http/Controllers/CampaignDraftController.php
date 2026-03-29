@@ -2,6 +2,7 @@
 
 namespace App\Domain\Drafts\Http\Controllers;
 
+use App\Domain\Approvals\Services\ApprovalPayloadPresenter;
 use App\Domain\Audit\Services\AuditLogService;
 use App\Domain\Drafts\Http\Requests\StoreCampaignDraftRequest;
 use App\Domain\Drafts\Services\CampaignDraftSuggestionService;
@@ -19,6 +20,7 @@ class CampaignDraftController
     public function __construct(
         private readonly CampaignDraftSuggestionService $suggestionService,
         private readonly AuditLogService $auditLogService,
+        private readonly ApprovalPayloadPresenter $approvalPayloadPresenter,
     ) {
     }
 
@@ -120,7 +122,10 @@ class CampaignDraftController
             ->findOrFail($draftId);
 
         return new JsonResponse([
-            'data' => $draft,
+            'data' => [
+                ...$draft->toArray(),
+                'approval' => $draft->approval ? $this->approvalPayloadPresenter->present($draft->approval->loadMissing('approvable')) : null,
+            ],
         ]);
     }
 

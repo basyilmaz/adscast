@@ -27,6 +27,22 @@ type DraftDetailResponse = {
     approval: {
       id: string;
       status: string;
+      approvable_route: string | null;
+      publish_state: {
+        status: string | null;
+        success: boolean | null;
+        message: string | null;
+        meta_campaign_id: string | null;
+        meta_ad_set_id: string | null;
+        partial_publish_detected: boolean;
+        cleanup_attempted: boolean;
+        cleanup_success: boolean | null;
+        cleanup_message: string | null;
+        manual_check_required: boolean;
+        recommended_action_code: string | null;
+        recommended_action_label: string | null;
+        operator_guidance: string | null;
+      } | null;
     } | null;
   };
 };
@@ -96,6 +112,43 @@ export function DraftDetailClient() {
 
         <p className="mt-3 text-sm">{draft.target_audience}</p>
         {draft.notes ? <p className="mt-2 text-xs muted-text">{draft.notes}</p> : null}
+        {draft.approval?.publish_state ? (
+          <div className={`mt-4 rounded-md border p-3 ${draft.approval.publish_state.manual_check_required ? "border-[var(--danger)] bg-[var(--surface-2)]" : "border-[var(--border)] bg-[var(--surface-2)]"}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                label={
+                  draft.approval.publish_state.manual_check_required
+                    ? "Manuel Kontrol Gerekli"
+                    : draft.approval.publish_state.partial_publish_detected
+                      ? "Partial Publish Tespit Edildi"
+                      : draft.approval.publish_state.success
+                        ? "Publish Basarili"
+                        : "Publish Hatasi"
+                }
+                variant={
+                  draft.approval.publish_state.manual_check_required
+                    ? "danger"
+                    : draft.approval.publish_state.success
+                      ? "success"
+                      : "warning"
+                }
+              />
+              {draft.approval.publish_state.recommended_action_label ? (
+                <Badge label={draft.approval.publish_state.recommended_action_label} variant="neutral" />
+              ) : null}
+            </div>
+            {draft.approval.publish_state.message ? <p className="mt-2 text-sm">{draft.approval.publish_state.message}</p> : null}
+            {draft.approval.publish_state.operator_guidance ? <p className="mt-2 text-sm muted-text">{draft.approval.publish_state.operator_guidance}</p> : null}
+            <div className="mt-2 flex flex-wrap gap-3 text-xs muted-text">
+              {draft.approval.publish_state.meta_campaign_id ? <span>Campaign: <strong>{draft.approval.publish_state.meta_campaign_id}</strong></span> : null}
+              {draft.approval.publish_state.meta_ad_set_id ? <span>Ad Set: <strong>{draft.approval.publish_state.meta_ad_set_id}</strong></span> : null}
+              {draft.approval.publish_state.cleanup_attempted ? (
+                <span>Cleanup: <strong>{draft.approval.publish_state.cleanup_success ? "Basarili" : "Basarisiz"}</strong></span>
+              ) : null}
+            </div>
+            {draft.approval.publish_state.cleanup_message ? <p className="mt-2 text-xs text-[var(--danger)]">{draft.approval.publish_state.cleanup_message}</p> : null}
+          </div>
+        ) : null}
 
         {draft.status === "draft" ? (
           <div className="mt-4">
