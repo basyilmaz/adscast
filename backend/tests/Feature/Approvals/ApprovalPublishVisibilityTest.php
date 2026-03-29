@@ -3,6 +3,7 @@
 namespace Tests\Feature\Approvals;
 
 use App\Models\Approval;
+use App\Models\AuditLog;
 use App\Models\CampaignDraft;
 use App\Models\User;
 use App\Models\Workspace;
@@ -140,6 +141,66 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.approval.publish_state.manual_check_completed', true)
             ->assertJsonPath('data.approval.publish_state.manual_check_note', 'Meta tarafinda kampanya kaydi kontrol edildi.')
             ->assertJsonPath('data.approval.publish_state.operator_guidance', 'Manuel kontrol tamamlandi. Gerekli duzeltmeleri yaptiysaniz publish islemini tekrar deneyebilirsiniz.');
+    }
+
+    public function test_approvals_remediation_analytics_endpoint_summarizes_clusters(): void
+    {
+        [$workspaceId, $token, , $requiredApproval] = $this->seedFailedPublishFixture();
+        [, , , $retryReadyApproval] = $this->seedFailedPublishFixture([
+            'product_service' => 'Retry hazir analytics',
+            'meta_campaign_id' => 'meta_campaign_retry_ready',
+            'manual_check' => [
+                'completed' => true,
+                'completed_at' => now()->subMinutes(5)->toIso8601String(),
+                'completed_by' => 'analytics-user',
+                'note' => 'Kontrol tamam.',
+            ],
+        ]);
+
+        AuditLog::query()->create([
+            'workspace_id' => $workspaceId,
+            'action' => 'approval_manual_check_completed',
+            'target_type' => 'approval',
+            'target_id' => $requiredApproval->id,
+            'metadata' => [
+                'remediation_context' => [
+                    'cluster_key' => 'manual-check-required',
+                    'recommended_action_code' => 'manual_meta_check',
+                    'next_cluster_key' => 'retry-ready',
+                    'next_recommended_action_code' => 'retry_publish_after_manual_check',
+                ],
+            ],
+            'occurred_at' => now()->subMinutes(4),
+        ]);
+
+        AuditLog::query()->create([
+            'workspace_id' => $workspaceId,
+            'action' => 'publish_attempted',
+            'target_type' => 'approval',
+            'target_id' => $retryReadyApproval->id,
+            'metadata' => [
+                'success' => true,
+                'remediation_context' => [
+                    'cluster_key' => 'retry-ready',
+                    'recommended_action_code' => 'retry_publish_after_manual_check',
+                ],
+            ],
+            'occurred_at' => now()->subMinutes(3),
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->getJson('/api/v1/approvals/remediation-analytics');
+
+        $response->assertOk()
+            ->assertJsonPath('data.summary.tracked_clusters', 4)
+            ->assertJsonPath('data.summary.current_publish_failed', 2)
+            ->assertJsonPath('data.summary.retry_ready_items', 1)
+            ->assertJsonPath('data.summary.tracked_manual_checks', 1)
+            ->assertJsonPath('data.summary.successful_publish_attempts', 1)
+            ->assertJsonPath('data.items.0.cluster_key', 'retry-ready')
+            ->assertJsonPath('data.items.0.successful_publishes', 1)
+            ->assertJsonPath('data.items.0.publish_success_rate', 100);
     }
 
     /**

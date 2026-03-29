@@ -3,6 +3,7 @@
 namespace App\Domain\Approvals\Http\Controllers;
 
 use App\Domain\Approvals\Http\Requests\CompleteApprovalManualCheckRequest;
+use App\Domain\Approvals\Services\ApprovalRemediationAnalyticsService;
 use App\Domain\Approvals\Services\ApprovalPayloadPresenter;
 use App\Domain\Audit\Services\AuditLogService;
 use App\Domain\Meta\Services\MetaAdapterFactory;
@@ -20,6 +21,7 @@ class ApprovalController
         private readonly AuditLogService $auditLogService,
         private readonly MetaAdapterFactory $adapterFactory,
         private readonly ApprovalPayloadPresenter $approvalPayloadPresenter,
+        private readonly ApprovalRemediationAnalyticsService $approvalRemediationAnalyticsService,
     ) {
     }
 
@@ -51,6 +53,15 @@ class ApprovalController
 
         return new JsonResponse([
             'data' => $paginator,
+        ]);
+    }
+
+    public function remediationAnalytics(Request $request): JsonResponse
+    {
+        $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
+
+        return new JsonResponse([
+            'data' => $this->approvalRemediationAnalyticsService->build($workspaceId),
         ]);
     }
 
@@ -159,6 +170,8 @@ class ApprovalController
 
         /** @var CampaignDraft $draft */
         $draft = CampaignDraft::query()->findOrFail($approval->approvable_id);
+        $approval->loadMissing('approvable');
+        $prePublishState = $this->approvalPayloadPresenter->present($approval)['publish_state'];
 
         $connection = MetaConnection::query()
             ->where('workspace_id', $workspaceId)
@@ -211,6 +224,7 @@ class ApprovalController
             metadata: [
                 'success' => $isSuccess,
                 'response' => $response,
+                'remediation_context' => $this->buildRemediationContext($prePublishState),
             ],
         );
 
@@ -273,6 +287,11 @@ class ApprovalController
             metadata: [
                 'note' => $request->validated('note'),
                 'meta_campaign_id' => data_get($metadata, 'meta_reference.campaign_id'),
+                'remediation_context' => [
+                    ...$this->buildRemediationContext($publishState),
+                    'next_cluster_key' => 'retry-ready',
+                    'next_recommended_action_code' => 'retry_publish_after_manual_check',
+                ],
             ],
         );
 
@@ -363,6 +382,34 @@ class ApprovalController
             'completed' => (bool) ($publishState['manual_check_completed'] ?? false),
             'not_required' => ! ($publishState['manual_check_required'] ?? false) && ! ($publishState['manual_check_completed'] ?? false),
             default => true,
+        };
+    }
+
+    /**
+     * @param array<string, mixed>|null $publishState
+     * @return array<string, mixed>
+     */
+    private function buildRemediationContext(?array $publishState): array
+    {
+        $recommendedActionCode = $publishState['recommended_action_code'] ?? null;
+
+        return [
+            'cluster_key' => $this->clusterKeyFromRecommendedAction($recommendedActionCode),
+            'recommended_action_code' => $recommendedActionCode,
+            'manual_check_required' => (bool) ($publishState['manual_check_required'] ?? false),
+            'manual_check_completed' => (bool) ($publishState['manual_check_completed'] ?? false),
+            'cleanup_success' => $publishState['cleanup_success'] ?? null,
+        ];
+    }
+
+    private function clusterKeyFromRecommendedAction(?string $recommendedActionCode): ?string
+    {
+        return match ($recommendedActionCode) {
+            'manual_meta_check' => 'manual-check-required',
+            'retry_publish_after_manual_check' => 'retry-ready',
+            'fix_and_retry_publish' => 'cleanup-recovered',
+            'review_publish_error' => 'review-error',
+            default => null,
         };
     }
 }

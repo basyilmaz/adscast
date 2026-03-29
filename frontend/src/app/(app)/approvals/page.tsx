@@ -50,6 +50,38 @@ type ApprovalResponse = {
   };
 };
 
+type ApprovalRemediationAnalyticsResponse = {
+  data: {
+    summary: {
+      tracked_clusters: number;
+      current_publish_failed: number;
+      retry_ready_items: number;
+      manual_check_required_items: number;
+      tracked_manual_checks: number;
+      tracked_publish_attempts: number;
+      successful_publish_attempts: number;
+      top_working_cluster_label: string | null;
+      window_days: number;
+    };
+    items: Array<{
+      cluster_key: string;
+      label: string;
+      description: string;
+      recommended_action_code: string;
+      current_items: number;
+      manual_check_completions: number;
+      publish_attempts: number;
+      successful_publishes: number;
+      failed_publishes: number;
+      publish_success_rate: number | null;
+      last_activity_at: string | null;
+      health_status: string;
+      health_summary: string;
+      route: string;
+    }>;
+  };
+};
+
 const PUBLISH_FAILURES_PATH = "/approvals?status=publish_failed";
 
 const STATUS_FILTER_OPTIONS = [
@@ -149,11 +181,26 @@ export default function ApprovalsPage() {
     ttlMs: QUERY_TTLS.approvals,
     select: (response) => response.data.data ?? [],
   });
+  const remediationAnalyticsQuery = useApiQuery<
+    ApprovalRemediationAnalyticsResponse,
+    ApprovalRemediationAnalyticsResponse["data"]
+  >("/approvals/remediation-analytics", {
+    requestOptions: {
+      requireWorkspace: true,
+    },
+    ttlMs: QUERY_TTLS.approvals,
+    select: (response) => response.data,
+  });
 
   const items = useMemo(() => approvalQuery.data ?? [], [approvalQuery.data]);
   const publishFailureItems = useMemo(() => publishFailureQuery.data ?? [], [publishFailureQuery.data]);
+  const remediationAnalytics = remediationAnalyticsQuery.data ?? null;
   const { isLoading, reload } = approvalQuery;
-  const combinedError = actionError ?? approvalQuery.error ?? publishFailureQuery.error ?? null;
+  const combinedError = actionError ?? approvalQuery.error ?? publishFailureQuery.error ?? remediationAnalyticsQuery.error ?? null;
+  const analyticsByCluster = useMemo(
+    () => new Map((remediationAnalytics?.items ?? []).map((item) => [item.cluster_key, item])),
+    [remediationAnalytics],
+  );
 
   const summary = useMemo(() => {
     return {
@@ -260,13 +307,65 @@ export default function ApprovalsPage() {
     setSelectedApprovalIds((current) => current.filter((id) => visibleIds.has(id)));
   }, [items]);
 
-  const focusQuickCluster = (cluster: QuickCluster) => {
+  const clusterItems = (cluster: QuickCluster) =>
+    publishFailureItems.filter((item) => {
+      if (cluster.filters.status !== "all" && item.status !== cluster.filters.status) {
+        return false;
+      }
+
+      if (cluster.filters.cleanup !== "all") {
+        if (cluster.filters.cleanup === "failed" && item.publish_state?.cleanup_success !== false) {
+          return false;
+        }
+
+        if (cluster.filters.cleanup === "successful" && item.publish_state?.cleanup_success !== true) {
+          return false;
+        }
+
+        if (cluster.filters.cleanup === "not_attempted" && item.publish_state?.cleanup_attempted) {
+          return false;
+        }
+      }
+
+      if (cluster.filters.manualCheck !== "all") {
+        if (cluster.filters.manualCheck === "required" && !item.publish_state?.manual_check_required) {
+          return false;
+        }
+
+        if (cluster.filters.manualCheck === "completed" && !item.publish_state?.manual_check_completed) {
+          return false;
+        }
+
+        if (
+          cluster.filters.manualCheck === "not_required"
+          && (item.publish_state?.manual_check_required || item.publish_state?.manual_check_completed)
+        ) {
+          return false;
+        }
+      }
+
+      if (
+        cluster.filters.recommendedAction !== "all"
+        && item.publish_state?.recommended_action_code !== cluster.filters.recommendedAction
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+
+  const focusQuickCluster = (cluster: QuickCluster, selectMatches = true) => {
     setStatusFilter(cluster.filters.status);
     setCleanupFilter(cluster.filters.cleanup);
     setManualCheckFilter(cluster.filters.manualCheck);
     setRecommendedActionFilter(cluster.filters.recommendedAction);
     setActionError(null);
-    setActionMessage(`${cluster.label} kumesi filtrelendi. Gerekirse gorunenleri secip toplu islem uygulayin.`);
+    if (selectMatches) {
+      setSelectedApprovalIds(clusterItems(cluster).map((item) => item.id));
+    }
+    setActionMessage(
+      `${cluster.label} kumesi filtrelendi${selectMatches ? " ve eslesen kayitlar secildi" : ""}.`,
+    );
   };
 
   const resetFilters = () => {
@@ -295,6 +394,7 @@ export default function ApprovalsPage() {
     await Promise.all([
       reload(),
       publishFailureQuery.reload(),
+      remediationAnalyticsQuery.reload(),
     ]);
   };
 
@@ -423,6 +523,7 @@ export default function ApprovalsPage() {
         await Promise.all([
           reload(),
           publishFailureQuery.reload(),
+          remediationAnalyticsQuery.reload(),
         ]);
       }
     } finally {
@@ -577,22 +678,89 @@ export default function ApprovalsPage() {
         <Badge label={`${visibleRetryReadyItems.length} gorunen retry-hazir`} variant="success" />
       </div>
 
-      <div className="mt-4 grid gap-3 xl:grid-cols-4">
-        {quickClusters.map((cluster) => (
-          <button
-            key={cluster.key}
-            type="button"
-            onClick={() => focusQuickCluster(cluster)}
-            className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4 text-left transition hover:border-[var(--accent)]/40"
-          >
+      {remediationAnalytics ? (
+        <div className="mt-4 grid gap-3 xl:grid-cols-4">
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge label={cluster.label} variant={cluster.variant} />
-              <Badge label={`${cluster.count} kayit`} variant="neutral" />
+              <Badge label="Remediation Analytics" variant="neutral" />
+              <Badge label={`${remediationAnalytics.summary.window_days} gun`} variant="neutral" />
             </div>
-            <p className="mt-3 text-sm font-semibold">{cluster.label}</p>
-            <p className="mt-1 text-sm muted-text">{cluster.detail}</p>
-          </button>
-        ))}
+            <p className="mt-3 text-sm font-semibold">Cluster performans ozeti</p>
+            <div className="mt-3 space-y-1 text-sm muted-text">
+              <p>Takip edilen cluster: {remediationAnalytics.summary.tracked_clusters}</p>
+              <p>Manuel kontrol aksiyonu: {remediationAnalytics.summary.tracked_manual_checks}</p>
+              <p>Retry publish denemesi: {remediationAnalytics.summary.tracked_publish_attempts}</p>
+              <p>Basarili publish: {remediationAnalytics.summary.successful_publish_attempts}</p>
+            </div>
+            {remediationAnalytics.summary.top_working_cluster_label ? (
+              <p className="mt-3 text-xs muted-text">
+                En iyi calisan cluster: {remediationAnalytics.summary.top_working_cluster_label}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-4">
+        {quickClusters.map((cluster) => {
+          const analyticsItem = analyticsByCluster.get(cluster.key);
+          const matches = clusterItems(cluster);
+          const retryableMatches = matches.filter((item) => canRetryPublish(item));
+
+          return (
+            <div
+              key={cluster.key}
+              className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4 text-left"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge label={cluster.label} variant={cluster.variant} />
+                <Badge label={`${cluster.count} kayit`} variant="neutral" />
+                {analyticsItem?.publish_success_rate != null ? (
+                  <Badge label={`%${analyticsItem.publish_success_rate} publish basarisi`} variant="success" />
+                ) : null}
+              </div>
+              <p className="mt-3 text-sm font-semibold">{cluster.label}</p>
+              <p className="mt-1 text-sm muted-text">{cluster.detail}</p>
+              {analyticsItem ? (
+                <div className="mt-3 space-y-1 text-xs muted-text">
+                  <p>{analyticsItem.health_summary}</p>
+                  <p>
+                    {analyticsItem.manual_check_completions} manuel kontrol / {analyticsItem.publish_attempts} publish denemesi
+                  </p>
+                </div>
+              ) : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => focusQuickCluster(cluster)}
+                >
+                  Kumeyi Filtrele
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={cluster.key === "retry-ready" || cluster.key === "cleanup-recovered" ? "primary" : "secondary"}
+                  onClick={() => {
+                    if (cluster.key === "retry-ready" || cluster.key === "cleanup-recovered") {
+                      void runBulkPublishRetry(retryableMatches);
+                      return;
+                    }
+
+                    focusQuickCluster(cluster);
+                  }}
+                  disabled={
+                    bulkPublishing
+                    || ((cluster.key === "retry-ready" || cluster.key === "cleanup-recovered") && retryableMatches.length === 0)
+                  }
+                >
+                  {clusterActionLabel(cluster.key)}
+                </Button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {retryReadyItems.length > 0 ? (
@@ -849,4 +1017,15 @@ function extractErrorMessage(reason: unknown): string {
   }
 
   return "Toplu publish retry aksiyonu basarisiz.";
+}
+
+function clusterActionLabel(clusterKey: string): string {
+  return (
+    {
+      "manual-check-required": "Bekleyenleri Sec",
+      "retry-ready": "Toplu Retry Publish",
+      "cleanup-recovered": "Toplu Retry Publish",
+      "review-error": "Hatalari Filtrele",
+    }[clusterKey] ?? "Kumeyi Filtrele"
+  );
 }

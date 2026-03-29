@@ -167,6 +167,8 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('/approvals', [ApprovalController::class, 'index'])
                 ->middleware('workspace.permission:approvals.view');
+            Route::get('/approvals/remediation-analytics', [ApprovalController::class, 'remediationAnalytics'])
+                ->middleware('workspace.permission:approvals.view');
             Route::post('/approvals/{approvalId}/approve', [ApprovalController::class, 'approve'])
                 ->middleware('workspace.permission:approvals.review');
             Route::post('/approvals/{approvalId}/reject', [ApprovalController::class, 'reject'])

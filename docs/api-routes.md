@@ -143,6 +143,10 @@ Base path: `/api/v1`
 - `GET /approvals`
   - opsiyonel filtreler: `status`, `cleanup_state` (`failed|successful|not_attempted`), `manual_check_state` (`required|completed|not_required`), `recommended_action_code`
   - approvals index item'lari `publish_state.manual_check_completed`, `manual_check_completed_at` ve `manual_check_note` alanlarini da doner
+- `GET /approvals/remediation-analytics`
+  - publish failed remediation cluster'larini `manual-check-required`, `retry-ready`, `cleanup-recovered`, `review-error` ekseninde ozetler
+  - `summary` altinda takip edilen cluster, manuel kontrol, publish denemesi ve en iyi calisan cluster ozetini doner
+  - `items[]` altinda `current_items`, `manual_check_completions`, `publish_attempts`, `successful_publishes`, `publish_success_rate`, `health_status`, `route` alanlarini doner
 - `POST /approvals/{approvalId}/approve`
 - `POST /approvals/{approvalId}/reject`
 - `POST /approvals/{approvalId}/manual-check-completed`

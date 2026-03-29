@@ -336,3 +336,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 97. Approvals ekraninda gorunen ve retry-hazir kayitlar icin secim akisi ekleyip cluster bazli toplu retry publish denemesi yapilabilir hale getirmek
 98. Approvals ekranindan draft detail'e giderken focus_publish_state ve focus_recommended_action baglamini tasiyip operatoru dogru remediation bloguna indirmek
 99. Draft detail publish metadata kartini approvals odagina gore vurgulayip neden bu remediation yuzeyine gelindigini aciklayan focus guidance katmani eklemek
+100. Publish failed approval cluster'larini audit log ve mevcut approval verisiyle ozetleyen approvals remediation analytics endpoint'ini eklemek
+101. Approvals ekraninda remediation cluster kartlarina analytics ozetini ve cluster-bazli dogrudan aksiyon butonlarini eklemek
+102. Approvals remediation analytics ile cluster filtreleme, secim ve bulk retry akislarini ayni yuzeyde hizalayip hangi remediation cluster'inin gercekte calistigini operatora gostermek
