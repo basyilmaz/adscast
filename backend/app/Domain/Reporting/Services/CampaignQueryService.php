@@ -296,6 +296,35 @@ class CampaignQueryService
         $summary['open_alerts'] = $alerts->count();
         $summary['open_recommendations'] = $recommendations->count();
 
+        $creativePerformance = $adRows
+            ->filter(fn (array $ad): bool => $ad['has_performance_data'] && ($ad['spend'] ?? 0) > 0)
+            ->sortBy('cpa_cpl')
+            ->values()
+            ->map(fn (array $ad): array => [
+                'ad_id' => $ad['id'],
+                'ad_name' => $ad['name'],
+                'headline' => $ad['creative']['headline'] ?? null,
+                'body' => $ad['creative']['body'] ?? null,
+                'call_to_action' => $ad['creative']['call_to_action'] ?? null,
+                'asset_type' => $ad['creative']['asset_type'] ?? null,
+                'spend' => $ad['spend'],
+                'results' => $ad['results'],
+                'cpa_cpl' => $ad['cpa_cpl'],
+                'ctr' => $ad['ctr'],
+                'cpm' => $ad['cpm'],
+                'status' => $ad['status'],
+                'rank_label' => null,
+            ])
+            ->all();
+
+        $creativeCount = count($creativePerformance);
+        if ($creativeCount > 0) {
+            $creativePerformance[0]['rank_label'] = 'En Iyi Performans';
+            if ($creativeCount > 1) {
+                $creativePerformance[$creativeCount - 1]['rank_label'] = 'En Dusuk Performans';
+            }
+        }
+
         $healthStatus = $this->campaignHealthStatus($campaign, $summary, $alerts->count());
         $alertPayload = $this->actionFeedService->presentAlerts($campaign->workspace_id, $alerts);
         $recommendationPayload = $this->actionFeedService->presentRecommendations($campaign->workspace_id, $recommendations);
@@ -431,6 +460,7 @@ class CampaignQueryService
             ),
             'analysis' => $this->campaignAnalysis($alerts, $recommendations, $summary),
             'report_preview' => $this->campaignReportPreview($campaign, $summary, $alerts, $recommendations),
+            'creative_performance' => array_values($creativePerformance),
         ];
     }
 

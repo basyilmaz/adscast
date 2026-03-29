@@ -377,6 +377,21 @@ export type CampaignDetailResponse = {
       next_test: string;
       next_step: string;
     };
+    creative_performance: Array<{
+      ad_id: string;
+      ad_name: string;
+      headline: string | null;
+      body: string | null;
+      call_to_action: string | null;
+      asset_type: string | null;
+      spend: number;
+      results: number;
+      cpa_cpl: number | null;
+      ctr: number | null;
+      cpm: number | null;
+      status: string;
+      rank_label: string | null;
+    }>;
   };
 };
 

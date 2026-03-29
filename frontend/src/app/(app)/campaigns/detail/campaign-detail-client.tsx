@@ -382,6 +382,54 @@ export function CampaignDetailClient() {
               />
             </Card>
           </div>
+
+          {data.creative_performance.length > 0 ? (
+            <div className="col-span-full">
+              <Card>
+                <CardTitle>Kreatif Performans Siralamasi</CardTitle>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-[var(--border)] text-xs uppercase tracking-wider text-[var(--muted)]">
+                        <th className="px-3 py-2">#</th>
+                        <th className="px-3 py-2">Reklam</th>
+                        <th className="px-3 py-2">Baslik</th>
+                        <th className="px-3 py-2">CTA</th>
+                        <th className="px-3 py-2">Tur</th>
+                        <th className="px-3 py-2 text-right">Harcama</th>
+                        <th className="px-3 py-2 text-right">Sonuc</th>
+                        <th className="px-3 py-2 text-right">CPA/CPL</th>
+                        <th className="px-3 py-2 text-right">CTR</th>
+                        <th className="px-3 py-2 text-right">CPM</th>
+                        <th className="px-3 py-2">Etiket</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.creative_performance.map((cp, idx) => (
+                        <tr key={cp.ad_id} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)]">
+                          <td className="px-3 py-2 text-[var(--muted)]">{idx + 1}</td>
+                          <td className="px-3 py-2 max-w-[180px] truncate">{cp.ad_name}</td>
+                          <td className="px-3 py-2 max-w-[160px] truncate">{cp.headline ?? "-"}</td>
+                          <td className="px-3 py-2">{cp.call_to_action ?? "-"}</td>
+                          <td className="px-3 py-2">{cp.asset_type ?? "-"}</td>
+                          <td className="px-3 py-2 text-right">{formatCurrency(cp.spend)}</td>
+                          <td className="px-3 py-2 text-right">{formatNumber(cp.results)}</td>
+                          <td className="px-3 py-2 text-right">{formatCurrency(cp.cpa_cpl)}</td>
+                          <td className="px-3 py-2 text-right">{formatPercent(cp.ctr)}</td>
+                          <td className="px-3 py-2 text-right">{formatCurrency(cp.cpm)}</td>
+                          <td className="px-3 py-2">
+                            {cp.rank_label ? (
+                              <Badge label={cp.rank_label} variant={cp.rank_label === "En Iyi Performans" ? "success" : "danger"} />
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

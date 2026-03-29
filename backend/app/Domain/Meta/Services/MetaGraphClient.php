@@ -143,6 +143,51 @@ class MetaGraphClient
         ];
     }
 
+    /**
+     * @param array<string, mixed> $data
+     * @return array{body: array<string, mixed>, usage: array<string, mixed>}
+     */
+    public function postObject(
+        string $apiVersion,
+        string $path,
+        string $accessToken,
+        array $data = [],
+    ): array {
+        $baseUrl = rtrim((string) config('services.meta.graph_base_url', 'https://graph.facebook.com'), '/');
+        $normalizedPath = ltrim($path, '/');
+
+        try {
+            $response = $this->http
+                ->acceptJson()
+                ->retry(2, 500)
+                ->timeout(30)
+                ->post("{$baseUrl}/{$apiVersion}/{$normalizedPath}", array_merge($data, [
+                    'access_token' => $accessToken,
+                ]));
+        } catch (ConnectionException $exception) {
+            throw new MetaApiException('Meta API POST baglanti hatasi.', [
+                'path' => $normalizedPath,
+                'api_version' => $apiVersion,
+            ], previous: $exception);
+        }
+
+        $this->ensureSuccessfulResponse($response, $normalizedPath, $apiVersion);
+
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            throw new MetaApiException('Meta API POST gecersiz response dondu.', [
+                'path' => $normalizedPath,
+                'api_version' => $apiVersion,
+            ]);
+        }
+
+        return [
+            'body' => $body,
+            'usage' => $this->parseUsageHeaders($response),
+        ];
+    }
+
     private function sendRequest(
         string $apiVersion,
         string $path,

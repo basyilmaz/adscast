@@ -343,12 +343,110 @@ class MetaGraphV20Adapter implements MetaApiAdapter
 
     public function publishCampaignDraft(MetaConnection $connection, CampaignDraft $draft): array
     {
-        return [
-            'success' => false,
-            'status' => 'stubbed',
-            'message' => 'MVP publish adapter cagrisi stub durumunda.',
-            'meta_reference' => null,
-        ];
+        if ($this->shouldUseStubMode()) {
+            return [
+                'success' => false,
+                'status' => 'stubbed',
+                'message' => 'Meta mode stub durumunda. Canli yayinlamak icin META_MODE=live ayarlayin.',
+                'meta_reference' => null,
+            ];
+        }
+
+        $accessToken = $this->resolveAccessToken($connection);
+        $adAccountId = $draft->adAccount?->account_id;
+
+        if (! $adAccountId) {
+            return [
+                'success' => false,
+                'status' => 'error',
+                'message' => 'Draft ile iliskili ad account bulunamadi.',
+                'meta_reference' => null,
+            ];
+        }
+
+        $normalizedAccountId = str_starts_with($adAccountId, 'act_') ? $adAccountId : "act_{$adAccountId}";
+
+        try {
+            $objectiveMap = [
+                'LEADS' => 'OUTCOME_LEADS',
+                'CONVERSIONS' => 'OUTCOME_SALES',
+                'SALES' => 'OUTCOME_SALES',
+                'TRAFFIC' => 'OUTCOME_TRAFFIC',
+                'AWARENESS' => 'OUTCOME_AWARENESS',
+                'ENGAGEMENT' => 'OUTCOME_ENGAGEMENT',
+                'APP_PROMOTION' => 'OUTCOME_APP_PROMOTION',
+            ];
+
+            $metaObjective = $objectiveMap[strtoupper($draft->objective ?? '')] ?? 'OUTCOME_LEADS';
+
+            // 1. Create Campaign
+            $campaignResponse = $this->graphClient->postObject(
+                apiVersion: 'v20.0',
+                path: "{$normalizedAccountId}/campaigns",
+                accessToken: $accessToken,
+                data: [
+                    'name' => strtoupper($draft->objective ?? 'CAMPAIGN') . '_' . ($draft->location ?? 'TR') . '_' . now()->format('Ymd'),
+                    'objective' => $metaObjective,
+                    'status' => 'PAUSED',
+                    'special_ad_categories' => '[]',
+                ],
+            );
+
+            $metaCampaignId = $campaignResponse['body']['id'] ?? null;
+
+            if (! $metaCampaignId) {
+                return [
+                    'success' => false,
+                    'status' => 'error',
+                    'message' => 'Meta kampanya olusturuldu ancak ID donmedi.',
+                    'meta_reference' => null,
+                ];
+            }
+
+            // 2. Create Ad Set
+            $dailyBudget = (int) (($draft->budget_min ?? 50) * 100); // Meta expects cents
+
+            $adSetData = [
+                'name' => 'AS_' . ($draft->location ?? 'TR') . '_' . now()->format('Ymd'),
+                'campaign_id' => $metaCampaignId,
+                'billing_event' => 'IMPRESSIONS',
+                'optimization_goal' => $metaObjective === 'OUTCOME_LEADS' ? 'LEAD_GENERATION' : 'OFFSITE_CONVERSIONS',
+                'daily_budget' => $dailyBudget,
+                'bid_strategy' => 'LOWEST_COST_WITHOUT_CAP',
+                'status' => 'PAUSED',
+                'targeting' => json_encode([
+                    'geo_locations' => [
+                        'countries' => [strtoupper($draft->location ?? 'TR')],
+                    ],
+                ]),
+            ];
+
+            $adSetResponse = $this->graphClient->postObject(
+                apiVersion: 'v20.0',
+                path: "{$normalizedAccountId}/adsets",
+                accessToken: $accessToken,
+                data: $adSetData,
+            );
+
+            $metaAdSetId = $adSetResponse['body']['id'] ?? null;
+
+            return [
+                'success' => true,
+                'status' => 'published',
+                'message' => 'Kampanya ve ad set Meta Ads Manager\'da PAUSED olarak olusturuldu.',
+                'meta_reference' => [
+                    'campaign_id' => $metaCampaignId,
+                    'ad_set_id' => $metaAdSetId,
+                ],
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'status' => 'error',
+                'message' => 'Meta API hatasi: ' . $e->getMessage(),
+                'meta_reference' => null,
+            ];
+        }
     }
 
     private function shouldUseStubMode(): bool
