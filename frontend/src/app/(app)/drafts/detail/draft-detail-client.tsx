@@ -109,6 +109,11 @@ export function DraftDetailClient() {
 
   const applyApprovalRemediation = async (mode: "manual_check_completed" | "retry_publish") => {
     const approvalId = draft?.approval?.id;
+    const actedClusterKey = deriveApprovalClusterKey(currentRecommendedAction);
+    const shouldTrackRemediation =
+      Boolean(focusSource?.startsWith("approvals"))
+      && Boolean(focusClusterKey)
+      && Boolean(actedClusterKey);
 
     if (!approvalId) {
       setActionError("Approval baglantisi bulunamadi.");
@@ -139,12 +144,44 @@ export function DraftDetailClient() {
             note: notePayload,
           },
         });
+        if (shouldTrackRemediation && focusClusterKey && actedClusterKey) {
+          await apiRequest("/approvals/remediation-analytics/track", {
+            method: "POST",
+            requireWorkspace: true,
+            body: {
+              featured_cluster_key: focusClusterKey,
+              acted_cluster_key: actedClusterKey,
+              interaction_type: "manual_check_completed",
+              interaction_source: focusSource ?? "draft_detail",
+              followed_featured: focusClusterKey === actedClusterKey,
+              attempted_count: 0,
+              success_count: 0,
+              failure_count: 0,
+            },
+          });
+        }
         setRemediationMessage("Manuel kontrol tamamlandi. Publish aksiyonu tekrar denenebilir.");
       } else {
         await apiRequest(`/approvals/${approvalId}/publish`, {
           method: "POST",
           requireWorkspace: true,
         });
+        if (shouldTrackRemediation && focusClusterKey && actedClusterKey) {
+          await apiRequest("/approvals/remediation-analytics/track", {
+            method: "POST",
+            requireWorkspace: true,
+            body: {
+              featured_cluster_key: focusClusterKey,
+              acted_cluster_key: actedClusterKey,
+              interaction_type: "publish_retry",
+              interaction_source: focusSource ?? "draft_detail",
+              followed_featured: focusClusterKey === actedClusterKey,
+              attempted_count: 1,
+              success_count: 1,
+              failure_count: 0,
+            },
+          });
+        }
         setRemediationMessage("Tekrar publish denemesi baslatildi.");
       }
 
@@ -172,6 +209,31 @@ export function DraftDetailClient() {
 
       await reload();
     } catch (err) {
+      if (
+        mode === "retry_publish"
+        && shouldTrackRemediation
+        && focusClusterKey
+        && actedClusterKey
+      ) {
+        try {
+          await apiRequest("/approvals/remediation-analytics/track", {
+            method: "POST",
+            requireWorkspace: true,
+            body: {
+              featured_cluster_key: focusClusterKey,
+              acted_cluster_key: actedClusterKey,
+              interaction_type: "publish_retry",
+              interaction_source: focusSource ?? "draft_detail",
+              followed_featured: focusClusterKey === actedClusterKey,
+              attempted_count: 1,
+              success_count: 0,
+              failure_count: 1,
+            },
+          });
+        } catch {
+          // Tracking must not block operator remediation flow.
+        }
+      }
       setActionError(err instanceof Error ? err.message : "Remediation aksiyonu basarisiz.");
     } finally {
       setRemediationSubmitting(false);
@@ -304,19 +366,31 @@ export function DraftDetailClient() {
               <p className="mt-2 text-xs muted-text">Kontrol notu: {draft.approval.publish_state.manual_check_note}</p>
             ) : null}
             {remediationPrimaryAction ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => void applyApprovalRemediation(remediationPrimaryAction.mode)}
-                  disabled={Boolean(remediationSubmitting)}
-                >
-                  {remediationSubmitting && remediationMode === remediationPrimaryAction.mode
-                    ? "Isleniyor..."
-                    : remediationPrimaryAction.label}
-                </Button>
+              <div className="mt-3 rounded-md border border-[var(--accent)]/30 bg-white p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge label="Onerilen Aksiyon" variant="success" />
+                  {focusSource === "approvals_featured" ? (
+                    <Badge label="Featured Karardan Geldi" variant="neutral" />
+                  ) : null}
+                  {focusSource === "approvals_cluster" ? (
+                    <Badge label="Cluster Odagi" variant="neutral" />
+                  ) : null}
+                </div>
+                <p className="mt-2 text-sm font-semibold">{remediationPrimaryAction.label}</p>
                 {remediationPrimaryAction.hint ? (
-                  <span className="self-center text-xs muted-text">{remediationPrimaryAction.hint}</span>
+                  <p className="mt-1 text-xs muted-text">{remediationPrimaryAction.hint}</p>
                 ) : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => void applyApprovalRemediation(remediationPrimaryAction.mode)}
+                    disabled={Boolean(remediationSubmitting)}
+                  >
+                    {remediationSubmitting && remediationMode === remediationPrimaryAction.mode
+                      ? "Isleniyor..."
+                      : remediationPrimaryAction.label}
+                  </Button>
+                </div>
               </div>
             ) : null}
           </div>
@@ -502,6 +576,17 @@ function resolveRemediationPrimaryAction(
   }
 
   return null;
+}
+
+function deriveApprovalClusterKey(recommendedActionCode: string | null): string | null {
+  return (
+    {
+      manual_meta_check: "manual-check-required",
+      retry_publish_after_manual_check: "retry-ready",
+      fix_and_retry_publish: "cleanup-recovered",
+      review_publish_error: "review-error",
+    }[recommendedActionCode ?? ""] ?? null
+  );
 }
 
 function buildApprovalsReturnRoute(

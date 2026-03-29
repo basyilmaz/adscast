@@ -153,6 +153,7 @@ Base path: `/api/v1`
 - `POST /approvals/remediation-analytics/track`
   - featured remediation karti veya cluster aksiyonlari kullanildiginda takip / override ve publish sonucu telemetrisi kaydeder
   - `featured_cluster_key`, `acted_cluster_key`, `interaction_type`, `followed_featured`, `attempted_count`, `success_count`, `failure_count` alanlarini kabul eder
+  - opsiyonel `interaction_source` ile telemetry kaynaginin approvals, featured, cluster veya draft detail odagindan gelip gelmedigi kaydedilebilir
 - `POST /approvals/{approvalId}/approve`
 - `POST /approvals/{approvalId}/reject`
 - `POST /approvals/{approvalId}/manual-check-completed`

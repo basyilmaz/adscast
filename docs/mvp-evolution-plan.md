@@ -356,3 +356,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 117. Draft detail remediation bloguna approvals odagindan gelindiginde manuel kontrol tamamlandi aksiyonunu dogrudan calistiran kisa yol ekleyip operatorun bir tik kazanmasini saglamak
 118. Retry-ready ve cleanup-recovered odagindan acilan draft detail remediation bloguna dogrudan tekrar publish aksiyonu ekleyip approvals -> detail -> publish akislarini kisaltmak
 119. Draft detail uzerinden calistirilan remediation aksiyonlarinda approvals filtreli slice'i, publish failed listesi ve approvals remediation analytics cache'lerini birlikte invalid edip geri donuste stale remediation verisi riskini kapatmak
+120. Draft detail remediation CTA'larini approvals remediation analytics tracking hattina baglayip detail ekraninda tamamlanan ve retry edilen aksiyonlari featured/cluster telemetry'ye geri beslemek
+121. Approvals remediation tracking endpoint'ine opsiyonel interaction_source metadata'si ekleyip telemetry kaynaginin featured, cluster veya draft detail oldugunu audit seviyesinde ayirt edilebilir hale getirmek
+122. Draft detail remediation blogundaki birincil CTA'yi ayri bir onerilen aksiyon yuzeyine tasiyip operatorun focus akisinda dogru karari daha hizli fark etmesini saglamak

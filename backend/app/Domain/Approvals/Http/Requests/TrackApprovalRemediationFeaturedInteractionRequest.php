@@ -42,6 +42,7 @@ class TrackApprovalRemediationFeaturedInteractionRequest extends FormRequest
             'attempted_count' => ['nullable', 'integer', 'min:0'],
             'success_count' => ['nullable', 'integer', 'min:0'],
             'failure_count' => ['nullable', 'integer', 'min:0'],
+            'interaction_source' => ['nullable', 'string', 'max:64'],
         ];
     }
 }
