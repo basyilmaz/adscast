@@ -141,8 +141,13 @@ Base path: `/api/v1`
 - `GET /drafts/{draftId}`
 - `POST /drafts/{draftId}/submit-review`
 - `GET /approvals`
+  - opsiyonel filtreler: `status`, `cleanup_state` (`failed|successful|not_attempted`), `manual_check_state` (`required|completed|not_required`)
+  - approvals index item'lari `publish_state.manual_check_completed`, `manual_check_completed_at` ve `manual_check_note` alanlarini da doner
 - `POST /approvals/{approvalId}/approve`
 - `POST /approvals/{approvalId}/reject`
+- `POST /approvals/{approvalId}/manual-check-completed`
+  - opsiyonel `note` alir
+  - partial publish + cleanup failed approval'larinda manuel kontrolun tamamlandigini isaretler
 - `POST /approvals/{approvalId}/publish`
 
 ## Audit / Settings

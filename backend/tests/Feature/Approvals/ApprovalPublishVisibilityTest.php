@@ -4,6 +4,8 @@ namespace Tests\Feature\Approvals;
 
 use App\Models\Approval;
 use App\Models\CampaignDraft;
+use App\Models\User;
+use App\Models\Workspace;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\TenantSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -46,15 +48,102 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.approval.publish_state.operator_guidance', 'Meta kampanyasi olusmus olabilir. Ads Manager uzerinde meta_campaign_partial kaydini manuel kontrol etmeden tekrar publish denemeyin.');
     }
 
+    public function test_approvals_index_filters_publish_failed_operations_by_cleanup_and_manual_check_state(): void
+    {
+        [$workspaceId, $token, , $requiredApproval] = $this->seedFailedPublishFixture();
+        [, , , $completedApproval] = $this->seedFailedPublishFixture([
+            'product_service' => 'Manuel kontrol tamamlandi',
+            'meta_campaign_id' => 'meta_campaign_completed',
+            'manual_check' => [
+                'completed' => true,
+                'completed_at' => now()->subMinute()->toIso8601String(),
+                'completed_by' => 'user-completed',
+                'note' => 'Meta kontrol edildi.',
+            ],
+        ]);
+        [, , , $cleanupSuccessApproval] = $this->seedFailedPublishFixture([
+            'product_service' => 'Cleanup basarili',
+            'meta_campaign_id' => 'meta_campaign_cleanup_success',
+            'cleanup' => [
+                'attempted' => true,
+                'success' => true,
+                'deleted_campaign_id' => 'meta_campaign_cleanup_success',
+                'message' => 'Deleted.',
+            ],
+        ]);
+
+        $requiredResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->getJson('/api/v1/approvals?status=publish_failed&cleanup_state=failed&manual_check_state=required');
+
+        $requiredResponse->assertOk()
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.id', $requiredApproval->id);
+
+        $completedResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->getJson('/api/v1/approvals?status=publish_failed&manual_check_state=completed');
+
+        $completedResponse->assertOk()
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.id', $completedApproval->id)
+            ->assertJsonPath('data.data.0.publish_state.manual_check_completed', true);
+
+        $cleanupSuccessResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->getJson('/api/v1/approvals?status=publish_failed&cleanup_state=successful');
+
+        $cleanupSuccessResponse->assertOk()
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.id', $cleanupSuccessApproval->id);
+    }
+
+    public function test_manual_check_completion_marks_publish_state_as_retry_ready(): void
+    {
+        [$workspaceId, , $draft, $approval] = $this->seedFailedPublishFixture();
+
+        $loginResponse = $this->postJson('/api/v1/auth/login', [
+            'email' => 'agency.admin@adscast.test',
+            'password' => 'Password123!',
+            'device_name' => 'phpunit-manual-check',
+        ]);
+
+        $token = $loginResponse->json('token');
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->postJson("/api/v1/approvals/{$approval->id}/manual-check-completed", [
+                'note' => 'Meta tarafinda kampanya kaydi kontrol edildi.',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.id', $approval->id)
+            ->assertJsonPath('data.publish_state.manual_check_required', false)
+            ->assertJsonPath('data.publish_state.manual_check_completed', true)
+            ->assertJsonPath('data.publish_state.manual_check_note', 'Meta tarafinda kampanya kaydi kontrol edildi.')
+            ->assertJsonPath('data.publish_state.recommended_action_code', 'retry_publish_after_manual_check');
+
+        $detailResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->getJson("/api/v1/drafts/{$draft->id}");
+
+        $detailResponse->assertOk()
+            ->assertJsonPath('data.approval.publish_state.manual_check_completed', true)
+            ->assertJsonPath('data.approval.publish_state.manual_check_note', 'Meta tarafinda kampanya kaydi kontrol edildi.')
+            ->assertJsonPath('data.approval.publish_state.operator_guidance', 'Manuel kontrol tamamlandi. Gerekli duzeltmeleri yaptiysaniz publish islemini tekrar deneyebilirsiniz.');
+    }
+
     /**
      * @return array{0: string, 1: string, 2: CampaignDraft, 3: Approval}
      */
-    private function seedFailedPublishFixture(): array
+    private function seedFailedPublishFixture(array $overrides = []): array
     {
-        $this->seed([
-            RolePermissionSeeder::class,
-            TenantSeeder::class,
-        ]);
+        if (! User::query()->where('email', 'account.manager@adscast.test')->exists()) {
+            $this->seed([
+                RolePermissionSeeder::class,
+                TenantSeeder::class,
+            ]);
+        }
 
         $loginResponse = $this->postJson('/api/v1/auth/login', [
             'email' => 'account.manager@adscast.test',
@@ -63,28 +152,37 @@ class ApprovalPublishVisibilityTest extends TestCase
         ]);
 
         $token = $loginResponse->json('token');
-        $workspaceId = $loginResponse->json('workspaces.0.id');
+        $workspaceId = Workspace::query()
+            ->where('slug', 'operations-main')
+            ->value('id');
+
+        $metaCampaignId = $overrides['meta_campaign_id'] ?? 'meta_campaign_partial';
+        $publishMetadata = [
+            'success' => false,
+            'status' => 'error',
+            'message' => 'Meta API hatasi: Invalid targeting payload.',
+            'meta_reference' => [
+                'campaign_id' => $metaCampaignId,
+                'ad_set_id' => null,
+            ],
+            'cleanup' => $overrides['cleanup'] ?? [
+                'attempted' => true,
+                'success' => false,
+                'deleted_campaign_id' => $metaCampaignId,
+                'message' => 'Delete failed.',
+            ],
+        ];
+
+        if (array_key_exists('manual_check', $overrides)) {
+            $publishMetadata['manual_check'] = $overrides['manual_check'];
+        }
 
         $draft = CampaignDraft::factory()->create([
             'workspace_id' => $workspaceId,
             'objective' => 'LEADS',
-            'product_service' => 'Meta cleanup testi',
+            'product_service' => $overrides['product_service'] ?? 'Meta cleanup testi',
             'status' => 'publish_failed',
-            'publish_response_metadata' => [
-                'success' => false,
-                'status' => 'error',
-                'message' => 'Meta API hatasi: Invalid targeting payload.',
-                'meta_reference' => [
-                    'campaign_id' => 'meta_campaign_partial',
-                    'ad_set_id' => null,
-                ],
-                'cleanup' => [
-                    'attempted' => true,
-                    'success' => false,
-                    'deleted_campaign_id' => 'meta_campaign_partial',
-                    'message' => 'Delete failed.',
-                ],
-            ],
+            'publish_response_metadata' => $publishMetadata,
         ]);
 
         $approval = Approval::query()->create([

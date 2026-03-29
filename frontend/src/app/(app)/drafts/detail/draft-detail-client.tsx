@@ -39,6 +39,10 @@ type DraftDetailResponse = {
         cleanup_success: boolean | null;
         cleanup_message: string | null;
         manual_check_required: boolean;
+        manual_check_completed: boolean;
+        manual_check_completed_at: string | null;
+        manual_check_completed_by: string | null;
+        manual_check_note: string | null;
         recommended_action_code: string | null;
         recommended_action_label: string | null;
         operator_guidance: string | null;
@@ -119,6 +123,8 @@ export function DraftDetailClient() {
                 label={
                   draft.approval.publish_state.manual_check_required
                     ? "Manuel Kontrol Gerekli"
+                    : draft.approval.publish_state.manual_check_completed
+                      ? "Manuel Kontrol Tamamlandi"
                     : draft.approval.publish_state.partial_publish_detected
                       ? "Partial Publish Tespit Edildi"
                       : draft.approval.publish_state.success
@@ -128,6 +134,8 @@ export function DraftDetailClient() {
                 variant={
                   draft.approval.publish_state.manual_check_required
                     ? "danger"
+                    : draft.approval.publish_state.manual_check_completed
+                      ? "success"
                     : draft.approval.publish_state.success
                       ? "success"
                       : "warning"
@@ -145,8 +153,14 @@ export function DraftDetailClient() {
               {draft.approval.publish_state.cleanup_attempted ? (
                 <span>Cleanup: <strong>{draft.approval.publish_state.cleanup_success ? "Basarili" : "Basarisiz"}</strong></span>
               ) : null}
+              {draft.approval.publish_state.manual_check_completed_at ? (
+                <span>Kontrol: <strong>{new Date(draft.approval.publish_state.manual_check_completed_at).toLocaleString("tr-TR")}</strong></span>
+              ) : null}
             </div>
             {draft.approval.publish_state.cleanup_message ? <p className="mt-2 text-xs text-[var(--danger)]">{draft.approval.publish_state.cleanup_message}</p> : null}
+            {draft.approval.publish_state.manual_check_note ? (
+              <p className="mt-2 text-xs muted-text">Kontrol notu: {draft.approval.publish_state.manual_check_note}</p>
+            ) : null}
           </div>
         ) : null}
 

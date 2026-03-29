@@ -49,7 +49,8 @@ class ApprovalPayloadPresenter
         $metaCampaignId = data_get($metadata, 'meta_reference.campaign_id');
         $metaAdSetId = data_get($metadata, 'meta_reference.ad_set_id');
         $partialPublishDetected = filled($metaCampaignId) && ! $success;
-        $manualCheckRequired = $partialPublishDetected && $cleanupAttempted && $cleanupSuccess === false;
+        $manualCheckCompleted = (bool) data_get($metadata, 'manual_check.completed', false);
+        $manualCheckRequired = $partialPublishDetected && $cleanupAttempted && $cleanupSuccess === false && ! $manualCheckCompleted;
 
         return [
             'status' => data_get($metadata, 'status'),
@@ -62,16 +63,30 @@ class ApprovalPayloadPresenter
             'cleanup_success' => $cleanupSuccess,
             'cleanup_message' => data_get($metadata, 'cleanup.message'),
             'manual_check_required' => $manualCheckRequired,
-            'recommended_action_code' => $this->recommendedActionCode($manualCheckRequired, $partialPublishDetected, $cleanupSuccess, $success),
-            'recommended_action_label' => $this->recommendedActionLabel($manualCheckRequired, $partialPublishDetected, $cleanupSuccess, $success),
-            'operator_guidance' => $this->operatorGuidance($manualCheckRequired, $partialPublishDetected, $cleanupSuccess, $success, $metaCampaignId),
+            'manual_check_completed' => $manualCheckCompleted,
+            'manual_check_completed_at' => data_get($metadata, 'manual_check.completed_at'),
+            'manual_check_completed_by' => data_get($metadata, 'manual_check.completed_by'),
+            'manual_check_note' => data_get($metadata, 'manual_check.note'),
+            'recommended_action_code' => $this->recommendedActionCode($manualCheckRequired, $manualCheckCompleted, $partialPublishDetected, $cleanupSuccess, $success),
+            'recommended_action_label' => $this->recommendedActionLabel($manualCheckRequired, $manualCheckCompleted, $partialPublishDetected, $cleanupSuccess, $success),
+            'operator_guidance' => $this->operatorGuidance($manualCheckRequired, $manualCheckCompleted, $partialPublishDetected, $cleanupSuccess, $success, $metaCampaignId),
         ];
     }
 
-    private function recommendedActionCode(bool $manualCheckRequired, bool $partialPublishDetected, ?bool $cleanupSuccess, mixed $success): ?string
+    private function recommendedActionCode(
+        bool $manualCheckRequired,
+        bool $manualCheckCompleted,
+        bool $partialPublishDetected,
+        ?bool $cleanupSuccess,
+        mixed $success,
+    ): ?string
     {
         if ($manualCheckRequired) {
             return 'manual_meta_check';
+        }
+
+        if ($manualCheckCompleted && $success === false) {
+            return 'retry_publish_after_manual_check';
         }
 
         if ($partialPublishDetected && $cleanupSuccess === true) {
@@ -85,10 +100,20 @@ class ApprovalPayloadPresenter
         return null;
     }
 
-    private function recommendedActionLabel(bool $manualCheckRequired, bool $partialPublishDetected, ?bool $cleanupSuccess, mixed $success): ?string
+    private function recommendedActionLabel(
+        bool $manualCheckRequired,
+        bool $manualCheckCompleted,
+        bool $partialPublishDetected,
+        ?bool $cleanupSuccess,
+        mixed $success,
+    ): ?string
     {
         if ($manualCheckRequired) {
             return 'Meta uzerinde manuel kontrol yap';
+        }
+
+        if ($manualCheckCompleted && $success === false) {
+            return 'Kontrol sonrasi tekrar publish dene';
         }
 
         if ($partialPublishDetected && $cleanupSuccess === true) {
@@ -102,13 +127,24 @@ class ApprovalPayloadPresenter
         return null;
     }
 
-    private function operatorGuidance(bool $manualCheckRequired, bool $partialPublishDetected, ?bool $cleanupSuccess, mixed $success, ?string $metaCampaignId): ?string
+    private function operatorGuidance(
+        bool $manualCheckRequired,
+        bool $manualCheckCompleted,
+        bool $partialPublishDetected,
+        ?bool $cleanupSuccess,
+        mixed $success,
+        ?string $metaCampaignId,
+    ): ?string
     {
         if ($manualCheckRequired) {
             return sprintf(
                 'Meta kampanyasi olusmus olabilir. Ads Manager uzerinde %s kaydini manuel kontrol etmeden tekrar publish denemeyin.',
                 $metaCampaignId ?: 'ilgili kampanya'
             );
+        }
+
+        if ($manualCheckCompleted && $success === false) {
+            return 'Manuel kontrol tamamlandi. Gerekli duzeltmeleri yaptiysaniz publish islemini tekrar deneyebilirsiniz.';
         }
 
         if ($partialPublishDetected && $cleanupSuccess === true) {

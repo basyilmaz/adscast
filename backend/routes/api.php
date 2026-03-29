@@ -171,6 +171,8 @@ Route::prefix('v1')->group(function (): void {
                 ->middleware('workspace.permission:approvals.review');
             Route::post('/approvals/{approvalId}/reject', [ApprovalController::class, 'reject'])
                 ->middleware('workspace.permission:approvals.review');
+            Route::post('/approvals/{approvalId}/manual-check-completed', [ApprovalController::class, 'completeManualCheck'])
+                ->middleware('workspace.permission:approvals.review');
             Route::post('/approvals/{approvalId}/publish', [ApprovalController::class, 'publish'])
                 ->middleware('workspace.permission:approvals.publish');
 

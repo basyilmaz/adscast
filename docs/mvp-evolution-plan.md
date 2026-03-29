@@ -328,3 +328,5 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 89. Meta draft publish akisina partial publish cleanup guvenligi ekleyip kampanya olusup ad set dusen durumlarda rollback denemesi ve cleanup metadata'si eklemek
 90. Cleanup failed ve partial publish metadata'sini approvals index payload'inda okunur hale getirip operatoru manuel kontrol veya tekrar publish aksiyonuna yonlendirmek
 91. Ayni publish metadata'sini draft detail ekranina tasiyip operatorun draft seviyesinde cleanup, partial publish ve guidance bilgisini gorebilmesini saglamak
+92. Approvals ekranina status, cleanup ve manual check filtreleri ekleyip publish_failed operasyonlarini tek kuyrukta yonetilebilir hale getirmek
+93. Partial publish + cleanup failed approval'larinda manuel kontrol tamamlandi isaretleme akisini ekleyip publish metadata'sini retry-ready duruma gecirmek

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Approvals\Http\Controllers;
 
+use App\Domain\Approvals\Http\Requests\CompleteApprovalManualCheckRequest;
 use App\Domain\Approvals\Services\ApprovalPayloadPresenter;
 use App\Domain\Audit\Services\AuditLogService;
 use App\Domain\Meta\Services\MetaAdapterFactory;
@@ -10,6 +11,7 @@ use App\Models\Approval;
 use App\Models\CampaignDraft;
 use App\Models\MetaConnection;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 
 class ApprovalController
@@ -25,19 +27,30 @@ class ApprovalController
     {
         $workspaceId = app(WorkspaceContext::class)->getWorkspaceId();
 
-        $query = Approval::query()
+        $approvals = Approval::query()
             ->where('workspace_id', $workspaceId)
             ->with('approvable')
-            ->latest();
+            ->latest()
+            ->get()
+            ->map(fn (Approval $approval): array => $this->approvalPayloadPresenter->present($approval))
+            ->filter(fn (array $approval): bool => $this->matchesFilters($approval, $request))
+            ->values();
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->string('status')->toString());
-        }
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $perPage = 20;
+        $paginator = new LengthAwarePaginator(
+            $approvals->forPage($page, $perPage)->values(),
+            $approvals->count(),
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ],
+        );
 
         return new JsonResponse([
-            'data' => $query
-                ->paginate(20)
-                ->through(fn (Approval $approval): array => $this->approvalPayloadPresenter->present($approval)),
+            'data' => $paginator,
         ]);
     }
 
@@ -210,6 +223,65 @@ class ApprovalController
         ]);
     }
 
+    public function completeManualCheck(CompleteApprovalManualCheckRequest $request, string $approvalId): JsonResponse
+    {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+        $workspaceId = $workspace->id;
+        $user = $request->user();
+
+        /** @var Approval $approval */
+        $approval = Approval::query()
+            ->where('workspace_id', $workspaceId)
+            ->with('approvable')
+            ->findOrFail($approvalId);
+
+        $metadata = is_array($approval->publish_response_metadata) ? $approval->publish_response_metadata : [];
+        $publishState = $this->approvalPayloadPresenter->present($approval)['publish_state'];
+
+        if (! is_array($publishState) || ! ($publishState['manual_check_required'] ?? false)) {
+            return new JsonResponse([
+                'message' => 'Bu approval icin bekleyen manuel kontrol gereksinimi yok.',
+                'error_code' => 'manual_check_not_required',
+            ], 422);
+        }
+
+        data_set($metadata, 'manual_check.completed', true);
+        data_set($metadata, 'manual_check.completed_at', now()->toIso8601String());
+        data_set($metadata, 'manual_check.completed_by', $user?->id);
+        data_set($metadata, 'manual_check.note', $request->validated('note'));
+
+        $approval->forceFill([
+            'publish_response_metadata' => $metadata,
+        ])->save();
+
+        if ($approval->approvable_type === CampaignDraft::class) {
+            CampaignDraft::query()
+                ->whereKey($approval->approvable_id)
+                ->update([
+                    'publish_response_metadata' => $metadata,
+                ]);
+        }
+
+        $this->auditLogService->log(
+            actor: $user,
+            action: 'approval_manual_check_completed',
+            targetType: 'approval',
+            targetId: $approval->id,
+            organizationId: $workspace->organization_id,
+            workspaceId: $workspace->id,
+            request: $request,
+            metadata: [
+                'note' => $request->validated('note'),
+                'meta_campaign_id' => data_get($metadata, 'meta_reference.campaign_id'),
+            ],
+        );
+
+        return new JsonResponse([
+            'message' => 'Manuel kontrol tamamlandi olarak isaretlendi.',
+            'data' => $this->approvalPayloadPresenter->present($approval->fresh(['approvable'])),
+        ]);
+    }
+
     private function syncApprovableStatus(
         Approval $approval,
         string $status,
@@ -233,5 +305,56 @@ class ApprovalController
             'reviewed_at' => now(),
             'rejected_reason' => $rejectionReason,
         ])->save();
+    }
+
+    /**
+     * @param array<string, mixed> $approval
+     */
+    private function matchesFilters(array $approval, Request $request): bool
+    {
+        $status = $request->string('status')->toString();
+        if ($status !== '' && ($approval['status'] ?? null) !== $status) {
+            return false;
+        }
+
+        /** @var array<string, mixed>|null $publishState */
+        $publishState = $approval['publish_state'] ?? null;
+        $cleanupState = $request->string('cleanup_state')->toString();
+        if ($cleanupState !== '' && ! $this->matchesCleanupState($cleanupState, $publishState)) {
+            return false;
+        }
+
+        $manualCheckState = $request->string('manual_check_state')->toString();
+        if ($manualCheckState !== '' && ! $this->matchesManualCheckState($manualCheckState, $publishState)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed>|null $publishState
+     */
+    private function matchesCleanupState(string $cleanupState, ?array $publishState): bool
+    {
+        return match ($cleanupState) {
+            'failed' => (bool) ($publishState['cleanup_attempted'] ?? false) && ($publishState['cleanup_success'] ?? null) === false,
+            'successful' => (bool) ($publishState['cleanup_attempted'] ?? false) && ($publishState['cleanup_success'] ?? null) === true,
+            'not_attempted' => ! ($publishState['cleanup_attempted'] ?? false),
+            default => true,
+        };
+    }
+
+    /**
+     * @param array<string, mixed>|null $publishState
+     */
+    private function matchesManualCheckState(string $manualCheckState, ?array $publishState): bool
+    {
+        return match ($manualCheckState) {
+            'required' => (bool) ($publishState['manual_check_required'] ?? false),
+            'completed' => (bool) ($publishState['manual_check_completed'] ?? false),
+            'not_required' => ! ($publishState['manual_check_required'] ?? false) && ! ($publishState['manual_check_completed'] ?? false),
+            default => true,
+        };
     }
 }
