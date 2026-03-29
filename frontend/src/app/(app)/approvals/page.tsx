@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -183,21 +184,59 @@ type QuickCluster = {
 };
 
 export default function ApprovalsPage() {
+  return (
+    <Suspense
+      fallback={
+        <Card>
+          <div>
+            <h2 className="text-lg font-semibold">Approval Operasyonlari</h2>
+            <p className="mt-2 text-sm muted-text">Approvals analytics yukleniyor.</p>
+          </div>
+        </Card>
+      }
+    >
+      <ApprovalsPageRouteState />
+    </Suspense>
+  );
+}
+
+function ApprovalsPageRouteState() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  return (
+    <ApprovalsPageContent
+      key={searchParams.toString()}
+      pathname={pathname}
+      search={searchParams.toString()}
+    />
+  );
+}
+
+function ApprovalsPageContent({
+  pathname,
+  search,
+}: {
+  pathname: string;
+  search: string;
+}) {
+  const router = useRouter();
+  const initialRouteState = readApprovalsRouteState(search);
   const [statusFilter, setStatusFilter] =
-    useState<(typeof STATUS_FILTER_OPTIONS)[number]["value"]>("all");
+    useState<(typeof STATUS_FILTER_OPTIONS)[number]["value"]>(initialRouteState.statusFilter);
   const [cleanupFilter, setCleanupFilter] =
-    useState<(typeof CLEANUP_FILTER_OPTIONS)[number]["value"]>("all");
+    useState<(typeof CLEANUP_FILTER_OPTIONS)[number]["value"]>(initialRouteState.cleanupFilter);
   const [manualCheckFilter, setManualCheckFilter] =
-    useState<(typeof MANUAL_CHECK_FILTER_OPTIONS)[number]["value"]>("all");
+    useState<(typeof MANUAL_CHECK_FILTER_OPTIONS)[number]["value"]>(initialRouteState.manualCheckFilter);
   const [recommendedActionFilter, setRecommendedActionFilter] =
-    useState<(typeof RECOMMENDED_ACTION_FILTER_OPTIONS)[number]["value"]>("all");
+    useState<(typeof RECOMMENDED_ACTION_FILTER_OPTIONS)[number]["value"]>(initialRouteState.recommendedActionFilter);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
   const [bulkPublishing, setBulkPublishing] = useState(false);
   const [focusedApprovalId, setFocusedApprovalId] = useState<string | null>(null);
   const [analyticsWindowDays, setAnalyticsWindowDays] =
-    useState<(typeof ANALYTICS_WINDOW_OPTIONS)[number]["value"]>(30);
+    useState<(typeof ANALYTICS_WINDOW_OPTIONS)[number]["value"]>(initialRouteState.analyticsWindowDays);
 
   const approvalsPath = useMemo(() => {
     const params = new URLSearchParams();
@@ -366,6 +405,35 @@ export default function ApprovalsPage() {
       : status === "rejected" || status === "publish_failed"
         ? "danger"
         : "warning";
+
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+
+    syncApprovalRouteQuery(params, {
+      statusFilter,
+      cleanupFilter,
+      manualCheckFilter,
+      recommendedActionFilter,
+      analyticsWindowDays,
+    });
+
+    const nextQuery = params.toString();
+
+    if (nextQuery === search) {
+      return;
+    }
+
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+  }, [
+    analyticsWindowDays,
+    cleanupFilter,
+    manualCheckFilter,
+    pathname,
+    recommendedActionFilter,
+    router,
+    search,
+    statusFilter,
+  ]);
 
   useEffect(() => {
     const visibleIds = new Set(items.map((item) => item.id));
@@ -1447,4 +1515,93 @@ function effectivenessStatusVariant(status: string): "success" | "warning" | "da
   };
 
   return variants[status] ?? "neutral";
+}
+
+function readApprovalsRouteState(search: string): {
+  statusFilter: (typeof STATUS_FILTER_OPTIONS)[number]["value"];
+  cleanupFilter: (typeof CLEANUP_FILTER_OPTIONS)[number]["value"];
+  manualCheckFilter: (typeof MANUAL_CHECK_FILTER_OPTIONS)[number]["value"];
+  recommendedActionFilter: (typeof RECOMMENDED_ACTION_FILTER_OPTIONS)[number]["value"];
+  analyticsWindowDays: (typeof ANALYTICS_WINDOW_OPTIONS)[number]["value"];
+} {
+  const params = new URLSearchParams(search);
+
+  return {
+    statusFilter: resolveStringOption(params.get("status"), STATUS_FILTER_OPTIONS, "all"),
+    cleanupFilter: resolveStringOption(params.get("cleanup_state"), CLEANUP_FILTER_OPTIONS, "all"),
+    manualCheckFilter: resolveStringOption(params.get("manual_check_state"), MANUAL_CHECK_FILTER_OPTIONS, "all"),
+    recommendedActionFilter: resolveStringOption(
+      params.get("recommended_action_code"),
+      RECOMMENDED_ACTION_FILTER_OPTIONS,
+      "all",
+    ),
+    analyticsWindowDays: resolveNumberOption(params.get("window_days"), ANALYTICS_WINDOW_OPTIONS, 30),
+  };
+}
+
+function syncApprovalRouteQuery(
+  params: URLSearchParams,
+  state: {
+    statusFilter: (typeof STATUS_FILTER_OPTIONS)[number]["value"];
+    cleanupFilter: (typeof CLEANUP_FILTER_OPTIONS)[number]["value"];
+    manualCheckFilter: (typeof MANUAL_CHECK_FILTER_OPTIONS)[number]["value"];
+    recommendedActionFilter: (typeof RECOMMENDED_ACTION_FILTER_OPTIONS)[number]["value"];
+    analyticsWindowDays: (typeof ANALYTICS_WINDOW_OPTIONS)[number]["value"];
+  },
+): void {
+  setOrDeleteQueryValue(params, "status", state.statusFilter, "all");
+  setOrDeleteQueryValue(params, "cleanup_state", state.cleanupFilter, "all");
+  setOrDeleteQueryValue(params, "manual_check_state", state.manualCheckFilter, "all");
+  setOrDeleteQueryValue(params, "recommended_action_code", state.recommendedActionFilter, "all");
+  setOrDeleteNumberQueryValue(params, "window_days", state.analyticsWindowDays, 30);
+}
+
+function resolveStringOption<T extends string>(
+  rawValue: string | null,
+  options: ReadonlyArray<{ value: T }>,
+  fallback: T,
+): T {
+  if (! rawValue) {
+    return fallback;
+  }
+
+  return options.some((option) => option.value === rawValue) ? (rawValue as T) : fallback;
+}
+
+function resolveNumberOption<T extends number>(
+  rawValue: string | null,
+  options: ReadonlyArray<{ value: T }>,
+  fallback: T,
+): T {
+  const parsedValue = Number(rawValue);
+
+  return options.some((option) => option.value === parsedValue) ? (parsedValue as T) : fallback;
+}
+
+function setOrDeleteQueryValue(
+  params: URLSearchParams,
+  key: string,
+  value: string,
+  fallback: string,
+): void {
+  if (value === fallback) {
+    params.delete(key);
+    return;
+  }
+
+  params.set(key, value);
+}
+
+function setOrDeleteNumberQueryValue(
+  params: URLSearchParams,
+  key: string,
+  value: number,
+  fallback: number,
+): void {
+  if (value === fallback) {
+    params.delete(key);
+    return;
+  }
+
+  params.set(key, String(value));
 }

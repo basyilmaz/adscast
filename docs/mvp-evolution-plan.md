@@ -348,3 +348,5 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 109. Approvals remediation analytics icin 7/30/90 gunluk secilebilir pencere ekleyip operatorun featured karari farkli zaman araliklarinda karsilastirabilmesini saglamak
 110. Remediation cluster'larini effectiveness score ve status ile derecelendirip publish toparlama kapasitesini yalnizca ham success-rate yerine backlog ve takip sinyaliyle de olcmek
 111. Featured remediation kararini manual attention sonrasinda effectiveness destekli adaptif secime tasiyip approvals ekraninda neden o cluster'in one ciktigini daha acik hale getirmek
+112. Approvals remediation analytics penceresini approvals route query state'ine baglayip operatorun 7/30/90 gun secimini URL uzerinden kalici ve paylasilabilir hale getirmek
+113. Approvals sayfasini query'den hydrate olup ayni query'ye geri yazan route-state modeline tasiyarak featured remediation ve filtre baglamini sayfa yenileme ve derin linklerde kaybetmemek
