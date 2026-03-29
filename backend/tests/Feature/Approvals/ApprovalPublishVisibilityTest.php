@@ -246,6 +246,66 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.featured_recommendation.action_mode', 'bulk_retry_publish');
     }
 
+    public function test_featured_remediation_tracking_updates_follow_and_success_metrics(): void
+    {
+        [$workspaceId, $token] = $this->seedFailedPublishFixture([
+            'product_service' => 'Retry hazir tracking',
+            'meta_campaign_id' => 'meta_campaign_retry_tracking',
+            'manual_check' => [
+                'completed' => true,
+                'completed_at' => now()->subMinutes(5)->toIso8601String(),
+                'completed_by' => 'analytics-user',
+                'note' => 'Kontrol tamam.',
+            ],
+        ]);
+
+        $followedResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->postJson('/api/v1/approvals/remediation-analytics/track', [
+                'featured_cluster_key' => 'retry-ready',
+                'acted_cluster_key' => 'retry-ready',
+                'interaction_type' => 'bulk_retry_publish',
+                'followed_featured' => true,
+                'attempted_count' => 2,
+                'success_count' => 1,
+                'failure_count' => 1,
+            ]);
+
+        $followedResponse->assertOk();
+
+        $overrideResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->postJson('/api/v1/approvals/remediation-analytics/track', [
+                'featured_cluster_key' => 'retry-ready',
+                'acted_cluster_key' => 'review-error',
+                'interaction_type' => 'focus_cluster',
+                'followed_featured' => false,
+                'attempted_count' => 0,
+                'success_count' => 0,
+                'failure_count' => 0,
+            ]);
+
+        $overrideResponse->assertOk();
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->getJson('/api/v1/approvals/remediation-analytics');
+
+        $response->assertOk()
+            ->assertJsonPath('data.summary.tracked_featured_interactions', 2)
+            ->assertJsonPath('data.summary.followed_featured_interactions', 1)
+            ->assertJsonPath('data.summary.override_featured_interactions', 1)
+            ->assertJsonPath('data.summary.featured_publish_attempts', 2)
+            ->assertJsonPath('data.summary.successful_featured_publishes', 1)
+            ->assertJsonPath('data.summary.featured_follow_rate', 50)
+            ->assertJsonPath('data.summary.featured_publish_success_rate', 50)
+            ->assertJsonPath('data.featured_recommendation.featured_interactions', 2)
+            ->assertJsonPath('data.featured_recommendation.featured_followed_interactions', 1)
+            ->assertJsonPath('data.featured_recommendation.featured_override_interactions', 1)
+            ->assertJsonPath('data.featured_recommendation.featured_publish_attempts', 2)
+            ->assertJsonPath('data.featured_recommendation.featured_publish_success_rate', 50);
+    }
+
     /**
      * @return array{0: string, 1: string, 2: CampaignDraft, 3: Approval}
      */

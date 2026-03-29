@@ -3,6 +3,7 @@
 namespace App\Domain\Approvals\Http\Controllers;
 
 use App\Domain\Approvals\Http\Requests\CompleteApprovalManualCheckRequest;
+use App\Domain\Approvals\Http\Requests\TrackApprovalRemediationFeaturedInteractionRequest;
 use App\Domain\Approvals\Services\ApprovalRemediationAnalyticsService;
 use App\Domain\Approvals\Services\ApprovalPayloadPresenter;
 use App\Domain\Audit\Services\AuditLogService;
@@ -62,6 +63,28 @@ class ApprovalController
 
         return new JsonResponse([
             'data' => $this->approvalRemediationAnalyticsService->build($workspaceId),
+        ]);
+    }
+
+    public function trackFeaturedRemediationInteraction(
+        TrackApprovalRemediationFeaturedInteractionRequest $request,
+    ): JsonResponse {
+        $workspace = app(WorkspaceContext::class)->getWorkspace();
+        $validated = $request->validated();
+
+        $this->auditLogService->log(
+            actor: $request->user(),
+            action: 'approval_featured_remediation_tracked',
+            targetType: 'approval_remediation',
+            targetId: $validated['acted_cluster_key'],
+            organizationId: $workspace->organization_id,
+            workspaceId: $workspace->id,
+            request: $request,
+            metadata: $validated,
+        );
+
+        return new JsonResponse([
+            'message' => 'Featured remediation etkilesimi kaydedildi.',
         ]);
     }
 

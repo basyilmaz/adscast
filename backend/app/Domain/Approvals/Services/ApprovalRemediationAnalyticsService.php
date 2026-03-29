@@ -16,6 +16,7 @@ class ApprovalRemediationAnalyticsService
     /**
      * @return array{
      *     summary: array<string, mixed>,
+     *     featured_recommendation: array<string, mixed>|null,
      *     items: array<int, array<string, mixed>>
      * }
      */
@@ -30,21 +31,33 @@ class ApprovalRemediationAnalyticsService
 
         $auditLogs = AuditLog::query()
             ->where('workspace_id', $workspaceId)
-            ->where('target_type', 'approval')
-            ->whereIn('action', ['approval_manual_check_completed', 'publish_attempted'])
+            ->where(function ($query): void {
+                $query
+                    ->where('target_type', 'approval')
+                    ->whereIn('action', ['approval_manual_check_completed', 'publish_attempted'])
+                    ->orWhere(function ($nested): void {
+                        $nested
+                            ->where('target_type', 'approval_remediation')
+                            ->where('action', 'approval_featured_remediation_tracked');
+                    });
+            })
             ->where('occurred_at', '>=', now()->subDays($windowDays))
             ->latest('occurred_at')
             ->get();
 
+        $featuredInteractionLogs = $auditLogs->where('action', 'approval_featured_remediation_tracked');
+
         $clusterDefinitions = collect($this->clusterDefinitions());
 
         $items = $clusterDefinitions
-            ->map(function (array $cluster) use ($presentedApprovals, $auditLogs): array {
+            ->map(function (array $cluster) use ($presentedApprovals, $auditLogs, $featuredInteractionLogs): array {
                 $currentItems = $presentedApprovals
                     ->filter(fn (array $approval): bool => $this->matchesCluster($approval, $cluster['recommended_action_code']));
 
                 $clusterLogs = $auditLogs
                     ->filter(fn (AuditLog $log): bool => data_get($log->metadata, 'remediation_context.cluster_key') === $cluster['key']);
+
+                $featuredMetrics = $this->featuredMetricsForCluster($featuredInteractionLogs, $cluster['key']);
 
                 $manualChecks = $clusterLogs->where('action', 'approval_manual_check_completed');
                 $publishAttempts = $clusterLogs->where('action', 'publish_attempted');
@@ -77,6 +90,7 @@ class ApprovalRemediationAnalyticsService
                     'health_status' => $this->healthStatus($cluster['recommended_action_code'], $currentItems->count(), $publishAttempts->count(), $successfulPublishes->count()),
                     'health_summary' => $this->healthSummary($cluster['recommended_action_code'], $currentItems->count(), $publishAttempts->count(), $successfulPublishes->count()),
                     'route' => $route,
+                    ...$featuredMetrics,
                 ];
             })
             ->sortByDesc(fn (array $item): int => $item['current_items'] * 1000 + $item['publish_attempts'] * 10 + $item['manual_check_completions'])
@@ -88,6 +102,7 @@ class ApprovalRemediationAnalyticsService
             ->first();
 
         $featuredRecommendation = $this->buildFeaturedRecommendation($items, $topWorkingCluster);
+        $featuredSummary = $this->featuredSummary($featuredInteractionLogs);
 
         return [
             'summary' => [
@@ -107,6 +122,7 @@ class ApprovalRemediationAnalyticsService
                     ->count(),
                 'top_working_cluster_label' => $topWorkingCluster['label'] ?? null,
                 'featured_cluster_label' => $featuredRecommendation['label'] ?? null,
+                ...$featuredSummary,
                 'window_days' => $windowDays,
             ],
             'featured_recommendation' => $featuredRecommendation,
@@ -243,6 +259,75 @@ class ApprovalRemediationAnalyticsService
             'action_mode' => in_array($fallback['cluster_key'], ['retry-ready', 'cleanup-recovered'], true)
                 ? 'bulk_retry_publish'
                 : 'focus_cluster',
+        ];
+    }
+
+    /**
+     * @param Collection<int, AuditLog> $featuredInteractionLogs
+     * @return array<string, int|float|null>
+     */
+    private function featuredSummary(Collection $featuredInteractionLogs): array
+    {
+        $trackedInteractions = $featuredInteractionLogs->count();
+        $followedInteractions = $featuredInteractionLogs
+            ->filter(fn (AuditLog $log): bool => (bool) data_get($log->metadata, 'followed_featured', false))
+            ->count();
+        $overrideInteractions = $trackedInteractions - $followedInteractions;
+        $publishAttempts = $featuredInteractionLogs->sum(
+            fn (AuditLog $log): int => (int) data_get($log->metadata, 'attempted_count', 0),
+        );
+        $successfulPublishes = $featuredInteractionLogs->sum(
+            fn (AuditLog $log): int => (int) data_get($log->metadata, 'success_count', 0),
+        );
+
+        return [
+            'tracked_featured_interactions' => $trackedInteractions,
+            'followed_featured_interactions' => $followedInteractions,
+            'override_featured_interactions' => $overrideInteractions,
+            'featured_publish_attempts' => $publishAttempts,
+            'successful_featured_publishes' => $successfulPublishes,
+            'featured_follow_rate' => $trackedInteractions > 0
+                ? round(($followedInteractions / $trackedInteractions) * 100, 1)
+                : null,
+            'featured_publish_success_rate' => $publishAttempts > 0
+                ? round(($successfulPublishes / $publishAttempts) * 100, 1)
+                : null,
+        ];
+    }
+
+    /**
+     * @param Collection<int, AuditLog> $featuredInteractionLogs
+     * @return array<string, int|float|null>
+     */
+    private function featuredMetricsForCluster(Collection $featuredInteractionLogs, string $clusterKey): array
+    {
+        $clusterLogs = $featuredInteractionLogs
+            ->filter(fn (AuditLog $log): bool => data_get($log->metadata, 'featured_cluster_key') === $clusterKey);
+
+        $trackedInteractions = $clusterLogs->count();
+        $followedInteractions = $clusterLogs
+            ->filter(fn (AuditLog $log): bool => (bool) data_get($log->metadata, 'followed_featured', false))
+            ->count();
+        $overrideInteractions = $trackedInteractions - $followedInteractions;
+        $publishAttempts = $clusterLogs->sum(
+            fn (AuditLog $log): int => (int) data_get($log->metadata, 'attempted_count', 0),
+        );
+        $successfulPublishes = $clusterLogs->sum(
+            fn (AuditLog $log): int => (int) data_get($log->metadata, 'success_count', 0),
+        );
+
+        return [
+            'featured_interactions' => $trackedInteractions,
+            'featured_followed_interactions' => $followedInteractions,
+            'featured_override_interactions' => $overrideInteractions,
+            'featured_publish_attempts' => $publishAttempts,
+            'featured_successful_publishes' => $successfulPublishes,
+            'featured_follow_rate' => $trackedInteractions > 0
+                ? round(($followedInteractions / $trackedInteractions) * 100, 1)
+                : null,
+            'featured_publish_success_rate' => $publishAttempts > 0
+                ? round(($successfulPublishes / $publishAttempts) * 100, 1)
+                : null,
         ];
     }
 }

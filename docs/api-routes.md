@@ -147,7 +147,11 @@ Base path: `/api/v1`
   - publish failed remediation cluster'larini `manual-check-required`, `retry-ready`, `cleanup-recovered`, `review-error` ekseninde ozetler
   - `summary` altinda takip edilen cluster, manuel kontrol, publish denemesi ve en iyi calisan cluster ozetini doner
   - `featured_recommendation` altinda sistemin su an one cikardigi remediation cluster'ini, karar nedenini ve onerilen aksiyon modunu doner
+  - `summary` ve `featured_recommendation` featured takip / override / publish basarisi metriklerini de doner
   - `items[]` altinda `current_items`, `manual_check_completions`, `publish_attempts`, `successful_publishes`, `publish_success_rate`, `health_status`, `route` alanlarini doner
+- `POST /approvals/remediation-analytics/track`
+  - featured remediation karti veya cluster aksiyonlari kullanildiginda takip / override ve publish sonucu telemetrisi kaydeder
+  - `featured_cluster_key`, `acted_cluster_key`, `interaction_type`, `followed_featured`, `attempted_count`, `success_count`, `failure_count` alanlarini kabul eder
 - `POST /approvals/{approvalId}/approve`
 - `POST /approvals/{approvalId}/reject`
 - `POST /approvals/{approvalId}/manual-check-completed`
