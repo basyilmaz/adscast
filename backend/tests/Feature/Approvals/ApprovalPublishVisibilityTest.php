@@ -89,6 +89,15 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.data.0.id', $completedApproval->id)
             ->assertJsonPath('data.data.0.publish_state.manual_check_completed', true);
 
+        $retryReadyResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->getJson('/api/v1/approvals?status=publish_failed&recommended_action_code=retry_publish_after_manual_check');
+
+        $retryReadyResponse->assertOk()
+            ->assertJsonCount(1, 'data.data')
+            ->assertJsonPath('data.data.0.id', $completedApproval->id)
+            ->assertJsonPath('data.data.0.publish_state.recommended_action_code', 'retry_publish_after_manual_check');
+
         $cleanupSuccessResponse = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspaceId)
             ->getJson('/api/v1/approvals?status=publish_failed&cleanup_state=successful');

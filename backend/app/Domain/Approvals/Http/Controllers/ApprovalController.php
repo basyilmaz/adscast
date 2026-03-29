@@ -329,6 +329,14 @@ class ApprovalController
             return false;
         }
 
+        $recommendedActionCode = $request->string('recommended_action_code')->toString();
+        if (
+            $recommendedActionCode !== ''
+            && ($publishState['recommended_action_code'] ?? null) !== $recommendedActionCode
+        ) {
+            return false;
+        }
+
         return true;
     }
 

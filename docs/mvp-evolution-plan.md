@@ -330,3 +330,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 91. Ayni publish metadata'sini draft detail ekranina tasiyip operatorun draft seviyesinde cleanup, partial publish ve guidance bilgisini gorebilmesini saglamak
 92. Approvals ekranina status, cleanup ve manual check filtreleri ekleyip publish_failed operasyonlarini tek kuyrukta yonetilebilir hale getirmek
 93. Partial publish + cleanup failed approval'larinda manuel kontrol tamamlandi isaretleme akisini ekleyip publish metadata'sini retry-ready duruma gecirmek
+94. Approvals index'e recommended_action_code filtresi ekleyip publish failed remediation akisini aksiyon kodu bazinda daraltabilir hale getirmek
+95. Approvals ekranina manuel kontrol, cleanup ve retry-ready odakli hizli cluster kartlari ekleyip operatorun tek tikla ilgili remediation slice'ina inmesini saglamak
+96. Manuel kontrolu tamamlanan publish failed approval'lari ayrik bir "tekrar publish'e hazir" operasyon bandinda toplayip approvals merkezinden dogrudan tekrar publish akisi sunmak
