@@ -450,6 +450,10 @@ export type AdSetDetailResponse = {
       daily_budget: number | null;
       spend: number | null;
       results: number | null;
+      cpa_cpl: number | null;
+      ctr: number | null;
+      cpm: number | null;
+      frequency: number | null;
       has_performance_data: boolean;
       targeting_summary: {
         countries: string[];
@@ -471,12 +475,23 @@ export type AdSetDetailResponse = {
       preview_url: string | null;
       spend: number | null;
       results: number | null;
+      cpa_cpl: number | null;
+      ctr: number | null;
+      cpm: number | null;
+      frequency: number | null;
       has_performance_data: boolean;
       creative: {
         asset_type: string | null;
         headline: string | null;
         call_to_action: string | null;
       };
+    }>;
+    own_alerts: Array<{
+      id: string;
+      severity: string;
+      summary: string;
+      recommended_action: string | null;
+      date_detected: string | null;
     }>;
     inherited_alerts: Array<{
       id: string;
@@ -565,11 +580,22 @@ export type AdDetailResponse = {
       preview_url: string | null;
       spend: number | null;
       results: number | null;
+      cpa_cpl: number | null;
+      ctr: number | null;
+      cpm: number | null;
+      frequency: number | null;
       has_performance_data: boolean;
       creative: {
         headline: string | null;
         asset_type: string | null;
       };
+    }>;
+    own_alerts: Array<{
+      id: string;
+      severity: string;
+      summary: string;
+      recommended_action: string | null;
+      date_detected: string | null;
     }>;
     inherited_alerts: Array<{
       id: string;

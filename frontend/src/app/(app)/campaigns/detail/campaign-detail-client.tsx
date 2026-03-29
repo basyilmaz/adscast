@@ -83,6 +83,38 @@ function buildReportDetailFocusHref(
   return options.surfaceKey ? `${nextHref}#report-decision-surface-${options.surfaceKey}` : `${nextHref}#report-decision-queue-insights`;
 }
 
+type SortKey = "spend" | "results" | "cpa_cpl" | "ctr" | "cpm";
+type SortDir = "asc" | "desc";
+
+function sortByMetric<T extends Record<string, unknown>>(items: T[], key: SortKey, dir: SortDir): T[] {
+  return [...items].sort((a, b) => {
+    const av = (a[key] as number | null) ?? (dir === "asc" ? Infinity : -Infinity);
+    const bv = (b[key] as number | null) ?? (dir === "asc" ? Infinity : -Infinity);
+    return dir === "desc" ? bv - av : av - bv;
+  });
+}
+
+function SortButton({ label, sortKey, activeKey, dir, onSort }: {
+  label: string;
+  sortKey: SortKey;
+  activeKey: SortKey;
+  dir: SortDir;
+  onSort: (key: SortKey) => void;
+}) {
+  const isActive = sortKey === activeKey;
+  return (
+    <button type="button" onClick={() => onSort(sortKey)} className="flex items-center gap-1 font-semibold hover:text-[var(--accent)]">
+      {label}
+      {isActive ? (dir === "desc" ? " ↓" : " ↑") : ""}
+    </button>
+  );
+}
+
+function formatPercent(value: number | null) {
+  if (value === null) return "-";
+  return `${value.toFixed(2)}%`;
+}
+
 function variantFor(value: string) {
   if (value === "critical" || value === "high") return "danger" as const;
   if (value === "warning" || value === "medium") return "warning" as const;
@@ -112,6 +144,15 @@ export function CampaignDetailClient() {
   const [activeTab, setActiveTab] = useState<TabId>(() => (
     focusReasonCode || focusActionCode || focusSurface || focusSource ? "report" : "overview"
   ));
+  const [adSetSort, setAdSetSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "spend", dir: "desc" });
+  const [adSort, setAdSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "spend", dir: "desc" });
+
+  const toggleAdSetSort = (key: SortKey) => {
+    setAdSetSort((prev) => ({ key, dir: prev.key === key && prev.dir === "desc" ? "asc" : "desc" }));
+  };
+  const toggleAdSort = (key: SortKey) => {
+    setAdSort((prev) => ({ key, dir: prev.key === key && prev.dir === "desc" ? "asc" : "desc" }));
+  };
 
   const { data, error, isLoading, isRefreshing, reload } = useApiQuery<CampaignDetailResponse, CampaignDetailResponse["data"]>(
     buildApiPathWithFilters(`/campaigns/${campaignId ?? ""}`, searchParams, GLOBAL_DATE_FILTER_KEYS),
@@ -353,13 +394,26 @@ export function CampaignDetailClient() {
                 <tr className="border-b border-[var(--border)] text-left">
                   <th className="px-3 py-2">Ad Set</th>
                   <th className="px-3 py-2">Durum</th>
-                  <th className="px-3 py-2">Hedefleme</th>
-                  <th className="px-3 py-2">Performans</th>
+                  <th className="px-3 py-2">
+                    <SortButton label="Harcama" sortKey="spend" activeKey={adSetSort.key} dir={adSetSort.dir} onSort={toggleAdSetSort} />
+                  </th>
+                  <th className="px-3 py-2">
+                    <SortButton label="Sonuc" sortKey="results" activeKey={adSetSort.key} dir={adSetSort.dir} onSort={toggleAdSetSort} />
+                  </th>
+                  <th className="px-3 py-2">
+                    <SortButton label="CPA/CPL" sortKey="cpa_cpl" activeKey={adSetSort.key} dir={adSetSort.dir} onSort={toggleAdSetSort} />
+                  </th>
+                  <th className="px-3 py-2">
+                    <SortButton label="CTR" sortKey="ctr" activeKey={adSetSort.key} dir={adSetSort.dir} onSort={toggleAdSetSort} />
+                  </th>
+                  <th className="px-3 py-2">
+                    <SortButton label="CPM" sortKey="cpm" activeKey={adSetSort.key} dir={adSetSort.dir} onSort={toggleAdSetSort} />
+                  </th>
                   <th className="px-3 py-2">Reklamlar</th>
                 </tr>
               </thead>
               <tbody>
-                {data.ad_sets.map((item) => (
+                {sortByMetric(data.ad_sets, adSetSort.key, adSetSort.dir).map((item) => (
                   <tr key={item.id} className="border-b border-[var(--border)] align-top">
                     <td className="px-3 py-3">
                       <Link
@@ -372,25 +426,19 @@ export function CampaignDetailClient() {
                       >
                         {item.name}
                       </Link>
-                      <p className="mt-1 text-xs muted-text">{item.optimization_goal ?? "Optimization goal yok"}</p>
+                      <p className="mt-1 text-xs muted-text">{item.optimization_goal ?? "-"}</p>
+                      <p className="mt-1 text-xs muted-text">{targetingLabel(item)}</p>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="flex flex-col gap-2">
-                        <Badge label={item.status} variant={variantFor(item.status)} />
-                        <Badge label={item.health_status} variant={variantFor(item.health_status)} />
-                      </div>
-                      <p className="mt-2 text-xs muted-text">{item.health_summary}</p>
+                      <Badge label={item.status} variant={variantFor(item.status)} />
+                      <Badge label={item.health_status} variant={variantFor(item.health_status)} />
+                      <p className="mt-1 text-xs muted-text">{item.health_summary}</p>
                     </td>
-                    <td className="px-3 py-3">
-                      <p className="font-medium">{targetingLabel(item)}</p>
-                      <p className="text-xs muted-text">{item.targeting_summary.platforms.join(", ") || "Platform yok"}</p>
-                    </td>
-                    <td className="px-3 py-3">
-                      <p className="font-semibold">Harcama {formatCurrency(item.spend)}</p>
-                      <p className="text-xs muted-text">
-                        Sonuc {formatNumber(item.results)} / {item.has_performance_data ? "ad set metric" : "kampanya baglami"}
-                      </p>
-                    </td>
+                    <td className="px-3 py-3 font-semibold">{formatCurrency(item.spend)}</td>
+                    <td className="px-3 py-3 font-semibold">{formatNumber(item.results)}</td>
+                    <td className="px-3 py-3 font-semibold">{formatCurrency(item.cpa_cpl)}</td>
+                    <td className="px-3 py-3">{formatPercent(item.ctr)}</td>
+                    <td className="px-3 py-3">{formatCurrency(item.cpm)}</td>
                     <td className="px-3 py-3">
                       <p className="font-semibold">{item.active_ads} aktif</p>
                       <p className="text-xs muted-text">Toplam {item.ads_count}</p>
@@ -412,13 +460,26 @@ export function CampaignDetailClient() {
               <thead>
                 <tr className="border-b border-[var(--border)] text-left">
                   <th className="px-3 py-2">Reklam</th>
-                  <th className="px-3 py-2">Baglam</th>
                   <th className="px-3 py-2">Kreatif</th>
-                  <th className="px-3 py-2">Performans</th>
+                  <th className="px-3 py-2">
+                    <SortButton label="Harcama" sortKey="spend" activeKey={adSort.key} dir={adSort.dir} onSort={toggleAdSort} />
+                  </th>
+                  <th className="px-3 py-2">
+                    <SortButton label="Sonuc" sortKey="results" activeKey={adSort.key} dir={adSort.dir} onSort={toggleAdSort} />
+                  </th>
+                  <th className="px-3 py-2">
+                    <SortButton label="CPA/CPL" sortKey="cpa_cpl" activeKey={adSort.key} dir={adSort.dir} onSort={toggleAdSort} />
+                  </th>
+                  <th className="px-3 py-2">
+                    <SortButton label="CTR" sortKey="ctr" activeKey={adSort.key} dir={adSort.dir} onSort={toggleAdSort} />
+                  </th>
+                  <th className="px-3 py-2">
+                    <SortButton label="CPM" sortKey="cpm" activeKey={adSort.key} dir={adSort.dir} onSort={toggleAdSort} />
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {data.ads.map((item) => (
+                {sortByMetric(data.ads, adSort.key, adSort.dir).map((item) => (
                   <tr key={item.id} className="border-b border-[var(--border)] align-top">
                     <td className="px-3 py-3">
                       <Link
@@ -431,22 +492,18 @@ export function CampaignDetailClient() {
                       >
                         {item.name}
                       </Link>
-                      <p className="mt-1 text-xs muted-text">{item.health_summary}</p>
-                    </td>
-                    <td className="px-3 py-3">
                       <Badge label={item.status} variant={variantFor(item.status)} />
-                      <p className="mt-2 text-xs muted-text">{item.ad_set.name ?? "Ad set yok"}</p>
+                      <p className="mt-1 text-xs muted-text">{item.ad_set.name ?? "Ad set yok"}</p>
                     </td>
                     <td className="px-3 py-3">
                       <p className="font-medium">{item.creative.headline ?? item.creative.name ?? "Kreatif bilgisi yok"}</p>
                       <p className="text-xs muted-text">{item.creative.call_to_action ?? item.creative.asset_type ?? "-"}</p>
                     </td>
-                    <td className="px-3 py-3">
-                      <p className="font-semibold">Harcama {formatCurrency(item.spend)}</p>
-                      <p className="text-xs muted-text">
-                        Sonuc {formatNumber(item.results)} / {item.has_performance_data ? "ad metric" : "kampanya baglami"}
-                      </p>
-                    </td>
+                    <td className="px-3 py-3 font-semibold">{formatCurrency(item.spend)}</td>
+                    <td className="px-3 py-3 font-semibold">{formatNumber(item.results)}</td>
+                    <td className="px-3 py-3 font-semibold">{formatCurrency(item.cpa_cpl)}</td>
+                    <td className="px-3 py-3">{formatPercent(item.ctr)}</td>
+                    <td className="px-3 py-3">{formatCurrency(item.cpm)}</td>
                   </tr>
                 ))}
               </tbody>

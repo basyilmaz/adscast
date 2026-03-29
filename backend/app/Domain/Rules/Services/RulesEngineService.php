@@ -10,6 +10,8 @@ use App\Domain\Rules\Rules\HighFrequencyRule;
 use App\Domain\Rules\Rules\RisingCpaRule;
 use App\Domain\Rules\Rules\RisingCpmRule;
 use App\Domain\Rules\Rules\SpendWithNoResultRule;
+use App\Models\Ad;
+use App\Models\AdSet;
 use App\Models\Alert;
 use App\Models\Campaign;
 use App\Models\InsightDaily;
@@ -45,21 +47,47 @@ class RulesEngineService
         $previousStart = $startDate->copy()->subDays($days);
         $previousEnd = $startDate->copy()->subDay();
 
-        $current = $this->aggregateByCampaign($workspaceId, $startDate, $endDate);
-        $previous = $this->aggregateByCampaign($workspaceId, $previousStart, $previousEnd)->keyBy('entity_external_id');
+        $signals = [];
 
-        $campaignMap = Campaign::query()
-            ->where('workspace_id', $workspaceId)
-            ->whereIn('meta_campaign_id', $current->pluck('entity_external_id')->all())
-            ->pluck('id', 'meta_campaign_id');
+        // Campaign level evaluation
+        $signals = array_merge($signals, $this->evaluateLevel($workspaceId, 'campaign', $startDate, $endDate, $previousStart, $previousEnd));
+        $signals = array_merge($signals, $this->evaluateSiblingPerformance($workspaceId, 'campaign', $startDate, $endDate));
+
+        // Ad Set level evaluation
+        $signals = array_merge($signals, $this->evaluateLevel($workspaceId, 'adset', $startDate, $endDate, $previousStart, $previousEnd));
+        $signals = array_merge($signals, $this->evaluateSiblingPerformance($workspaceId, 'adset', $startDate, $endDate));
+
+        // Ad level evaluation
+        $signals = array_merge($signals, $this->evaluateLevel($workspaceId, 'ad', $startDate, $endDate, $previousStart, $previousEnd));
+        $signals = array_merge($signals, $this->evaluateSiblingPerformance($workspaceId, 'ad', $startDate, $endDate));
+
+        return $signals;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function evaluateLevel(
+        string $workspaceId,
+        string $level,
+        CarbonInterface $startDate,
+        CarbonInterface $endDate,
+        CarbonInterface $previousStart,
+        CarbonInterface $previousEnd,
+    ): array {
+        $current = $this->aggregateByLevel($workspaceId, $level, $startDate, $endDate);
+        $previous = $this->aggregateByLevel($workspaceId, $level, $previousStart, $previousEnd)->keyBy('entity_external_id');
+
+        $entityMap = $this->resolveEntityMap($workspaceId, $level, $current->pluck('entity_external_id')->all());
+        $entityType = $this->normalizeEntityType($level);
 
         $signals = [];
 
         foreach ($current as $row) {
             $context = [
                 'workspace_id' => $workspaceId,
-                'entity_type' => 'campaign',
-                'entity_id' => $campaignMap[$row['entity_external_id']] ?? null,
+                'entity_type' => $entityType,
+                'entity_id' => $entityMap[$row['entity_external_id']] ?? null,
                 'entity_external_id' => $row['entity_external_id'],
                 'date_detected' => $endDate->toDateString(),
                 'current' => $row,
@@ -77,31 +105,30 @@ class RulesEngineService
             }
         }
 
-        $signals = array_merge($signals, $this->evaluateSiblingPerformance($workspaceId, $current, $endDate));
-
         return $signals;
     }
 
     /**
      * @return Collection<int, array<string, mixed>>
      */
-    private function aggregateByCampaign(
+    private function aggregateByLevel(
         string $workspaceId,
+        string $level,
         CarbonInterface $startDate,
         CarbonInterface $endDate,
     ): Collection {
         return InsightDaily::query()
             ->where('workspace_id', $workspaceId)
-            ->where('level', 'campaign')
+            ->where('level', $level)
             ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
             ->groupBy('entity_external_id')
             ->get([
                 'entity_external_id',
             ])
-            ->map(function (InsightDaily $insight) use ($workspaceId, $startDate, $endDate): array {
+            ->map(function (InsightDaily $insight) use ($workspaceId, $level, $startDate, $endDate): array {
                 $metrics = InsightDaily::query()
                     ->where('workspace_id', $workspaceId)
-                    ->where('level', 'campaign')
+                    ->where('level', $level)
                     ->where('entity_external_id', $insight->entity_external_id)
                     ->whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
                     ->selectRaw('
@@ -126,6 +153,40 @@ class RulesEngineService
                     'frequency' => (float) ($metrics?->frequency ?? 0),
                 ];
             });
+    }
+
+    /**
+     * @param array<int, string> $externalIds
+     * @return array<string, string>
+     */
+    private function resolveEntityMap(string $workspaceId, string $level, array $externalIds): array
+    {
+        return match ($level) {
+            'campaign' => Campaign::query()
+                ->where('workspace_id', $workspaceId)
+                ->whereIn('meta_campaign_id', $externalIds)
+                ->pluck('id', 'meta_campaign_id')
+                ->all(),
+            'adset' => AdSet::query()
+                ->where('workspace_id', $workspaceId)
+                ->whereIn('meta_ad_set_id', $externalIds)
+                ->pluck('id', 'meta_ad_set_id')
+                ->all(),
+            'ad' => Ad::query()
+                ->where('workspace_id', $workspaceId)
+                ->whereIn('meta_ad_id', $externalIds)
+                ->pluck('id', 'meta_ad_id')
+                ->all(),
+            default => [],
+        };
+    }
+
+    private function normalizeEntityType(string $level): string
+    {
+        return match ($level) {
+            'adset' => 'ad_set',
+            default => $level,
+        };
     }
 
     /**
@@ -176,14 +237,18 @@ class RulesEngineService
     }
 
     /**
-     * @param Collection<int, array<string, mixed>> $current
+     * Evaluate sibling performance within a level - compares entities that share a parent.
+     *
      * @return array<int, array<string, mixed>>
      */
     private function evaluateSiblingPerformance(
         string $workspaceId,
-        Collection $current,
-        CarbonInterface $date,
+        string $level,
+        CarbonInterface $startDate,
+        CarbonInterface $endDate,
     ): array {
+        $current = $this->aggregateByLevel($workspaceId, $level, $startDate, $endDate);
+
         if ($current->count() < 2) {
             return [];
         }
@@ -197,7 +262,17 @@ class RulesEngineService
         }
 
         $median = (float) $efficiencies->sort()->values()->get((int) floor(($efficiencies->count() - 1) / 2));
+        $entityType = $this->normalizeEntityType($level);
+        $entityMap = $this->resolveEntityMap($workspaceId, $level, $current->pluck('entity_external_id')->all());
         $results = [];
+
+        $labels = [
+            'campaign' => ['Kardes kampanyalara gore zayif performans goruluyor.', 'Bu kampanyanin birim maliyeti ayni workspace icindeki benzer kampanyalara gore yuksek.', 'Dusuk verimli ad setlerini kisa listeye alip daha iyi performansli segmentlere butce kaydirin.'],
+            'adset' => ['Kardes ad setlere gore zayif performans goruluyor.', 'Bu ad setin birim maliyeti ayni kampanyadaki benzer ad setlere gore yuksek.', 'Bu ad seti durdurup butceyi daha iyi performansli ad setlere kaydirin veya hedeflemeyi daraltarak test edin.'],
+            'ad' => ['Kardes reklamlara gore zayif performans goruluyor.', 'Bu reklamin birim maliyeti ayni ad setteki benzer reklamlara gore yuksek.', 'Bu reklami durdurun ve daha iyi performansli kreatife butce ayin.'],
+        ];
+
+        [$summary, $explanation, $action] = $labels[$level] ?? $labels['campaign'];
 
         foreach ($current as $row) {
             $cpa = (float) $row['cpa_cpl'];
@@ -205,21 +280,16 @@ class RulesEngineService
                 continue;
             }
 
-            $campaignId = Campaign::query()
-                ->where('workspace_id', $workspaceId)
-                ->where('meta_campaign_id', $row['entity_external_id'])
-                ->value('id');
-
             $signal = new RuleSignal(
                 code: 'weak_winner_loser',
                 severity: 'medium',
-                summary: 'Kardes kampanyalara gore zayif performans goruluyor.',
-                explanation: 'Bu kampanyanin birim maliyeti ayni workspace icindeki benzer kampanyalara gore yuksek.',
-                recommendedAction: 'Dusuk verimli ad setlerini kisa listeye alip daha iyi performansli segmentlere butce kaydirin.',
+                summary: $summary,
+                explanation: $explanation,
+                recommendedAction: $action,
                 confidence: 0.74,
-                entityType: 'campaign',
-                entityId: $campaignId,
-                dateDetected: $date->toDateString(),
+                entityType: $entityType,
+                entityId: $entityMap[$row['entity_external_id']] ?? null,
+                dateDetected: $endDate->toDateString(),
             );
 
             $results[] = $this->persistSignal($workspaceId, $signal);

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,33 @@ function formatNumber(value: number | null) {
   return value.toFixed(value % 1 === 0 ? 0 : 2);
 }
 
+type SortKey = "spend" | "results" | "cpa_cpl" | "ctr" | "cpm";
+type SortDir = "asc" | "desc";
+
+function sortByMetric<T extends Record<string, unknown>>(items: T[], key: SortKey, dir: SortDir): T[] {
+  return [...items].sort((a, b) => {
+    const av = (a[key] as number | null) ?? (dir === "asc" ? Infinity : -Infinity);
+    const bv = (b[key] as number | null) ?? (dir === "asc" ? Infinity : -Infinity);
+    return dir === "desc" ? bv - av : av - bv;
+  });
+}
+
+function SortButton({ label, sortKey, activeKey, dir, onSort }: {
+  label: string; sortKey: SortKey; activeKey: SortKey; dir: SortDir; onSort: (key: SortKey) => void;
+}) {
+  const isActive = sortKey === activeKey;
+  return (
+    <button type="button" onClick={() => onSort(sortKey)} className="flex items-center gap-1 font-semibold hover:text-[var(--accent)]">
+      {label}{isActive ? (dir === "desc" ? " ↓" : " ↑") : ""}
+    </button>
+  );
+}
+
+function formatPercent(value: number | null) {
+  if (value === null) return "-";
+  return `${value.toFixed(2)}%`;
+}
+
 function variantFor(value: string) {
   if (value === "critical" || value === "high") return "danger" as const;
   if (value === "warning" || value === "medium") return "warning" as const;
@@ -53,6 +81,9 @@ export function AdDetailClient() {
       select: (response) => response.data,
     },
   );
+
+  const [siblingSort, setSiblingSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "spend", dir: "desc" });
+  const toggleSiblingSort = (key: SortKey) => setSiblingSort((prev) => ({ key, dir: prev.key === key && prev.dir === "desc" ? "asc" : "desc" }));
 
   if (!hasAdId) return <PageErrorState title="Reklam acilamadi" detail="Reklam id eksik." />;
   if (error) return <PageErrorState title="Reklam acilamadi" detail={error} />;
@@ -118,14 +149,14 @@ export function AdDetailClient() {
           <p className="mt-2 text-sm muted-text">Secili aralik performansi.</p>
         </Card>
         <Card>
+          <CardTitle>CPA / CPL</CardTitle>
+          <CardValue>{data.summary.cpa_cpl !== null ? formatCurrency(data.summary.cpa_cpl) : "-"}</CardValue>
+          <p className="mt-2 text-sm muted-text">Bir sonuc icin ortalama maliyet.</p>
+        </Card>
+        <Card>
           <CardTitle>CTR / CPM</CardTitle>
           <CardValue>{data.summary.ctr !== null ? `${data.summary.ctr.toFixed(2)}%` : "-"}</CardValue>
           <p className="mt-2 text-sm muted-text">CPM {formatCurrency(data.summary.cpm)}</p>
-        </Card>
-        <Card>
-          <CardTitle>Preview</CardTitle>
-          <CardValue>{data.summary.has_preview ? "Var" : "Yok"}</CardValue>
-          <p className="mt-2 text-sm muted-text">Meta onizleme baglantisi.</p>
         </Card>
       </section>
 
@@ -172,13 +203,16 @@ export function AdDetailClient() {
             <thead>
               <tr className="border-b border-[var(--border)] text-left">
                 <th className="px-3 py-2">Reklam</th>
-                <th className="px-3 py-2">Durum</th>
                 <th className="px-3 py-2">Kreatif</th>
-                <th className="px-3 py-2">Performans</th>
+                <th className="px-3 py-2"><SortButton label="Harcama" sortKey="spend" activeKey={siblingSort.key} dir={siblingSort.dir} onSort={toggleSiblingSort} /></th>
+                <th className="px-3 py-2"><SortButton label="Sonuc" sortKey="results" activeKey={siblingSort.key} dir={siblingSort.dir} onSort={toggleSiblingSort} /></th>
+                <th className="px-3 py-2"><SortButton label="CPA/CPL" sortKey="cpa_cpl" activeKey={siblingSort.key} dir={siblingSort.dir} onSort={toggleSiblingSort} /></th>
+                <th className="px-3 py-2"><SortButton label="CTR" sortKey="ctr" activeKey={siblingSort.key} dir={siblingSort.dir} onSort={toggleSiblingSort} /></th>
+                <th className="px-3 py-2"><SortButton label="CPM" sortKey="cpm" activeKey={siblingSort.key} dir={siblingSort.dir} onSort={toggleSiblingSort} /></th>
               </tr>
             </thead>
             <tbody>
-              {data.sibling_ads.map((item) => (
+              {sortByMetric(data.sibling_ads, siblingSort.key, siblingSort.dir).map((item) => (
                 <tr key={item.id} className="border-b border-[var(--border)] align-top">
                   <td className="px-3 py-3">
                     <Link
@@ -191,15 +225,16 @@ export function AdDetailClient() {
                     >
                       {item.name}
                     </Link>
+                    <Badge label={item.status} variant={variantFor(item.status)} />
                   </td>
-                  <td className="px-3 py-3"><Badge label={item.status} variant={variantFor(item.status)} /></td>
                   <td className="px-3 py-3">
                     <p className="font-medium">{item.creative.headline ?? item.creative.asset_type ?? "Kreatif yok"}</p>
                   </td>
-                  <td className="px-3 py-3">
-                    <p className="font-semibold">Harcama {formatCurrency(item.spend)}</p>
-                    <p className="text-xs muted-text">Sonuc {formatNumber(item.results)}</p>
-                  </td>
+                  <td className="px-3 py-3 font-semibold">{formatCurrency(item.spend)}</td>
+                  <td className="px-3 py-3 font-semibold">{formatNumber(item.results)}</td>
+                  <td className="px-3 py-3 font-semibold">{formatCurrency(item.cpa_cpl)}</td>
+                  <td className="px-3 py-3">{formatPercent(item.ctr)}</td>
+                  <td className="px-3 py-3">{formatCurrency(item.cpm)}</td>
                 </tr>
               ))}
             </tbody>
@@ -208,9 +243,27 @@ export function AdDetailClient() {
         {data.sibling_ads.length === 0 ? <p className="mt-3 text-sm muted-text">Sibling reklam yok.</p> : null}
       </Card>
 
+      {data.own_alerts?.length > 0 ? (
+        <Card>
+          <CardTitle>Reklam Uyarilari</CardTitle>
+          <div className="mt-3 space-y-3">
+            {data.own_alerts.map((item: { id: string; severity: string; summary: string; recommended_action: string | null; date_detected: string | null }) => (
+              <div key={item.id} className="rounded-md border-2 border-[var(--danger)] bg-[var(--surface-2)] p-3">
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <p className="font-semibold">{item.summary}</p>
+                  <Badge label={item.severity} variant={variantFor(item.severity)} />
+                </div>
+                <p className="text-xs muted-text">{item.date_detected ?? "-"}</p>
+                <p className="mt-2 text-sm font-medium">{item.recommended_action ?? "-"}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card>
-          <CardTitle>Inherited Uyarilar</CardTitle>
+          <CardTitle>Inherited Uyarilar (Kampanya)</CardTitle>
           <div className="mt-3 space-y-3">
             {data.inherited_alerts.map((item) => (
               <div key={item.id} className="rounded-md border border-[var(--border)] p-3">

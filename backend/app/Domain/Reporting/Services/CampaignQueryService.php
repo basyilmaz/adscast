@@ -474,6 +474,16 @@ class CampaignQueryService
         $summary['has_performance_data'] = $trend['has_data'];
         $summary['performance_scope'] = $trend['has_data'] ? 'adset' : 'campaign_only';
 
+        $ownAlerts = Alert::query()
+            ->where('workspace_id', $adSet->workspace_id)
+            ->where('entity_type', 'ad_set')
+            ->where('entity_id', $adSet->id)
+            ->where('status', 'open')
+            ->latest('date_detected')
+            ->get([
+                'id', 'code', 'severity', 'summary', 'recommended_action', 'date_detected',
+            ]);
+
         $campaignAlerts = Alert::query()
             ->where('workspace_id', $adSet->workspace_id)
             ->where('entity_type', 'campaign')
@@ -565,6 +575,10 @@ class CampaignQueryService
                     'daily_budget' => $sibling->daily_budget !== null ? (float) $sibling->daily_budget : null,
                     'spend' => $metric['spend'],
                     'results' => $metric['results'],
+                    'cpa_cpl' => $metric['cpa_cpl'],
+                    'ctr' => $metric['ctr'],
+                    'cpm' => $metric['cpm'],
+                    'frequency' => $metric['frequency'],
                     'has_performance_data' => $metric['has_data'],
                     'targeting_summary' => $this->targetingSummary($sibling->targeting),
                 ];
@@ -580,6 +594,10 @@ class CampaignQueryService
                     'preview_url' => $ad->preview_url,
                     'spend' => $metric['spend'],
                     'results' => $metric['results'],
+                    'cpa_cpl' => $metric['cpa_cpl'],
+                    'ctr' => $metric['ctr'],
+                    'cpm' => $metric['cpm'],
+                    'frequency' => $metric['frequency'],
                     'has_performance_data' => $metric['has_data'],
                     'creative' => [
                         'asset_type' => $ad->creative?->asset_type,
@@ -588,6 +606,13 @@ class CampaignQueryService
                     ],
                 ];
             })->values()->all(),
+            'own_alerts' => $ownAlerts->map(fn (Alert $alert): array => [
+                'id' => $alert->id,
+                'severity' => $alert->severity,
+                'summary' => $alert->summary,
+                'recommended_action' => $alert->recommended_action,
+                'date_detected' => optional($alert->date_detected)->toDateString(),
+            ])->values()->all(),
             'inherited_alerts' => $campaignAlerts->map(fn (Alert $alert): array => [
                 'id' => $alert->id,
                 'severity' => $alert->severity,
@@ -628,6 +653,16 @@ class CampaignQueryService
         $summary = $this->trendSummary($trend, true);
         $summary['has_preview'] = filled($ad->preview_url);
         $summary['performance_scope'] = $trend['has_data'] ? 'ad' : 'campaign_only';
+
+        $ownAlerts = Alert::query()
+            ->where('workspace_id', $ad->workspace_id)
+            ->where('entity_type', 'ad')
+            ->where('entity_id', $ad->id)
+            ->where('status', 'open')
+            ->latest('date_detected')
+            ->get([
+                'id', 'code', 'severity', 'summary', 'recommended_action', 'date_detected',
+            ]);
 
         $campaignAlerts = Alert::query()
             ->where('workspace_id', $ad->workspace_id)
@@ -719,6 +754,10 @@ class CampaignQueryService
                     'preview_url' => $sibling->preview_url,
                     'spend' => $metric['spend'],
                     'results' => $metric['results'],
+                    'cpa_cpl' => $metric['cpa_cpl'],
+                    'ctr' => $metric['ctr'],
+                    'cpm' => $metric['cpm'],
+                    'frequency' => $metric['frequency'],
                     'has_performance_data' => $metric['has_data'],
                     'creative' => [
                         'headline' => $sibling->creative?->headline,
@@ -726,6 +765,13 @@ class CampaignQueryService
                     ],
                 ];
             })->values()->all(),
+            'own_alerts' => $ownAlerts->map(fn (Alert $alert): array => [
+                'id' => $alert->id,
+                'severity' => $alert->severity,
+                'summary' => $alert->summary,
+                'recommended_action' => $alert->recommended_action,
+                'date_detected' => optional($alert->date_detected)->toDateString(),
+            ])->values()->all(),
             'inherited_alerts' => $campaignAlerts->map(fn (Alert $alert): array => [
                 'id' => $alert->id,
                 'severity' => $alert->severity,
