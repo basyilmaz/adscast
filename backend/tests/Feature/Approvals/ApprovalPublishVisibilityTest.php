@@ -198,9 +198,52 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.summary.retry_ready_items', 1)
             ->assertJsonPath('data.summary.tracked_manual_checks', 1)
             ->assertJsonPath('data.summary.successful_publish_attempts', 1)
+            ->assertJsonPath('data.summary.featured_cluster_label', 'Manuel Kontrol Bekleyenler')
+            ->assertJsonPath('data.featured_recommendation.cluster_key', 'manual-check-required')
+            ->assertJsonPath('data.featured_recommendation.decision_status', 'manual_attention')
+            ->assertJsonPath('data.featured_recommendation.action_mode', 'focus_cluster')
             ->assertJsonPath('data.items.0.cluster_key', 'retry-ready')
             ->assertJsonPath('data.items.0.successful_publishes', 1)
             ->assertJsonPath('data.items.0.publish_success_rate', 100);
+    }
+
+    public function test_approvals_remediation_analytics_prefers_retry_ready_cluster_when_manual_check_queue_is_clear(): void
+    {
+        [$workspaceId, $token, , $retryReadyApproval] = $this->seedFailedPublishFixture([
+            'product_service' => 'Retry hazir featured',
+            'meta_campaign_id' => 'meta_campaign_retry_only',
+            'manual_check' => [
+                'completed' => true,
+                'completed_at' => now()->subMinutes(5)->toIso8601String(),
+                'completed_by' => 'analytics-user',
+                'note' => 'Kontrol tamam.',
+            ],
+        ]);
+
+        AuditLog::query()->create([
+            'workspace_id' => $workspaceId,
+            'action' => 'publish_attempted',
+            'target_type' => 'approval',
+            'target_id' => $retryReadyApproval->id,
+            'metadata' => [
+                'success' => true,
+                'remediation_context' => [
+                    'cluster_key' => 'retry-ready',
+                    'recommended_action_code' => 'retry_publish_after_manual_check',
+                ],
+            ],
+            'occurred_at' => now()->subMinutes(2),
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->getJson('/api/v1/approvals/remediation-analytics');
+
+        $response->assertOk()
+            ->assertJsonPath('data.summary.featured_cluster_label', "Tekrar Publish'e Hazir")
+            ->assertJsonPath('data.featured_recommendation.cluster_key', 'retry-ready')
+            ->assertJsonPath('data.featured_recommendation.decision_status', 'analytics_preferred')
+            ->assertJsonPath('data.featured_recommendation.action_mode', 'bulk_retry_publish');
     }
 
     /**

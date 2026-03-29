@@ -87,6 +87,8 @@ class ApprovalRemediationAnalyticsService
             ->sortByDesc(fn (array $item): float => (float) $item['publish_success_rate'])
             ->first();
 
+        $featuredRecommendation = $this->buildFeaturedRecommendation($items, $topWorkingCluster);
+
         return [
             'summary' => [
                 'tracked_clusters' => $items->count(),
@@ -104,8 +106,10 @@ class ApprovalRemediationAnalyticsService
                     ->filter(fn (AuditLog $log): bool => (bool) data_get($log->metadata, 'success', false))
                     ->count(),
                 'top_working_cluster_label' => $topWorkingCluster['label'] ?? null,
+                'featured_cluster_label' => $featuredRecommendation['label'] ?? null,
                 'window_days' => $windowDays,
             ],
+            'featured_recommendation' => $featuredRecommendation,
             'items' => $items->all(),
         ];
     }
@@ -193,5 +197,52 @@ class ApprovalRemediationAnalyticsService
             $publishAttempts,
             $successfulPublishes,
         );
+    }
+
+    /**
+     * @param Collection<int, array<string, mixed>> $items
+     * @param array<string, mixed>|null $topWorkingCluster
+     * @return array<string, mixed>|null
+     */
+    private function buildFeaturedRecommendation(Collection $items, ?array $topWorkingCluster): ?array
+    {
+        $manualCheckRequired = $items->first(
+            fn (array $item): bool => $item['cluster_key'] === 'manual-check-required' && $item['current_items'] > 0
+        );
+
+        if (is_array($manualCheckRequired)) {
+            return [
+                ...$manualCheckRequired,
+                'decision_status' => 'manual_attention',
+                'decision_reason' => 'Cleanup basarisiz kalan publish hatalari once manuel kontrol gerektiriyor.',
+                'action_mode' => 'focus_cluster',
+            ];
+        }
+
+        if (is_array($topWorkingCluster) && ($topWorkingCluster['current_items'] ?? 0) > 0) {
+            return [
+                ...$topWorkingCluster,
+                'decision_status' => 'analytics_preferred',
+                'decision_reason' => 'Gecmis publish sonucuna gore su an en iyi toparlayan remediation cluster one cikarildi.',
+                'action_mode' => in_array($topWorkingCluster['cluster_key'], ['retry-ready', 'cleanup-recovered'], true)
+                    ? 'bulk_retry_publish'
+                    : 'focus_cluster',
+            ];
+        }
+
+        $fallback = $items->first(fn (array $item): bool => $item['current_items'] > 0);
+
+        if (! is_array($fallback)) {
+            return null;
+        }
+
+        return [
+            ...$fallback,
+            'decision_status' => 'rule_based',
+            'decision_reason' => 'Aktif remediation cluster durumuna gore kurala dayali oncelik secildi.',
+            'action_mode' => in_array($fallback['cluster_key'], ['retry-ready', 'cleanup-recovered'], true)
+                ? 'bulk_retry_publish'
+                : 'focus_cluster',
+        ];
     }
 }

@@ -146,6 +146,7 @@ Base path: `/api/v1`
 - `GET /approvals/remediation-analytics`
   - publish failed remediation cluster'larini `manual-check-required`, `retry-ready`, `cleanup-recovered`, `review-error` ekseninde ozetler
   - `summary` altinda takip edilen cluster, manuel kontrol, publish denemesi ve en iyi calisan cluster ozetini doner
+  - `featured_recommendation` altinda sistemin su an one cikardigi remediation cluster'ini, karar nedenini ve onerilen aksiyon modunu doner
   - `items[]` altinda `current_items`, `manual_check_completions`, `publish_attempts`, `successful_publishes`, `publish_success_rate`, `health_status`, `route` alanlarini doner
 - `POST /approvals/{approvalId}/approve`
 - `POST /approvals/{approvalId}/reject`

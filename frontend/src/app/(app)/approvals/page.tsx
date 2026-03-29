@@ -61,8 +61,28 @@ type ApprovalRemediationAnalyticsResponse = {
       tracked_publish_attempts: number;
       successful_publish_attempts: number;
       top_working_cluster_label: string | null;
+      featured_cluster_label: string | null;
       window_days: number;
     };
+    featured_recommendation: {
+      cluster_key: string;
+      label: string;
+      description: string;
+      recommended_action_code: string;
+      current_items: number;
+      manual_check_completions: number;
+      publish_attempts: number;
+      successful_publishes: number;
+      failed_publishes: number;
+      publish_success_rate: number | null;
+      last_activity_at: string | null;
+      health_status: string;
+      health_summary: string;
+      route: string;
+      decision_status: string;
+      decision_reason: string;
+      action_mode: "focus_cluster" | "bulk_retry_publish";
+    } | null;
     items: Array<{
       cluster_key: string;
       label: string;
@@ -195,6 +215,7 @@ export default function ApprovalsPage() {
   const items = useMemo(() => approvalQuery.data ?? [], [approvalQuery.data]);
   const publishFailureItems = useMemo(() => publishFailureQuery.data ?? [], [publishFailureQuery.data]);
   const remediationAnalytics = remediationAnalyticsQuery.data ?? null;
+  const featuredRecommendation = remediationAnalytics?.featured_recommendation ?? null;
   const { isLoading, reload } = approvalQuery;
   const combinedError = actionError ?? approvalQuery.error ?? publishFailureQuery.error ?? remediationAnalyticsQuery.error ?? null;
   const analyticsByCluster = useMemo(
@@ -295,6 +316,11 @@ export default function ApprovalsPage() {
     ];
   }, [publishFailureItems]);
 
+  const clusterByKey = useMemo(
+    () => new Map(quickClusters.map((cluster) => [cluster.key, cluster])),
+    [quickClusters],
+  );
+
   const statusVariant = (status: string) =>
     status === "approved" || status === "published"
       ? "success"
@@ -366,6 +392,24 @@ export default function ApprovalsPage() {
     setActionMessage(
       `${cluster.label} kumesi filtrelendi${selectMatches ? " ve eslesen kayitlar secildi" : ""}.`,
     );
+  };
+
+  const runClusterRecommendation = (clusterKey: string, actionMode: "focus_cluster" | "bulk_retry_publish") => {
+    const cluster = clusterByKey.get(clusterKey);
+
+    if (!cluster) {
+      return;
+    }
+
+    const retryableMatches = clusterItems(cluster).filter((item) => canRetryPublish(item));
+    focusQuickCluster(cluster, true);
+
+    if (actionMode === "bulk_retry_publish" && retryableMatches.length > 0) {
+      void runBulkPublishRetry(retryableMatches);
+      return;
+    }
+
+    setActionMessage(`${cluster.label} remediation kumesi odaga alindi.`);
   };
 
   const resetFilters = () => {
@@ -698,6 +742,74 @@ export default function ApprovalsPage() {
               </p>
             ) : null}
           </div>
+          {featuredRecommendation ? (
+            <div className="rounded-lg border border-[var(--accent)]/30 bg-[var(--surface-2)] p-4 xl:col-span-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge label="One Cikan Remediation" variant="success" />
+                <Badge
+                  label={
+                    featuredRecommendation.decision_status === "manual_attention"
+                      ? "Manuel Dikkat"
+                      : featuredRecommendation.decision_status === "analytics_preferred"
+                        ? "Analytics Destekli"
+                        : "Kural Tabanli"
+                  }
+                  variant={
+                    featuredRecommendation.decision_status === "manual_attention"
+                      ? "danger"
+                      : featuredRecommendation.decision_status === "analytics_preferred"
+                        ? "success"
+                        : "warning"
+                  }
+                />
+                <Badge label={featuredRecommendation.label} variant="neutral" />
+                <Badge label={`${featuredRecommendation.current_items} acik kayit`} variant="neutral" />
+                {featuredRecommendation.publish_success_rate != null ? (
+                  <Badge
+                    label={`%${featuredRecommendation.publish_success_rate} publish basarisi`}
+                    variant="success"
+                  />
+                ) : null}
+              </div>
+              <p className="mt-3 text-sm font-semibold">
+                {featuredRecommendation.decision_reason}
+              </p>
+              <p className="mt-1 text-sm muted-text">
+                {featuredRecommendation.health_summary}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    runClusterRecommendation(
+                      featuredRecommendation.cluster_key,
+                      featuredRecommendation.action_mode,
+                    )
+                  }
+                  disabled={
+                    bulkPublishing
+                    && featuredRecommendation.action_mode === "bulk_retry_publish"
+                  }
+                >
+                  {featuredRecommendation.action_mode === "bulk_retry_publish"
+                    ? "Onerilen Retry Akisini Calistir"
+                    : "Onerilen Kume Uzerinde Calis"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const cluster = clusterByKey.get(featuredRecommendation.cluster_key);
+                    if (cluster) {
+                      focusQuickCluster(cluster);
+                    }
+                  }}
+                >
+                  Kumeyi Filtrele
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -715,6 +827,9 @@ export default function ApprovalsPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge label={cluster.label} variant={cluster.variant} />
                 <Badge label={`${cluster.count} kayit`} variant="neutral" />
+                {remediationAnalytics?.featured_recommendation?.cluster_key === cluster.key ? (
+                  <Badge label="One Cikti" variant="success" />
+                ) : null}
                 {analyticsItem?.publish_success_rate != null ? (
                   <Badge label={`%${analyticsItem.publish_success_rate} publish basarisi`} variant="success" />
                 ) : null}

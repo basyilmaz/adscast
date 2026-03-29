@@ -339,3 +339,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 100. Publish failed approval cluster'larini audit log ve mevcut approval verisiyle ozetleyen approvals remediation analytics endpoint'ini eklemek
 101. Approvals ekraninda remediation cluster kartlarina analytics ozetini ve cluster-bazli dogrudan aksiyon butonlarini eklemek
 102. Approvals remediation analytics ile cluster filtreleme, secim ve bulk retry akislarini ayni yuzeyde hizalayip hangi remediation cluster'inin gercekte calistigini operatora gostermek
+103. Approvals remediation analytics icinde featured remediation cluster karari uretip su an one cikmasi gereken remediation akisina tek kartta karar vermek
+104. Featured remediation kararini approvals ekraninda operatorun tek tikla uygulayabilecegi hizli aksiyon kartina donusturmek
+105. Featured remediation cluster'ini success-rate ve acik is yukune gore secip approvals operasyon akisinda statik cluster sirasi yerine analytics destekli oncelik vermek
