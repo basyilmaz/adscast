@@ -378,6 +378,13 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.summary.tracked_sources_count', 3)
             ->assertJsonPath('data.summary.top_interaction_source_key', 'draft_detail')
             ->assertJsonPath('data.summary.top_interaction_source_label', 'Draft Detay')
+            ->assertJsonPath('data.summary.top_draft_detail_cluster_label', "Tekrar Publish'e Hazir")
+            ->assertJsonPath('data.approvals_native_outcome_summary.tracked_interactions', 2)
+            ->assertJsonPath('data.approvals_native_outcome_summary.manual_check_completions', 1)
+            ->assertJsonPath('data.approvals_native_outcome_summary.focus_actions', 1)
+            ->assertJsonPath('data.approvals_native_outcome_summary.publish_success_rate', null)
+            ->assertJsonPath('data.draft_detail_outcome_summary.tracked_interactions', 1)
+            ->assertJsonPath('data.draft_detail_outcome_summary.publish_success_rate', 50)
             ->assertJsonPath('data.featured_recommendation.featured_interactions', 2)
             ->assertJsonPath('data.featured_recommendation.featured_followed_interactions', 1)
             ->assertJsonPath('data.featured_recommendation.featured_override_interactions', 1)
@@ -407,7 +414,92 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.items.0.top_interaction_source_key', 'draft_detail')
             ->assertJsonPath('data.items.0.top_interaction_source_label', 'Draft Detay')
             ->assertJsonPath('data.items.0.outcome_chain_summary.bulk_retry_actions', 1)
-            ->assertJsonPath('data.items.0.outcome_chain_summary.publish_attempts', 2);
+            ->assertJsonPath('data.items.0.outcome_chain_summary.publish_attempts', 2)
+            ->assertJsonPath('data.items.0.draft_detail_outcome_summary.publish_attempts', 2)
+            ->assertJsonPath('data.items.0.draft_detail_outcome_summary.top_source_label', 'Draft Detay');
+    }
+
+    public function test_featured_recommendation_prefers_draft_detail_outcome_when_it_outperforms_approvals_native_flow(): void
+    {
+        [$workspaceId, $token] = $this->seedFailedPublishFixture([
+            'product_service' => 'Retry hazir draft detail leader',
+            'meta_campaign_id' => 'meta_campaign_retry_detail_leader',
+            'manual_check' => [
+                'completed' => true,
+                'completed_at' => now()->subMinutes(5)->toIso8601String(),
+                'completed_by' => 'analytics-user',
+                'note' => 'Kontrol tamam.',
+            ],
+        ]);
+
+        [, , , $cleanupRecoveredApproval] = $this->seedFailedPublishFixture([
+            'product_service' => 'Cleanup recovered comparison',
+            'meta_campaign_id' => 'meta_campaign_cleanup_recovered',
+            'cleanup' => [
+                'attempted' => true,
+                'success' => true,
+                'deleted_campaign_id' => 'meta_campaign_cleanup_recovered',
+                'message' => 'Deleted.',
+            ],
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->postJson('/api/v1/approvals/remediation-analytics/track', [
+                'featured_cluster_key' => 'retry-ready',
+                'acted_cluster_key' => 'retry-ready',
+                'interaction_type' => 'publish_retry',
+                'followed_featured' => true,
+                'attempted_count' => 2,
+                'success_count' => 2,
+                'failure_count' => 0,
+                'interaction_source' => 'draft_detail_from_approvals_featured',
+            ])
+            ->assertOk();
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->postJson('/api/v1/approvals/remediation-analytics/track', [
+                'featured_cluster_key' => 'cleanup-recovered',
+                'acted_cluster_key' => 'cleanup-recovered',
+                'interaction_type' => 'bulk_retry_publish',
+                'followed_featured' => true,
+                'attempted_count' => 2,
+                'success_count' => 1,
+                'failure_count' => 1,
+                'interaction_source' => 'approvals_cluster',
+            ])
+            ->assertOk();
+
+        AuditLog::query()->create([
+            'workspace_id' => $workspaceId,
+            'action' => 'publish_attempted',
+            'target_type' => 'approval',
+            'target_id' => $cleanupRecoveredApproval->id,
+            'metadata' => [
+                'success' => true,
+                'remediation_context' => [
+                    'cluster_key' => 'cleanup-recovered',
+                    'recommended_action_code' => 'fix_and_retry_publish',
+                ],
+            ],
+            'occurred_at' => now()->subMinutes(2),
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->getJson('/api/v1/approvals/remediation-analytics');
+
+        $response->assertOk()
+            ->assertJsonPath('data.summary.top_draft_detail_cluster_label', "Tekrar Publish'e Hazir")
+            ->assertJsonPath('data.draft_detail_outcome_summary.publish_success_rate', 100)
+            ->assertJsonPath('data.approvals_native_outcome_summary.publish_success_rate', 50)
+            ->assertJsonPath('data.featured_recommendation.cluster_key', 'retry-ready')
+            ->assertJsonPath('data.featured_recommendation.decision_status', 'draft_detail_preferred')
+            ->assertJsonPath('data.featured_recommendation.decision_context_source', 'draft_detail')
+            ->assertJsonPath('data.featured_recommendation.decision_context_success_rate', 100)
+            ->assertJsonPath('data.featured_recommendation.decision_context_advantage', 50)
+            ->assertJsonPath('data.featured_recommendation.action_mode', 'bulk_retry_publish');
     }
 
     /**

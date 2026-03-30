@@ -362,3 +362,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 123. Approvals remediation analytics'i source bazli telemetry kirilimiyla genisletip featured, cluster, retry-ready, item ve draft detail kaynaklarinin takip ve publish sonucunu ayri izlenebilir hale getirmek
 124. Featured remediation telemetry'sinden tum akis icin outcome chain summary uretip manuel kontrol, retry aksiyonlari ve publish sonucunu approvals analytics ekraninda tek blokta görünür yapmak
 125. Approvals ekraninda source bazli telemetry kartlari ve cluster bazli top source / outcome ozetleri ekleyip operatorun hangi remediation kaynaginin gercekte sonuca gittigini ayni analytics yuzeyinde gorebilmesini saglamak
+126. Featured remediation kararini approvals-native ve draft-detail outcome ozetlerini karsilastirarak adaptif hale getirip draft detail uzerinde daha iyi sonuc veren remediation cluster'i one cikarmak
+127. Approvals ekraninda draft detail ve approvals-native remediation performansini karsilastirmali bir analytics yuzeyinde gostermek
+128. Featured remediation kartinda draft-detail avantajini acik badge ve karar baglami ile gorunur kilarak operatore neden o cluster'in one ciktigini daha net anlatmak

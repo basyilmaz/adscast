@@ -19,6 +19,7 @@ class ApprovalRemediationAnalyticsService
      *     featured_recommendation: array<string, mixed>|null,
      *     interaction_sources: array<int, array<string, mixed>>,
      *     outcome_chain_summary: array<string, mixed>,
+     *     approvals_native_outcome_summary: array<string, mixed>,
      *     draft_detail_outcome_summary: array<string, mixed>,
      *     items: array<int, array<string, mixed>>
      * }
@@ -53,6 +54,7 @@ class ApprovalRemediationAnalyticsService
         $clusterDefinitions = collect($this->clusterDefinitions());
         $interactionSources = $this->sourceBreakdown($featuredInteractionLogs);
         $outcomeChainSummary = $this->outcomeChainSummary($featuredInteractionLogs);
+        $approvalsNativeOutcomeSummary = $this->approvalsNativeOutcomeSummary($featuredInteractionLogs);
         $draftDetailOutcomeSummary = $this->draftDetailOutcomeSummary($featuredInteractionLogs);
         $topInteractionSource = $interactionSources->first();
         $topSuccessSource = $interactionSources
@@ -138,8 +140,28 @@ class ApprovalRemediationAnalyticsService
             ->filter(fn (array $item): bool => ($item['effectiveness_score'] ?? 0) > 0)
             ->sortByDesc(fn (array $item): float => (float) ($item['effectiveness_score'] ?? 0))
             ->first();
+        $topDraftDetailCluster = $items
+            ->filter(function (array $item): bool {
+                return ($item['current_items'] ?? 0) > 0
+                    && ((int) data_get($item, 'draft_detail_outcome_summary.publish_attempts', 0) > 0);
+            })
+            ->sortByDesc(function (array $item): float {
+                $publishSuccessRate = (float) (data_get($item, 'draft_detail_outcome_summary.publish_success_rate') ?? 0);
+                $publishAttempts = (int) data_get($item, 'draft_detail_outcome_summary.publish_attempts', 0);
 
-        $featuredRecommendation = $this->buildFeaturedRecommendation($items, $topWorkingCluster, $topEffectiveCluster, $windowDays);
+                return $publishSuccessRate * 1000 + $publishAttempts * 10 + ((int) ($item['current_items'] ?? 0));
+            })
+            ->first();
+
+        $featuredRecommendation = $this->buildFeaturedRecommendation(
+            $items,
+            $topWorkingCluster,
+            $topEffectiveCluster,
+            $topDraftDetailCluster,
+            $approvalsNativeOutcomeSummary,
+            $draftDetailOutcomeSummary,
+            $windowDays,
+        );
         $featuredSummary = $this->featuredSummary($featuredInteractionLogs);
 
         return [
@@ -162,6 +184,7 @@ class ApprovalRemediationAnalyticsService
                 'top_effective_cluster_label' => $topEffectiveCluster['label'] ?? null,
                 'top_effective_cluster_score' => $topEffectiveCluster['effectiveness_score'] ?? null,
                 'featured_cluster_label' => $featuredRecommendation['label'] ?? null,
+                'top_draft_detail_cluster_label' => $topDraftDetailCluster['label'] ?? null,
                 'tracked_sources_count' => $interactionSources->count(),
                 'top_interaction_source_key' => $topInteractionSource['source_key'] ?? null,
                 'top_interaction_source_label' => $topInteractionSource['label'] ?? null,
@@ -173,6 +196,7 @@ class ApprovalRemediationAnalyticsService
             'featured_recommendation' => $featuredRecommendation,
             'interaction_sources' => $interactionSources->all(),
             'outcome_chain_summary' => $outcomeChainSummary,
+            'approvals_native_outcome_summary' => $approvalsNativeOutcomeSummary,
             'draft_detail_outcome_summary' => $draftDetailOutcomeSummary,
             'items' => $items->all(),
         ];
@@ -267,12 +291,18 @@ class ApprovalRemediationAnalyticsService
      * @param Collection<int, array<string, mixed>> $items
      * @param array<string, mixed>|null $topWorkingCluster
      * @param array<string, mixed>|null $topEffectiveCluster
+     * @param array<string, mixed>|null $topDraftDetailCluster
+     * @param array<string, mixed> $approvalsNativeOutcomeSummary
+     * @param array<string, mixed> $draftDetailOutcomeSummary
      * @return array<string, mixed>|null
      */
     private function buildFeaturedRecommendation(
         Collection $items,
         ?array $topWorkingCluster,
         ?array $topEffectiveCluster,
+        ?array $topDraftDetailCluster,
+        array $approvalsNativeOutcomeSummary,
+        array $draftDetailOutcomeSummary,
         int $windowDays,
     ): ?array
     {
@@ -286,6 +316,36 @@ class ApprovalRemediationAnalyticsService
                 'decision_status' => 'manual_attention',
                 'decision_reason' => 'Cleanup basarisiz kalan publish hatalari once manuel kontrol gerektiriyor.',
                 'action_mode' => 'focus_cluster',
+            ];
+        }
+
+        $draftDetailPublishSuccessRate = $draftDetailOutcomeSummary['publish_success_rate'] ?? null;
+        $approvalsNativePublishSuccessRate = $approvalsNativeOutcomeSummary['publish_success_rate'] ?? null;
+        $draftDetailLead = $draftDetailPublishSuccessRate !== null
+            ? $draftDetailPublishSuccessRate - ($approvalsNativePublishSuccessRate ?? 0)
+            : null;
+
+        if (
+            is_array($topDraftDetailCluster)
+            && ($topDraftDetailCluster['current_items'] ?? 0) > 0
+            && (int) data_get($topDraftDetailCluster, 'draft_detail_outcome_summary.publish_attempts', 0) >= 1
+            && $draftDetailPublishSuccessRate !== null
+            && $draftDetailLead !== null
+            && $draftDetailLead >= 15
+        ) {
+            return [
+                ...$topDraftDetailCluster,
+                'decision_status' => 'draft_detail_preferred',
+                'decision_reason' => sprintf(
+                    'Son %d gunde draft detail uzerinden takip edilen remediation aksiyonlari approvals merkezindeki dogrudan akislarin uzerinde sonuc uretti. Bu nedenle draft detail odaginda daha iyi calisan cluster one cikarildi.',
+                    $windowDays,
+                ),
+                'decision_context_source' => 'draft_detail',
+                'decision_context_success_rate' => $draftDetailPublishSuccessRate,
+                'decision_context_advantage' => round($draftDetailLead, 1),
+                'action_mode' => in_array($topDraftDetailCluster['cluster_key'], ['retry-ready', 'cleanup-recovered'], true)
+                    ? 'bulk_retry_publish'
+                    : 'focus_cluster',
             ];
         }
 
@@ -509,6 +569,31 @@ class ApprovalRemediationAnalyticsService
 
         return [
             ...$this->outcomeChainSummary($draftDetailLogs),
+            'top_source_key' => $topSource['source_key'] ?? null,
+            'top_source_label' => $topSource['label'] ?? null,
+        ];
+    }
+
+    /**
+     * @param Collection<int, AuditLog> $logs
+     * @return array<string, int|float|string|null>
+     */
+    private function approvalsNativeOutcomeSummary(Collection $logs): array
+    {
+        $approvalsNativeLogs = $logs
+            ->filter(function (AuditLog $log): bool {
+                $source = $this->normalizeInteractionSource(
+                    data_get($log->metadata, 'interaction_source')
+                );
+
+                return str_starts_with($source, 'approvals');
+            });
+
+        $sourceBreakdown = $this->sourceBreakdown($approvalsNativeLogs);
+        $topSource = $sourceBreakdown->first();
+
+        return [
+            ...$this->outcomeChainSummary($approvalsNativeLogs),
             'top_source_key' => $topSource['source_key'] ?? null,
             'top_source_label' => $topSource['label'] ?? null,
         ];

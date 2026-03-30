@@ -65,6 +65,7 @@ type ApprovalRemediationAnalyticsResponse = {
       top_effective_cluster_label: string | null;
       top_effective_cluster_score: number | null;
       featured_cluster_label: string | null;
+      top_draft_detail_cluster_label: string | null;
       tracked_sources_count: number;
       top_interaction_source_key: string | null;
       top_interaction_source_label: string | null;
@@ -81,6 +82,7 @@ type ApprovalRemediationAnalyticsResponse = {
     };
     interaction_sources: Array<RemediationTelemetrySource>;
     outcome_chain_summary: RemediationOutcomeChainSummary;
+    approvals_native_outcome_summary: RemediationOutcomeChainSummary;
     draft_detail_outcome_summary: RemediationOutcomeChainSummary;
     featured_recommendation: {
       cluster_key: string;
@@ -101,6 +103,9 @@ type ApprovalRemediationAnalyticsResponse = {
       route: string;
       decision_status: string;
       decision_reason: string;
+      decision_context_source?: string | null;
+      decision_context_success_rate?: number | null;
+      decision_context_advantage?: number | null;
       action_mode: "focus_cluster" | "bulk_retry_publish";
       featured_interactions: number;
       featured_followed_interactions: number;
@@ -194,6 +199,14 @@ type RemediationOutcomeChainSummary = {
   top_source_key?: string | null;
   top_source_label?: string | null;
 };
+
+const APPROVALS_NATIVE_SOURCE_KEYS: ReadonlyArray<RemediationTelemetrySourceKey> = [
+  "approvals_featured",
+  "approvals_cluster",
+  "approvals_retry_ready",
+  "approvals_item",
+  "approvals",
+];
 
 const PUBLISH_FAILURES_PATH = "/approvals?status=publish_failed";
 const ANALYTICS_WINDOW_OPTIONS = [
@@ -374,6 +387,53 @@ function ApprovalsPageContent({
   );
   const topTelemetrySources = useMemo(() => telemetrySources.slice(0, 3), [telemetrySources]);
   const outcomeChainSummary = remediationAnalytics?.outcome_chain_summary ?? null;
+  const draftDetailOutcomeSummary = remediationAnalytics?.draft_detail_outcome_summary ?? null;
+  const approvalsNativeOutcomeSummary = remediationAnalytics?.approvals_native_outcome_summary ?? null;
+  const approvalsNativeTelemetry = useMemo(
+    () =>
+      telemetrySources.filter((source) =>
+        APPROVALS_NATIVE_SOURCE_KEYS.includes(source.source_key as RemediationTelemetrySourceKey),
+      ),
+    [telemetrySources],
+  );
+  const approvalsNativeSummary = useMemo(
+    () =>
+      approvalsNativeOutcomeSummary
+        ? {
+            tracked_interactions: approvalsNativeOutcomeSummary.tracked_interactions,
+            publish_attempts: approvalsNativeOutcomeSummary.publish_attempts,
+            successful_publishes: approvalsNativeOutcomeSummary.successful_publishes,
+            failed_publishes: approvalsNativeOutcomeSummary.failed_publishes,
+            total_retry_actions: approvalsNativeOutcomeSummary.total_retry_actions,
+            publish_success_rate: approvalsNativeOutcomeSummary.publish_success_rate,
+            top_source_key: approvalsNativeOutcomeSummary.top_source_key ?? null,
+            top_source_label: approvalsNativeOutcomeSummary.top_source_label ?? null,
+          }
+        : summarizeTelemetrySources(approvalsNativeTelemetry),
+    [approvalsNativeOutcomeSummary, approvalsNativeTelemetry],
+  );
+  const draftDetailSummary = useMemo(
+    () =>
+      draftDetailOutcomeSummary
+        ? {
+            tracked_interactions: draftDetailOutcomeSummary.tracked_interactions,
+            publish_attempts: draftDetailOutcomeSummary.publish_attempts,
+            successful_publishes: draftDetailOutcomeSummary.successful_publishes,
+            failed_publishes: draftDetailOutcomeSummary.failed_publishes,
+            total_retry_actions: draftDetailOutcomeSummary.total_retry_actions,
+            publish_success_rate: draftDetailOutcomeSummary.publish_success_rate,
+            top_source_key: draftDetailOutcomeSummary.top_source_key ?? null,
+            top_source_label: draftDetailOutcomeSummary.top_source_label ?? null,
+          }
+        : summarizeTelemetrySources(
+            telemetrySources.filter((source) => source.source_key.startsWith("draft_detail")),
+          ),
+    [draftDetailOutcomeSummary, telemetrySources],
+  );
+  const sourceComparisonWinner = useMemo(
+    () => compareSourceAggressiveness(draftDetailSummary, approvalsNativeSummary),
+    [approvalsNativeSummary, draftDetailSummary],
+  );
 
   const summary = useMemo(() => {
     return {
@@ -1112,6 +1172,11 @@ function ApprovalsPageContent({
                   : ""}
               </p>
             ) : null}
+            {remediationAnalytics.summary.top_draft_detail_cluster_label ? (
+              <p className="mt-2 text-xs muted-text">
+                Draft detail uzerinde en iyi toparlayan cluster: {remediationAnalytics.summary.top_draft_detail_cluster_label}
+              </p>
+            ) : null}
             {remediationAnalytics.summary.featured_follow_rate != null ? (
               <p className="mt-2 text-xs muted-text">
                 Featured takip orani %{remediationAnalytics.summary.featured_follow_rate}
@@ -1140,6 +1205,8 @@ function ApprovalsPageContent({
                   label={
                     featuredRecommendation.decision_status === "manual_attention"
                       ? "Manuel Dikkat"
+                      : featuredRecommendation.decision_status === "draft_detail_preferred"
+                        ? "Draft Detail Lideri"
                       : featuredRecommendation.decision_status === "effectiveness_preferred"
                         ? "Effectiveness Destekli"
                       : featuredRecommendation.decision_status === "analytics_preferred"
@@ -1149,6 +1216,8 @@ function ApprovalsPageContent({
                   variant={
                     featuredRecommendation.decision_status === "manual_attention"
                       ? "danger"
+                      : featuredRecommendation.decision_status === "draft_detail_preferred"
+                        ? "success"
                       : featuredRecommendation.decision_status === "effectiveness_preferred"
                         ? "success"
                       : featuredRecommendation.decision_status === "analytics_preferred"
@@ -1181,6 +1250,13 @@ function ApprovalsPageContent({
                     variant="success"
                   />
                 ) : null}
+                {featuredRecommendation.decision_context_source === "draft_detail"
+                  && featuredRecommendation.decision_context_advantage != null ? (
+                    <Badge
+                      label={`Draft detail +%${featuredRecommendation.decision_context_advantage}`}
+                      variant="success"
+                    />
+                  ) : null}
               </div>
               <p className="mt-3 text-sm font-semibold">
                 {featuredRecommendation.decision_reason}
@@ -1192,10 +1268,16 @@ function ApprovalsPageContent({
                 Bu karar {remediationAnalytics.summary.window_days} gunluk analytics penceresinden uretildi.
               </p>
               <p className="mt-2 text-xs muted-text">
-                {featuredRecommendation.featured_interactions} izlenen featured etkileşim /
+                {featuredRecommendation.featured_interactions} izlenen featured etkilesim /
                 {` ${featuredRecommendation.featured_followed_interactions}`} takip /
                 {` ${featuredRecommendation.featured_override_interactions}`} override
               </p>
+              {featuredRecommendation.decision_context_source === "draft_detail"
+                && featuredRecommendation.decision_context_success_rate != null ? (
+                  <p className="mt-2 text-xs muted-text">
+                    Draft detail kaynakli remediation publish basarisi %{featuredRecommendation.decision_context_success_rate}.
+                  </p>
+                ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   size="sm"
@@ -1283,6 +1365,48 @@ function ApprovalsPageContent({
             ) : (
               <p className="mt-3 text-sm muted-text">Outcome chain verisi yok.</p>
             )}
+          </div>
+          <div className="rounded-lg border border-[var(--accent)]/25 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Badge label="Karsilastirma" variant="neutral" />
+              {sourceComparisonWinner ? (
+                <Badge label={sourceComparisonWinner.label} variant={sourceComparisonWinner.variant} />
+              ) : null}
+            </div>
+            <p className="mt-3 text-sm font-semibold">Draft detail vs approvals native</p>
+            <div className="mt-3 grid gap-2 text-xs muted-text md:grid-cols-2">
+              <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <p className="font-semibold">Draft detail</p>
+                <p className="mt-1">Takip edilen: {draftDetailSummary.tracked_interactions}</p>
+                <p>Retry aksiyonu: {draftDetailSummary.total_retry_actions}</p>
+                <p>Publish denemesi: {draftDetailSummary.publish_attempts}</p>
+                <p>
+                  Publish basarisi:{" "}
+                  {draftDetailSummary.publish_success_rate != null ? `%${draftDetailSummary.publish_success_rate}` : "Veri yok"}
+                </p>
+                {draftDetailSummary.top_source_label ? (
+                  <p className="mt-1">Top kaynak: {draftDetailSummary.top_source_label}</p>
+                ) : null}
+              </div>
+              <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <p className="font-semibold">Approvals native</p>
+                <p className="mt-1">Takip edilen: {approvalsNativeSummary.tracked_interactions}</p>
+                <p>Retry aksiyonu: {approvalsNativeSummary.total_retry_actions}</p>
+                <p>Publish denemesi: {approvalsNativeSummary.publish_attempts}</p>
+                <p>
+                  Publish basarisi:{" "}
+                  {approvalsNativeSummary.publish_success_rate != null
+                    ? `%${approvalsNativeSummary.publish_success_rate}`
+                    : "Veri yok"}
+                </p>
+                {approvalsNativeSummary.top_source_label ? (
+                  <p className="mt-1">Top kaynak: {approvalsNativeSummary.top_source_label}</p>
+                ) : null}
+              </div>
+            </div>
+            <p className="mt-3 text-xs muted-text">
+              {sourceComparisonWinner?.reason ?? "Kaynak karsilastirmasi icin yeterli veri bekleniyor."}
+            </p>
           </div>
         </div>
         </>
@@ -1719,6 +1843,120 @@ function topSourceBreakdown(
   }
 
   return [...sourceBreakdown].sort((left, right) => right.tracked_interactions - left.tracked_interactions)[0] ?? null;
+}
+
+type TelemetryAggregateSummary = {
+  tracked_interactions: number;
+  total_retry_actions: number;
+  publish_attempts: number;
+  successful_publishes: number;
+  failed_publishes: number;
+  publish_success_rate: number | null;
+  top_source_key: string | null;
+  top_source_label: string | null;
+};
+
+function summarizeTelemetrySources(
+  sources: ReadonlyArray<RemediationTelemetrySource> | undefined,
+): TelemetryAggregateSummary {
+  const sourceList = sources ?? [];
+
+  const trackedInteractions = sourceList.reduce((sum, source) => sum + source.tracked_interactions, 0);
+  const totalRetryActions = sourceList.reduce(
+    (sum, source) => sum + source.publish_retry_actions + source.bulk_retry_actions,
+    0,
+  );
+  const publishAttempts = sourceList.reduce((sum, source) => sum + source.publish_attempts, 0);
+  const successfulPublishes = sourceList.reduce((sum, source) => sum + source.successful_publishes, 0);
+  const failedPublishes = sourceList.reduce((sum, source) => sum + source.failed_publishes, 0);
+  const topSource = [...sourceList].sort((left, right) => right.tracked_interactions - left.tracked_interactions)[0];
+
+  return {
+    tracked_interactions: trackedInteractions,
+    total_retry_actions: totalRetryActions,
+    publish_attempts: publishAttempts,
+    successful_publishes: successfulPublishes,
+    failed_publishes: failedPublishes,
+    publish_success_rate:
+      publishAttempts > 0 ? roundToOneDecimal((successfulPublishes / publishAttempts) * 100) : null,
+    top_source_key: topSource?.source_key ?? null,
+    top_source_label: topSource?.label ?? null,
+  };
+}
+
+function compareSourceAggressiveness(
+  draftDetailSummary: TelemetryAggregateSummary,
+  approvalsNativeSummary: TelemetryAggregateSummary,
+): {
+  label: string;
+  variant: "success" | "warning" | "neutral";
+  reason: string;
+} | null {
+  if (
+    draftDetailSummary.tracked_interactions === 0
+    && approvalsNativeSummary.tracked_interactions === 0
+  ) {
+    return null;
+  }
+
+  const draftRate = draftDetailSummary.publish_success_rate;
+  const nativeRate = approvalsNativeSummary.publish_success_rate;
+
+  if (draftRate != null && nativeRate != null) {
+    if (draftRate > nativeRate) {
+      return {
+        label: "Draft detail daha guclu",
+        variant: "success",
+        reason: `Draft detail publish basarisi %${draftRate} ile approvals-native %${nativeRate} seviyesinin uzerinde.`,
+      };
+    }
+
+    if (nativeRate > draftRate) {
+      return {
+        label: "Approvals-native daha guclu",
+        variant: "warning",
+        reason: `Approvals-native publish basarisi %${nativeRate} ile draft detail %${draftRate} seviyesinin uzerinde.`,
+      };
+    }
+  }
+
+  if (draftDetailSummary.successful_publishes !== approvalsNativeSummary.successful_publishes) {
+    return draftDetailSummary.successful_publishes > approvalsNativeSummary.successful_publishes
+      ? {
+          label: "Draft detail daha guclu",
+          variant: "success",
+          reason: "Draft detail daha fazla basarili publish uretmis gorunuyor.",
+        }
+      : {
+          label: "Approvals-native daha guclu",
+          variant: "warning",
+          reason: "Approvals-native kaynaklar daha fazla basarili publish uretmis gorunuyor.",
+        };
+  }
+
+  if (draftDetailSummary.tracked_interactions !== approvalsNativeSummary.tracked_interactions) {
+    return draftDetailSummary.tracked_interactions > approvalsNativeSummary.tracked_interactions
+      ? {
+          label: "Draft detail daha aktif",
+          variant: "neutral",
+          reason: "Draft detail etkilesim hacmi approvals-native toplanmiÅŸ akislerden daha yuksek.",
+        }
+      : {
+          label: "Approvals-native daha aktif",
+          variant: "neutral",
+          reason: "Approvals-native akisler draft detail'e gore daha yuksek etkilesim uretiyor.",
+        };
+  }
+
+  return {
+    label: "Denge",
+    variant: "neutral",
+    reason: "Draft detail ve approvals-native akislari birbirine yakin calisiyor.",
+  };
+}
+
+function roundToOneDecimal(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 function effectivenessStatusLabel(status: string): string {
