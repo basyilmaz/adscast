@@ -140,6 +140,14 @@ class ApprovalRemediationAnalyticsService
             ->filter(fn (array $item): bool => ($item['effectiveness_score'] ?? 0) > 0)
             ->sortByDesc(fn (array $item): float => (float) ($item['effectiveness_score'] ?? 0))
             ->first();
+
+        $items = $items
+            ->map(fn (array $item): array => $this->applyRetryGuidance(
+                $item,
+                $topWorkingCluster['publish_success_rate'] ?? null,
+            ))
+            ->values();
+
         $topDraftDetailCluster = $items
             ->filter(function (array $item): bool {
                 return ($item['current_items'] ?? 0) > 0
@@ -311,8 +319,13 @@ class ApprovalRemediationAnalyticsService
         );
 
         if (is_array($manualCheckRequired)) {
+            $recommended = $this->applyRetryGuidance(
+                $manualCheckRequired,
+                $manualCheckRequired['publish_success_rate'] ?? null,
+            );
+
             return [
-                ...$manualCheckRequired,
+                ...$recommended,
                 'decision_status' => 'manual_attention',
                 'decision_reason' => 'Cleanup basarisiz kalan publish hatalari once manuel kontrol gerektiriyor.',
                 'action_mode' => 'focus_cluster',
@@ -333,8 +346,13 @@ class ApprovalRemediationAnalyticsService
             && $draftDetailLead !== null
             && $draftDetailLead >= 15
         ) {
+            $recommended = $this->applyRetryGuidance(
+                $topDraftDetailCluster,
+                $topWorkingCluster['publish_success_rate'] ?? null,
+            );
+
             return [
-                ...$topDraftDetailCluster,
+                ...$recommended,
                 'decision_status' => 'draft_detail_preferred',
                 'decision_reason' => sprintf(
                     'Son %d gunde draft detail uzerinden takip edilen remediation aksiyonlari approvals merkezindeki dogrudan akislarin uzerinde sonuc uretti. Bu nedenle draft detail odaginda daha iyi calisan cluster one cikarildi.',
@@ -343,9 +361,7 @@ class ApprovalRemediationAnalyticsService
                 'decision_context_source' => 'draft_detail',
                 'decision_context_success_rate' => $draftDetailPublishSuccessRate,
                 'decision_context_advantage' => round($draftDetailLead, 1),
-                'action_mode' => in_array($topDraftDetailCluster['cluster_key'], ['retry-ready', 'cleanup-recovered'], true)
-                    ? 'bulk_retry_publish'
-                    : 'focus_cluster',
+                'action_mode' => $this->retryGuidedActionMode($recommended),
             ];
         }
 
@@ -354,30 +370,36 @@ class ApprovalRemediationAnalyticsService
             && ($topEffectiveCluster['current_items'] ?? 0) > 0
             && ($topEffectiveCluster['effectiveness_score'] ?? 0) >= 40
         ) {
+            $recommended = $this->applyRetryGuidance(
+                $topEffectiveCluster,
+                $topWorkingCluster['publish_success_rate'] ?? null,
+            );
+
             return [
-                ...$topEffectiveCluster,
+                ...$recommended,
                 'decision_status' => 'effectiveness_preferred',
                 'decision_reason' => sprintf(
                     'Son %d gunun effectiveness skoruna gore publish toparlama ihtimali en guclu remediation cluster one cikarildi.',
                     $windowDays,
                 ),
-                'action_mode' => in_array($topEffectiveCluster['cluster_key'], ['retry-ready', 'cleanup-recovered'], true)
-                    ? 'bulk_retry_publish'
-                    : 'focus_cluster',
+                'action_mode' => $this->retryGuidedActionMode($recommended),
             ];
         }
 
         if (is_array($topWorkingCluster) && ($topWorkingCluster['current_items'] ?? 0) > 0) {
+            $recommended = $this->applyRetryGuidance(
+                $topWorkingCluster,
+                $topWorkingCluster['publish_success_rate'] ?? null,
+            );
+
             return [
-                ...$topWorkingCluster,
+                ...$recommended,
                 'decision_status' => 'analytics_preferred',
                 'decision_reason' => sprintf(
                     'Son %d gunun publish sonucuna gore su an en iyi toparlayan remediation cluster one cikarildi.',
                     $windowDays,
                 ),
-                'action_mode' => in_array($topWorkingCluster['cluster_key'], ['retry-ready', 'cleanup-recovered'], true)
-                    ? 'bulk_retry_publish'
-                    : 'focus_cluster',
+                'action_mode' => $this->retryGuidedActionMode($recommended),
             ];
         }
 
@@ -387,17 +409,123 @@ class ApprovalRemediationAnalyticsService
             return null;
         }
 
+        $recommended = $this->applyRetryGuidance(
+            $fallback,
+            $topWorkingCluster['publish_success_rate'] ?? null,
+        );
+
         return [
-            ...$fallback,
+            ...$recommended,
             'decision_status' => 'rule_based',
             'decision_reason' => sprintf(
                 'Son %d gun icinde yeterli publish sonucu olmadigi icin aktif remediation durumuna gore kurala dayali oncelik secildi.',
                 $windowDays,
             ),
-            'action_mode' => in_array($fallback['cluster_key'], ['retry-ready', 'cleanup-recovered'], true)
-                ? 'bulk_retry_publish'
-                : 'focus_cluster',
+            'action_mode' => $this->retryGuidedActionMode($recommended),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $cluster
+     * @param float|null $baselineSuccessRate
+     * @return array<string, mixed>
+     */
+    private function applyRetryGuidance(array $cluster, ?float $baselineSuccessRate): array
+    {
+        $retryableClusterKeys = ['retry-ready', 'cleanup-recovered'];
+        $clusterKey = (string) ($cluster['cluster_key'] ?? '');
+        $currentItems = (int) ($cluster['current_items'] ?? 0);
+        $publishAttempts = (int) ($cluster['publish_attempts'] ?? 0);
+        $publishSuccessRate = isset($cluster['publish_success_rate']) ? (float) $cluster['publish_success_rate'] : null;
+        $featuredFollowRate = isset($cluster['featured_follow_rate']) ? (float) $cluster['featured_follow_rate'] : null;
+        $baselineSuccessRate = $baselineSuccessRate ?? $publishSuccessRate;
+
+        if ($currentItems <= 0) {
+            return [
+                ...$cluster,
+                'retry_guidance_status' => 'blocked',
+                'retry_guidance_label' => 'Aktif Kayit Yok',
+                'retry_guidance_reason' => 'Bu cluster icin aktif approval kaydi bulunmuyor; toplu retry uygulanamaz.',
+                'safe_bulk_retry' => false,
+            ];
+        }
+
+        if (! in_array($clusterKey, $retryableClusterKeys, true)) {
+            return [
+                ...$cluster,
+                'retry_guidance_status' => 'blocked',
+                'retry_guidance_label' => 'Toplu Retry Uygun Degil',
+                'retry_guidance_reason' => 'Bu cluster toplu publish retry yerine manuel inceleme odaginda tutulmali.',
+                'safe_bulk_retry' => false,
+            ];
+        }
+
+        if ($publishAttempts === 0 || $publishSuccessRate === null) {
+            return [
+                ...$cluster,
+                'retry_guidance_status' => 'guarded',
+                'retry_guidance_label' => 'Veri Bekleniyor',
+                'retry_guidance_reason' => sprintf(
+                    'Bu cluster icin yeterli publish verisi yok. Acik kayit: %d, baseline basari: %s, featured takip: %s.',
+                    $currentItems,
+                    $baselineSuccessRate !== null ? sprintf('%%%s', $this->formatRate($baselineSuccessRate)) : 'yok',
+                    $featuredFollowRate !== null ? sprintf('%%%s', $this->formatRate($featuredFollowRate)) : 'yok',
+                ),
+                'safe_bulk_retry' => false,
+            ];
+        }
+
+        $baselineSuccessRate = $baselineSuccessRate ?? $publishSuccessRate;
+        $successDelta = round($publishSuccessRate - $baselineSuccessRate, 1);
+
+        if ($publishSuccessRate >= $baselineSuccessRate && ($featuredFollowRate ?? 0) >= 60.0) {
+            return [
+                ...$cluster,
+                'retry_guidance_status' => 'safe',
+                'retry_guidance_label' => 'Toplu Retry Guvenli',
+                'retry_guidance_reason' => sprintf(
+                    'Window basari %s, baseline %s, featured takip %s ve acik kayit %d ile toplu retry guvenli gorunuyor.',
+                    $this->formatPercentage($publishSuccessRate),
+                    $this->formatPercentage($baselineSuccessRate),
+                    $featuredFollowRate !== null ? $this->formatPercentage($featuredFollowRate) : 'yok',
+                    $currentItems,
+                ),
+                'safe_bulk_retry' => true,
+            ];
+        }
+
+        return [
+            ...$cluster,
+            'retry_guidance_status' => 'guarded',
+            'retry_guidance_label' => 'Izlenmeli',
+            'retry_guidance_reason' => sprintf(
+                'Window basari %s baseline %s seviyesinin %s; featured takip %s ve acik kayit %d nedeniyle toplu retry icin ekstra dikkat gerekli.',
+                $this->formatPercentage($publishSuccessRate),
+                $this->formatPercentage($baselineSuccessRate),
+                $successDelta >= 0 ? 'uzerinde' : 'altinda',
+                $featuredFollowRate !== null ? $this->formatPercentage($featuredFollowRate) : 'yok',
+                $currentItems,
+            ),
+            'safe_bulk_retry' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $cluster
+     */
+    private function retryGuidedActionMode(array $cluster): string
+    {
+        return (bool) ($cluster['safe_bulk_retry'] ?? false) ? 'bulk_retry_publish' : 'focus_cluster';
+    }
+
+    private function formatPercentage(float $value): string
+    {
+        return number_format($value, 1, '.', '');
+    }
+
+    private function formatRate(float $value): string
+    {
+        return number_format($value, 1, '.', '');
     }
 
     private function effectivenessScore(

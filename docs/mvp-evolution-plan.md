@@ -365,3 +365,5 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 126. Featured remediation kararini approvals-native ve draft-detail outcome ozetlerini karsilastirarak adaptif hale getirip draft detail uzerinde daha iyi sonuc veren remediation cluster'i one cikarmak
 127. Approvals ekraninda draft detail ve approvals-native remediation performansini karsilastirmali bir analytics yuzeyinde gostermek
 128. Featured remediation kartinda draft-detail avantajini acik badge ve karar baglami ile gorunur kilarak operatore neden o cluster'in one ciktigini daha net anlatmak
+129. Cluster bazli retry guidance alanlarini ekleyip featured recommendation ve cluster item'larinda toplu retry guvenligini window success, baseline success, follow rate ve acik kayit sayisina gore aciklamak
+130. Featured recommendation icin `bulk_retry_publish` aksiyonunu yalnizca retry guidance safe oldugunda acip, guarded durumlarda focus_cluster olarak kilitlemek

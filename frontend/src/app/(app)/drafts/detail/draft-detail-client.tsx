@@ -61,6 +61,12 @@ export function DraftDetailClient() {
   const focusRecommendedAction = searchParams.get("focus_recommended_action");
   const focusClusterKey = searchParams.get("focus_cluster_key");
   const focusSource = searchParams.get("focus_source");
+  const focusDecisionStatus = searchParams.get("focus_decision_status");
+  const focusDecisionReason = searchParams.get("focus_decision_reason");
+  const focusRetryGuidanceStatus = searchParams.get("focus_retry_guidance_status");
+  const focusRetryGuidanceLabel = searchParams.get("focus_retry_guidance_label");
+  const focusRetryGuidanceReason = searchParams.get("focus_retry_guidance_reason");
+  const focusEffectivenessScore = resolveOptionalNumber(searchParams.get("focus_effectiveness_score"));
   const analyticsWindowDays = resolveAnalyticsWindow(searchParams.get("window_days"));
   const hasDraftId = Boolean(draftId);
   const [submitting, setSubmitting] = useState(false);
@@ -305,12 +311,35 @@ export function DraftDetailClient() {
                   {focusClusterKey ? (
                     <Badge label={focusClusterKeyLabel(focusClusterKey)} variant="neutral" />
                   ) : null}
+                  {focusDecisionStatus ? (
+                    <Badge label={focusDecisionStatusLabel(focusDecisionStatus)} variant="neutral" />
+                  ) : null}
+                  {focusRetryGuidanceStatus || focusRetryGuidanceLabel ? (
+                    <Badge
+                      label={focusRetryGuidanceLabel ?? focusRetryGuidanceStatusLabel(focusRetryGuidanceStatus)}
+                      variant={focusRetryGuidanceStatusVariant(focusRetryGuidanceStatus)}
+                    />
+                  ) : null}
+                  {focusEffectivenessScore != null ? (
+                    <Badge label={`Effectiveness ${focusEffectivenessScore}`} variant="neutral" />
+                  ) : null}
                   {analyticsWindowDays ? (
                     <Badge label={`${analyticsWindowDays} gun analytics`} variant="neutral" />
                   ) : null}
                 </div>
                 <p className="mt-2 text-sm muted-text">
-                  {buildFocusGuidance(focusPublishState, focusRecommendedAction, focusSource, analyticsWindowDays)}
+                  {buildFocusGuidance(
+                    focusPublishState,
+                    focusRecommendedAction,
+                    focusSource,
+                    analyticsWindowDays,
+                    focusDecisionStatus,
+                    focusDecisionReason,
+                    focusRetryGuidanceStatus,
+                    focusRetryGuidanceLabel,
+                    focusRetryGuidanceReason,
+                    focusEffectivenessScore,
+                  )}
                 </p>
                 {approvalsReturnRoute ? (
                   <div className="mt-3">
@@ -461,15 +490,81 @@ function focusClusterKeyLabel(code: string): string {
   );
 }
 
+function focusDecisionStatusLabel(code: string): string {
+  return (
+    {
+      draft_detail_preferred: "Draft Detail Lideri",
+      effectiveness_preferred: "Effectiveness Destekli",
+      analytics_preferred: "Analytics Destekli",
+      manual_attention: "Manuel Dikkat",
+      rule_based: "Kural Tabanli",
+      manual_check_required: "Manuel Kontrol Gerekli",
+      manual_check_completed: "Manuel Kontrol Tamamlandi",
+      cleanup_failed: "Cleanup Basarisiz",
+      cleanup_successful: "Cleanup Basarili",
+      partial_publish: "Partial Publish",
+      publish_failed: "Publish Hatasi",
+      published: "Published",
+      safe: "Guvenli Retry",
+      guarded: "Guarded Retry",
+      manual: "Manuel Kontrol",
+    }[code] ?? code
+  );
+}
+
+function focusRetryGuidanceStatusLabel(code: string | null): string {
+  return (
+    {
+      safe: "Guvenli Retry",
+      guarded: "Guarded Retry",
+      blocked: "Toplu Retry Uygun Degil",
+      unknown: "Retry Durumu Bilinmiyor",
+    }[normalizeRetryGuidanceStatus(code)] ?? "Retry Durumu Bilinmiyor"
+  );
+}
+
+function focusRetryGuidanceStatusVariant(
+  code: string | null,
+): "success" | "warning" | "danger" | "neutral" {
+  switch (normalizeRetryGuidanceStatus(code)) {
+    case "safe":
+      return "success";
+    case "guarded":
+      return "warning";
+    case "blocked":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
 function buildFocusGuidance(
   focusPublishState: string | null,
   focusRecommendedAction: string | null,
   focusSource: string | null,
   analyticsWindowDays: number | null,
+  focusDecisionStatus: string | null,
+  focusDecisionReason: string | null,
+  focusRetryGuidanceStatus: string | null,
+  focusRetryGuidanceLabel: string | null,
+  focusRetryGuidanceReason: string | null,
+  focusEffectivenessScore: number | null,
 ): string {
   const windowPrefix = analyticsWindowDays
     ? `Bu odak ${analyticsWindowDays} gunluk approvals analytics penceresinden geldi. `
     : "";
+
+  if (focusDecisionStatus === "draft_detail_preferred") {
+    return `${windowPrefix}Bu odak draft detail outcome'una gore secildi. Ustteki decision, guidance ve effectiveness badge'lerini birlikte inceleyin.`;
+  }
+
+  if (focusDecisionStatus === "effectiveness_preferred") {
+    return `${windowPrefix}Bu odak effectiveness skoruyla one cikti. Publish sonucunu hizli toplama ihtimali daha yuksek olan akisa odaklanin.`;
+  }
+
+  if (focusDecisionStatus === "analytics_preferred") {
+    return `${windowPrefix}Bu odak analytics sinyalleriyle one cikti. Kaynak dagilimini ve cluster bazli sonucu birlikte dogrulayin.`;
+  }
 
   if (focusRecommendedAction === "retry_publish_after_manual_check") {
     return `${windowPrefix}Approvals merkezinden tekrar publish'e hazir kayit olarak geldiniz. Kontrol notunu ve cleanup sonucunu dogrulayip publish aksiyonunu buradan tekrar deneyin.`;
@@ -491,12 +586,32 @@ function buildFocusGuidance(
     return `${windowPrefix}Bu draft manuel kontrol tamamlandi odagiyla acildi. Publish tekrar denemesi icin gereken baglam burada sabitlendi.`;
   }
 
+  if (normalizeRetryGuidanceStatus(focusRetryGuidanceStatus) === "blocked") {
+    return `${windowPrefix}Retry guidance manuel kontrol istiyor. ${focusRetryGuidanceLabel ?? "Oncelikli inceleme"} kararini uygulamadan once guidance notunu ve publish riskini kontrol edin.${focusRetryGuidanceReason ? ` ${focusRetryGuidanceReason}` : ""}`;
+  }
+
+  if (focusRetryGuidanceStatus === "guarded") {
+    return `${windowPrefix}Retry guidance guarded olarak geldi. Bu aksiyon otomatik tekrar publish icin yeterli guvenlik sinyali vermiyor.${focusRetryGuidanceReason ? ` ${focusRetryGuidanceReason}` : ""}`;
+  }
+
+  if (focusRetryGuidanceStatus === "safe") {
+    return `${windowPrefix}Retry guidance guvenli durumda. Tekrar publish adimini uygulamadan once etkinlik ve kaynak baglamini hizlica dogrulayin.${focusRetryGuidanceReason ? ` ${focusRetryGuidanceReason}` : ""}`;
+  }
+
   if (focusSource === "approvals_featured") {
     return `${windowPrefix}Bu draft featured remediation kararindan acildi. Onerilen remediation akisini uygulamadan once publish durumunu bu blokta dogrulayin.`;
   }
 
   if (focusSource === "approvals_cluster") {
     return `${windowPrefix}Bu draft approvals cluster odagindan acildi. Ayni remediation kumesindeki diger kayitlarla tutarli karar vermek icin bu publish blokunu once inceleyin.`;
+  }
+
+  if (focusEffectivenessScore != null) {
+    return `${windowPrefix}Bu draft effectiveness skoru ${focusEffectivenessScore} ile acildi. Decision ve guidance badge'leri bu skora bagli odagi gosterir.`;
+  }
+
+  if (focusDecisionReason) {
+    return `${windowPrefix}${focusDecisionReason}`;
   }
 
   return `${windowPrefix}Bu draft approvals merkezinden remediation odagiyla acildi. Publish durumunu ve onerilen aksiyonu once bu blokta dogrulayin.`;
@@ -510,6 +625,34 @@ function resolveAnalyticsWindow(rawValue: string | null): 7 | 30 | 90 | null {
   }
 
   return null;
+}
+
+function resolveOptionalNumber(rawValue: string | null): number | null {
+  if (rawValue === null) {
+    return null;
+  }
+
+  const parsedValue = Number(rawValue);
+
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+function normalizeRetryGuidanceStatus(rawValue: string | null | undefined): "safe" | "guarded" | "blocked" | "unknown" {
+  const normalized = (rawValue ?? "").trim().toLowerCase();
+
+  if (normalized === "safe" || normalized.includes("safe")) {
+    return "safe";
+  }
+
+  if (normalized === "guarded" || normalized.includes("guard")) {
+    return "guarded";
+  }
+
+  if (normalized === "blocked" || normalized.includes("block") || normalized === "manual" || normalized.includes("manual")) {
+    return "blocked";
+  }
+
+  return "unknown";
 }
 
 function derivePublishFocusState(publishState: DraftPublishState): string | null {

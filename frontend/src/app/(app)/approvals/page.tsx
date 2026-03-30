@@ -89,6 +89,10 @@ type ApprovalRemediationAnalyticsResponse = {
       label: string;
       description: string;
       recommended_action_code: string;
+      retry_guidance_status?: string | null;
+      retry_guidance_label?: string | null;
+      retry_guidance_reason?: string | null;
+      safe_bulk_retry?: boolean | null;
       current_items: number;
       manual_check_completions: number;
       publish_attempts: number;
@@ -125,6 +129,10 @@ type ApprovalRemediationAnalyticsResponse = {
       label: string;
       description: string;
       recommended_action_code: string;
+      retry_guidance_status?: string | null;
+      retry_guidance_label?: string | null;
+      retry_guidance_reason?: string | null;
+      safe_bulk_retry?: boolean | null;
       current_items: number;
       manual_check_completions: number;
       publish_attempts: number;
@@ -259,6 +267,25 @@ type QuickCluster = {
     manualCheck: (typeof MANUAL_CHECK_FILTER_OPTIONS)[number]["value"];
     recommendedAction: (typeof RECOMMENDED_ACTION_FILTER_OPTIONS)[number]["value"];
   };
+};
+
+type RetryGuidanceStatus = "safe" | "guarded" | "blocked" | "unknown";
+
+type RetryGuidanceContext = {
+  retry_guidance_status?: string | null;
+  retry_guidance_label?: string | null;
+  retry_guidance_reason?: string | null;
+  safe_bulk_retry?: boolean | null;
+  action_mode?: "focus_cluster" | "bulk_retry_publish" | null;
+};
+
+type DraftRouteFocusContext = {
+  decisionStatus?: string | null;
+  decisionReason?: string | null;
+  retryGuidanceStatus?: string | null;
+  retryGuidanceLabel?: string | null;
+  retryGuidanceReason?: string | null;
+  effectivenessScore?: number | null;
 };
 
 export default function ApprovalsPage() {
@@ -1010,9 +1037,16 @@ function ApprovalsPageContent({
   const featuredDraftRoute = useMemo(
     () =>
       featuredClusterMatches.length > 0
-        ? buildDraftRoute(featuredClusterMatches[0], analyticsWindowDays, "approvals_featured")
+        ? buildDraftRoute(featuredClusterMatches[0], analyticsWindowDays, "approvals_featured", {
+            decisionStatus: featuredRecommendation?.decision_status ?? null,
+            decisionReason: featuredRecommendation?.decision_reason ?? null,
+            retryGuidanceStatus: featuredRecommendation?.retry_guidance_status ?? null,
+            retryGuidanceLabel: featuredRecommendation?.retry_guidance_label ?? null,
+            retryGuidanceReason: featuredRecommendation?.retry_guidance_reason ?? null,
+            effectivenessScore: featuredRecommendation?.effectiveness_score ?? null,
+          })
         : null,
-    [analyticsWindowDays, featuredClusterMatches],
+    [analyticsWindowDays, featuredClusterMatches, featuredRecommendation],
   );
 
   return (
@@ -1250,6 +1284,10 @@ function ApprovalsPageContent({
                     variant="success"
                   />
                 ) : null}
+                <Badge
+                  label={resolveRetryGuidanceLabel(featuredRecommendation)}
+                  variant={retryGuidanceVariant(resolveRetryGuidanceStatus(featuredRecommendation))}
+                />
                 {featuredRecommendation.decision_context_source === "draft_detail"
                   && featuredRecommendation.decision_context_advantage != null ? (
                     <Badge
@@ -1278,24 +1316,25 @@ function ApprovalsPageContent({
                     Draft detail kaynakli remediation publish basarisi %{featuredRecommendation.decision_context_success_rate}.
                   </p>
                 ) : null}
+              {featuredRecommendation.retry_guidance_reason ? (
+                <p className="mt-2 text-xs muted-text">{featuredRecommendation.retry_guidance_reason}</p>
+              ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   size="sm"
                   onClick={() =>
                     void runClusterRecommendation(
                       featuredRecommendation.cluster_key,
-                      featuredRecommendation.action_mode,
+                      resolveGuidedActionMode(featuredRecommendation),
                       "approvals_featured",
                     )
                   }
                   disabled={
                     bulkPublishing
-                    && featuredRecommendation.action_mode === "bulk_retry_publish"
+                    && resolveGuidedActionMode(featuredRecommendation) === "bulk_retry_publish"
                   }
                 >
-                  {featuredRecommendation.action_mode === "bulk_retry_publish"
-                    ? "Onerilen Retry Akisini Calistir"
-                    : "Onerilen Kume Uzerinde Calis"}
+                  {resolveGuidedActionLabel(featuredRecommendation, resolveGuidedActionMode(featuredRecommendation))}
                 </Button>
                 <Button
                   variant="outline"
@@ -1418,7 +1457,16 @@ function ApprovalsPageContent({
           const matches = clusterItems(cluster);
           const retryableMatches = matches.filter((item) => canRetryPublish(item));
           const clusterDraftRoute =
-            matches.length > 0 ? buildDraftRoute(matches[0], analyticsWindowDays, "approvals_cluster") : null;
+            matches.length > 0
+              ? buildDraftRoute(matches[0], analyticsWindowDays, "approvals_cluster", {
+                  decisionStatus: analyticsItem?.retry_guidance_status ?? analyticsItem?.effectiveness_status ?? null,
+                  decisionReason: analyticsItem?.health_summary ?? cluster.detail,
+                  retryGuidanceStatus: analyticsItem?.retry_guidance_status ?? null,
+                  retryGuidanceLabel: analyticsItem?.retry_guidance_label ?? null,
+                  retryGuidanceReason: analyticsItem?.retry_guidance_reason ?? null,
+                  effectivenessScore: analyticsItem?.effectiveness_score ?? null,
+                })
+              : null;
           const topSource = topSourceBreakdown(analyticsItem?.source_breakdown);
           const clusterOutcomeSummary = analyticsItem?.outcome_chain_summary ?? null;
 
@@ -1443,6 +1491,12 @@ function ApprovalsPageContent({
                   <Badge
                     label={`Effectiveness ${analyticsItem.effectiveness_score}`}
                     variant={analyticsItem.effectiveness_status === "proven" ? "success" : "neutral"}
+                  />
+                ) : null}
+                {analyticsItem ? (
+                  <Badge
+                    label={resolveRetryGuidanceLabel(analyticsItem)}
+                    variant={retryGuidanceVariant(resolveRetryGuidanceStatus(analyticsItem))}
                   />
                 ) : null}
               </div>
@@ -1475,6 +1529,9 @@ function ApprovalsPageContent({
                       {` ${clusterOutcomeSummary.successful_publishes}`} basarili publish
                     </p>
                   ) : null}
+                  {analyticsItem.retry_guidance_reason ? (
+                    <p>{analyticsItem.retry_guidance_reason}</p>
+                  ) : null}
                 </div>
               ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
@@ -1496,9 +1553,9 @@ function ApprovalsPageContent({
                 <Button
                   type="button"
                   size="sm"
-                  variant={cluster.key === "retry-ready" || cluster.key === "cleanup-recovered" ? "primary" : "secondary"}
+                  variant={resolveClusterActionVariant(cluster.key, analyticsItem)}
                   onClick={() => {
-                    if (cluster.key === "retry-ready" || cluster.key === "cleanup-recovered") {
+                    if (shouldRunClusterBulkRetry(cluster.key, analyticsItem, retryableMatches.length)) {
                       void runBulkPublishRetry(retryableMatches, cluster.key, "approvals_cluster");
                       return;
                     }
@@ -1512,10 +1569,10 @@ function ApprovalsPageContent({
                   }}
                   disabled={
                     bulkPublishing
-                    || ((cluster.key === "retry-ready" || cluster.key === "cleanup-recovered") && retryableMatches.length === 0)
+                    || (shouldRunClusterBulkRetry(cluster.key, analyticsItem, retryableMatches.length) && retryableMatches.length === 0)
                   }
                 >
-                  {clusterActionLabel(cluster.key)}
+                  {clusterActionLabel(cluster.key, analyticsItem)}
                 </Button>
                 {clusterDraftRoute ? (
                   <Link href={clusterDraftRoute}>
@@ -1591,13 +1648,27 @@ function ApprovalsPageContent({
                   <p className="mt-2 text-xs muted-text">Kontrol notu: {item.publish_state.manual_check_note}</p>
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {item.approvable_route ? (
-                    <Link href={buildDraftRoute(item, analyticsWindowDays, "approvals_retry_ready") ?? item.approvable_route}>
-                      <Button variant="outline" size="sm">
-                        Drafta Git
-                      </Button>
-                    </Link>
-                  ) : null}
+              {item.approvable_route ? (
+                <Link
+                  href={
+                    buildDraftRoute(item, analyticsWindowDays, "approvals_retry_ready", {
+                      decisionStatus: deriveFocusPublishState(item),
+                      decisionReason: item.publish_state?.recommended_action_label ?? item.publish_state?.operator_guidance ?? null,
+                      retryGuidanceStatus: canRetryPublish(item)
+                        ? "safe"
+                        : item.publish_state?.manual_check_required
+                          ? "blocked"
+                          : "guarded",
+                      retryGuidanceLabel: item.publish_state?.recommended_action_label ?? null,
+                      retryGuidanceReason: item.publish_state?.operator_guidance ?? null,
+                    }) ?? item.approvable_route
+                  }
+                >
+                  <Button variant="outline" size="sm">
+                    Drafta Git
+                  </Button>
+                </Link>
+              ) : null}
                   <Button size="sm" onClick={() => callAction(item, "publish", "approvals_retry_ready")}>
                     Tekrar Publish Dene
                   </Button>
@@ -1709,7 +1780,21 @@ function ApprovalsPageContent({
             ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
               {item.approvable_route ? (
-                <Link href={buildDraftRoute(item, analyticsWindowDays, "approvals_item") ?? item.approvable_route}>
+                <Link
+                  href={
+                    buildDraftRoute(item, analyticsWindowDays, "approvals_item", {
+                      decisionStatus: deriveFocusPublishState(item),
+                      decisionReason: item.publish_state?.recommended_action_label ?? item.publish_state?.operator_guidance ?? null,
+                      retryGuidanceStatus: item.publish_state?.manual_check_required
+                        ? "blocked"
+                        : canRetryPublish(item)
+                          ? "safe"
+                          : "guarded",
+                      retryGuidanceLabel: item.publish_state?.recommended_action_label ?? null,
+                      retryGuidanceReason: item.publish_state?.operator_guidance ?? null,
+                    }) ?? item.approvable_route
+                  }
+                >
                   <Button variant="outline" size="sm">
                     Drafta Git
                   </Button>
@@ -1810,7 +1895,21 @@ function extractErrorMessage(reason: unknown): string {
   return "Toplu publish retry aksiyonu basarisiz.";
 }
 
-function clusterActionLabel(clusterKey: string): string {
+function clusterActionLabel(clusterKey: string, analyticsItem?: { retry_guidance_status?: string | null }): string {
+  const guidanceStatus = resolveRetryGuidanceStatus(analyticsItem);
+
+  if (guidanceStatus === "blocked") {
+    return "Manuel Kontrole Git";
+  }
+
+  if (guidanceStatus === "guarded") {
+    return "Kumeyi Incele";
+  }
+
+  if (shouldRunClusterBulkRetry(clusterKey, analyticsItem, 1)) {
+    return "Toplu Retry Publish";
+  }
+
   return (
     {
       "manual-check-required": "Bekleyenleri Sec",
@@ -1819,6 +1918,144 @@ function clusterActionLabel(clusterKey: string): string {
       "review-error": "Hatalari Filtrele",
     }[clusterKey] ?? "Kumeyi Filtrele"
   );
+}
+
+function resolveRetryGuidanceStatus(
+  context?: RetryGuidanceContext | null,
+): RetryGuidanceStatus {
+  if (!context) {
+    return "unknown";
+  }
+
+  if (context.safe_bulk_retry === true) {
+    return "safe";
+  }
+
+  const normalized = (context.retry_guidance_status ?? "").trim().toLowerCase();
+
+  if (normalized === "safe" || normalized === "guarded" || normalized === "blocked") {
+    return normalized;
+  }
+
+  if (normalized.includes("safe")) {
+    return "safe";
+  }
+
+  if (normalized.includes("guard")) {
+    return "guarded";
+  }
+
+  if (normalized.includes("manual") || normalized.includes("block")) {
+    return "blocked";
+  }
+
+  return "unknown";
+}
+
+function resolveRetryGuidanceLabel(context?: RetryGuidanceContext | null): string {
+  const status = resolveRetryGuidanceStatus(context);
+
+  if (context?.retry_guidance_label) {
+    return context.retry_guidance_label;
+  }
+
+  return (
+    {
+      safe: "Guvenli Retry",
+      guarded: "Guarded Retry",
+      blocked: "Toplu Retry Uygun Degil",
+      unknown: "Retry Durumu Bilinmiyor",
+    }[status] ?? "Retry Durumu Bilinmiyor"
+  );
+}
+
+function retryGuidanceVariant(status: RetryGuidanceStatus): "success" | "warning" | "danger" | "neutral" {
+  switch (status) {
+    case "safe":
+      return "success";
+    case "guarded":
+      return "warning";
+    case "blocked":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+function resolveGuidedActionMode(
+  context?: RetryGuidanceContext | null,
+): "focus_cluster" | "bulk_retry_publish" {
+  const status = resolveRetryGuidanceStatus(context);
+
+  if (status === "safe" && (context?.action_mode === "bulk_retry_publish" || context?.safe_bulk_retry !== false)) {
+    return "bulk_retry_publish";
+  }
+
+  return "focus_cluster";
+}
+
+function resolveGuidedActionLabel(
+  context: RetryGuidanceContext | undefined | null,
+  actionMode: "focus_cluster" | "bulk_retry_publish",
+): string {
+  const status = resolveRetryGuidanceStatus(context);
+
+  if (context?.retry_guidance_label) {
+    return context.retry_guidance_label;
+  }
+
+  if (status === "blocked") {
+    return "Manuel Kontrole Git";
+  }
+
+  if (status === "guarded") {
+    return "Kumeyi Incele";
+  }
+
+  if (actionMode === "bulk_retry_publish") {
+    return "Onerilen Retry Akisini Calistir";
+  }
+
+  return "Onerilen Kume Uzerinde Calis";
+}
+
+function resolveClusterActionVariant(
+  clusterKey: string,
+  analyticsItem?: { retry_guidance_status?: string | null; safe_bulk_retry?: boolean | null },
+): "primary" | "secondary" | "outline" {
+  const guidanceStatus = resolveRetryGuidanceStatus(analyticsItem);
+
+  if (guidanceStatus === "blocked" || guidanceStatus === "guarded") {
+    return "outline";
+  }
+
+  return shouldRunClusterBulkRetry(clusterKey, analyticsItem, 1) ? "primary" : "secondary";
+}
+
+function shouldRunClusterBulkRetry(
+  clusterKey: string,
+  analyticsItem?: { retry_guidance_status?: string | null; safe_bulk_retry?: boolean | null },
+  retryableMatchesCount = 0,
+): boolean {
+  if (retryableMatchesCount === 0) {
+    return false;
+  }
+
+  const guidanceStatus = resolveRetryGuidanceStatus(analyticsItem);
+
+  if (guidanceStatus === "guarded" || guidanceStatus === "blocked") {
+    return false;
+  }
+
+  if (analyticsItem?.safe_bulk_retry === false) {
+    return false;
+  }
+
+  if (guidanceStatus === "safe") {
+    return true;
+  }
+
+  return clusterKey === "retry-ready" || clusterKey === "cleanup-recovered";
 }
 
 function sourceLabel(sourceKey: string, fallbackLabel: string): string {
@@ -1987,6 +2224,7 @@ function buildDraftRoute(
   item: Approval,
   analyticsWindowDays: number,
   focusSource: "approvals" | "approvals_featured" | "approvals_cluster" | "approvals_retry_ready" | "approvals_item",
+  focusContext?: DraftRouteFocusContext,
 ): string | null {
   if (!item.approvable_route) {
     return null;
@@ -2014,6 +2252,30 @@ function buildDraftRoute(
   }
 
   params.set("focus_source", focusSource);
+
+  if (focusContext?.decisionStatus) {
+    params.set("focus_decision_status", focusContext.decisionStatus);
+  }
+
+  if (focusContext?.decisionReason) {
+    params.set("focus_decision_reason", focusContext.decisionReason);
+  }
+
+  if (focusContext?.retryGuidanceStatus) {
+    params.set("focus_retry_guidance_status", focusContext.retryGuidanceStatus);
+  }
+
+  if (focusContext?.retryGuidanceLabel) {
+    params.set("focus_retry_guidance_label", focusContext.retryGuidanceLabel);
+  }
+
+  if (focusContext?.retryGuidanceReason) {
+    params.set("focus_retry_guidance_reason", focusContext.retryGuidanceReason);
+  }
+
+  if (focusContext?.effectivenessScore != null) {
+    params.set("focus_effectiveness_score", String(focusContext.effectivenessScore));
+  }
 
   const nextQuery = params.toString();
 

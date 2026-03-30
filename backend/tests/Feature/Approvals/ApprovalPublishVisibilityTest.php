@@ -201,10 +201,14 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.summary.featured_cluster_label', 'Manuel Kontrol Bekleyenler')
             ->assertJsonPath('data.featured_recommendation.cluster_key', 'manual-check-required')
             ->assertJsonPath('data.featured_recommendation.decision_status', 'manual_attention')
+            ->assertJsonPath('data.featured_recommendation.retry_guidance_status', 'blocked')
+            ->assertJsonPath('data.featured_recommendation.safe_bulk_retry', false)
             ->assertJsonPath('data.featured_recommendation.action_mode', 'focus_cluster')
             ->assertJsonPath('data.items.0.cluster_key', 'retry-ready')
             ->assertJsonPath('data.items.0.successful_publishes', 1)
-            ->assertJsonPath('data.items.0.publish_success_rate', 100);
+            ->assertJsonPath('data.items.0.publish_success_rate', 100)
+            ->assertJsonPath('data.items.0.retry_guidance_status', 'guarded')
+            ->assertJsonPath('data.items.0.safe_bulk_retry', false);
     }
 
     public function test_approvals_remediation_analytics_prefers_retry_ready_cluster_when_manual_check_queue_is_clear(): void
@@ -243,7 +247,9 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.summary.featured_cluster_label', "Tekrar Publish'e Hazir")
             ->assertJsonPath('data.featured_recommendation.cluster_key', 'retry-ready')
             ->assertJsonPath('data.featured_recommendation.decision_status', 'effectiveness_preferred')
-            ->assertJsonPath('data.featured_recommendation.action_mode', 'bulk_retry_publish');
+            ->assertJsonPath('data.featured_recommendation.retry_guidance_status', 'guarded')
+            ->assertJsonPath('data.featured_recommendation.safe_bulk_retry', false)
+            ->assertJsonPath('data.featured_recommendation.action_mode', 'focus_cluster');
     }
 
     public function test_approvals_remediation_analytics_supports_selectable_windows_and_effectiveness_fields(): void
@@ -299,6 +305,8 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.summary.top_effective_cluster_label', "Tekrar Publish'e Hazir")
             ->assertJsonPath('data.summary.top_effective_cluster_score', 77)
             ->assertJsonPath('data.featured_recommendation.decision_status', 'effectiveness_preferred')
+            ->assertJsonPath('data.featured_recommendation.retry_guidance_status', 'guarded')
+            ->assertJsonPath('data.featured_recommendation.safe_bulk_retry', false)
             ->assertJsonPath('data.featured_recommendation.effectiveness_score', 77)
             ->assertJsonPath('data.featured_recommendation.effectiveness_status', 'proven')
             ->assertJsonPath('data.items.0.effectiveness_score', 77)
@@ -390,6 +398,8 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.featured_recommendation.featured_override_interactions', 1)
             ->assertJsonPath('data.featured_recommendation.featured_publish_attempts', 2)
             ->assertJsonPath('data.featured_recommendation.featured_publish_success_rate', 50)
+            ->assertJsonPath('data.featured_recommendation.retry_guidance_status', 'guarded')
+            ->assertJsonPath('data.featured_recommendation.safe_bulk_retry', false)
             ->assertJsonPath('data.outcome_chain_summary.manual_check_completions', 1)
             ->assertJsonPath('data.outcome_chain_summary.bulk_retry_actions', 1)
             ->assertJsonPath('data.outcome_chain_summary.total_retry_actions', 1)
@@ -421,7 +431,7 @@ class ApprovalPublishVisibilityTest extends TestCase
 
     public function test_featured_recommendation_prefers_draft_detail_outcome_when_it_outperforms_approvals_native_flow(): void
     {
-        [$workspaceId, $token] = $this->seedFailedPublishFixture([
+        [$workspaceId, $token, , $retryReadyApproval] = $this->seedFailedPublishFixture([
             'product_service' => 'Retry hazir draft detail leader',
             'meta_campaign_id' => 'meta_campaign_retry_detail_leader',
             'manual_check' => [
@@ -456,6 +466,36 @@ class ApprovalPublishVisibilityTest extends TestCase
                 'interaction_source' => 'draft_detail_from_approvals_featured',
             ])
             ->assertOk();
+
+        AuditLog::query()->create([
+            'workspace_id' => $workspaceId,
+            'action' => 'publish_attempted',
+            'target_type' => 'approval',
+            'target_id' => $retryReadyApproval->id,
+            'metadata' => [
+                'success' => true,
+                'remediation_context' => [
+                    'cluster_key' => 'retry-ready',
+                    'recommended_action_code' => 'retry_publish_after_manual_check',
+                ],
+            ],
+            'occurred_at' => now()->subMinutes(4),
+        ]);
+
+        AuditLog::query()->create([
+            'workspace_id' => $workspaceId,
+            'action' => 'publish_attempted',
+            'target_type' => 'approval',
+            'target_id' => $retryReadyApproval->id,
+            'metadata' => [
+                'success' => true,
+                'remediation_context' => [
+                    'cluster_key' => 'retry-ready',
+                    'recommended_action_code' => 'retry_publish_after_manual_check',
+                ],
+            ],
+            'occurred_at' => now()->subMinutes(3),
+        ]);
 
         $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspaceId)
@@ -499,7 +539,11 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.featured_recommendation.decision_context_source', 'draft_detail')
             ->assertJsonPath('data.featured_recommendation.decision_context_success_rate', 100)
             ->assertJsonPath('data.featured_recommendation.decision_context_advantage', 50)
-            ->assertJsonPath('data.featured_recommendation.action_mode', 'bulk_retry_publish');
+            ->assertJsonPath('data.featured_recommendation.retry_guidance_status', 'safe')
+            ->assertJsonPath('data.featured_recommendation.safe_bulk_retry', true)
+            ->assertJsonPath('data.featured_recommendation.action_mode', 'bulk_retry_publish')
+            ->assertJsonPath('data.items.0.retry_guidance_status', 'safe')
+            ->assertJsonPath('data.items.0.safe_bulk_retry', true);
     }
 
     /**

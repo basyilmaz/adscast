@@ -154,8 +154,9 @@ Base path: `/api/v1`
   - `draft_detail_outcome_summary` ile draft detail kaynakli remediation akislarinin toplu outcome ozeti ve top source bilgisi doner
   - `featured_recommendation` altinda sistemin su an one cikardigi remediation cluster'ini, karar nedenini, onerilen aksiyon modunu, effectiveness bilgisini, `source_breakdown[]`, `outcome_chain_summary`, `draft_detail_outcome_summary` ve gerekiyorsa `decision_context_*` alanlarini doner
   - featured remediation kararinda `decision_status=draft_detail_preferred` olursa draft detail uzerinden daha iyi sonuc veren remediation cluster analytics destekli olarak one cikarilmis olur
+  - `featured_recommendation.retry_guidance_status`, `retry_guidance_label`, `retry_guidance_reason` ve `safe_bulk_retry` ile cluster bazli toplu retry guvenligini aciklar
   - `summary` ve `featured_recommendation` featured takip / override / publish basarisi metriklerini de doner
-  - `items[]` altinda `current_items`, `manual_check_completions`, `publish_attempts`, `successful_publishes`, `publish_success_rate`, `effectiveness_score`, `effectiveness_status`, `health_status`, `route`, `top_interaction_source_label`, `source_breakdown[]`, `outcome_chain_summary` alanlarini doner
+  - `items[]` altinda `current_items`, `manual_check_completions`, `publish_attempts`, `successful_publishes`, `publish_success_rate`, `effectiveness_score`, `effectiveness_status`, `health_status`, `route`, `top_interaction_source_label`, `source_breakdown[]`, `outcome_chain_summary`, `retry_guidance_status`, `retry_guidance_label`, `retry_guidance_reason`, `safe_bulk_retry` alanlarini doner
 - `POST /approvals/remediation-analytics/track`
   - featured remediation karti veya cluster aksiyonlari kullanildiginda takip / override ve publish sonucu telemetrisi kaydeder
   - `featured_cluster_key`, `acted_cluster_key`, `interaction_type`, `followed_featured`, `attempted_count`, `success_count`, `failure_count` alanlarini kabul eder
