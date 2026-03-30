@@ -398,3 +398,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 158. Approvals remediation analytics kontratina additive `route_series_spotlight` blogu ve summary seviyesinde top route-series durum alanlari ekleyip featured kararinin pencere bazli support sinyalini backend seviyesinde acik hale getirmek
 159. Featured remediation `action_mode` seciminde route-series spotlight `softening` ve `sparse` sinyalini kullanip guvenli toplu retry kararini gerektiğinde otomatik olarak cluster focus moduna geri cekmek
 160. Approvals ekranindaki route spotlight kartini primary-action route series ozetiyle besleyip draft detail ile approvals-native karari icin operatora daha veri odakli bir aciklama yuzeyi sunmak
+161. Approvals remediation analytics'e route outcome spotlight ve guidance katmani ekleyip current/long-term outcome sinyallerine gore featured CTA kararini daha adaptif ama guvenli hale getirmek
+162. Featured recommendation kararinda route outcome guidance status ve recommended action mode sinyalini summary seviyesine tasiyip operatorun safe/blocked/focus kararini tek blokta okuyabilmesini saglamak
+163. Draft detail ve approvals-native outcome karsilastirmasini route outcome spotlight ile tek kontratta aciklayip jump_to_item ile focus_cluster arasindaki secimi daha veri odakli hale getirmek

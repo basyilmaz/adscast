@@ -18,6 +18,7 @@ class ApprovalRemediationAnalyticsService
      *     summary: array<string, mixed>,
      *     featured_recommendation: array<string, mixed>|null,
      *     route_series_spotlight: array<string, mixed>|null,
+     *     route_outcome_spotlight: array<string, mixed>|null,
      *     interaction_sources: array<int, array<string, mixed>>,
      *     route_trends: array<int, array<string, mixed>>,
      *     long_term_route_trends: array<int, array<string, mixed>>,
@@ -176,6 +177,7 @@ class ApprovalRemediationAnalyticsService
             $longTermWindowDays,
         );
         $routeSeriesSpotlight = $this->routeSeriesSpotlight($featuredRecommendation);
+        $routeOutcomeSpotlight = $this->routeOutcomeSpotlight($featuredRecommendation, $routeSeriesSpotlight);
         $featuredSummary = $this->featuredSummary($currentFeaturedInteractionLogs);
 
         return [
@@ -224,12 +226,18 @@ class ApprovalRemediationAnalyticsService
                 'top_route_series_window_days' => $routeSeriesSpotlight['window_days'] ?? null,
                 'top_route_series_route_key' => $routeSeriesSpotlight['route_key'] ?? null,
                 'top_route_series_route_label' => $routeSeriesSpotlight['route_label'] ?? null,
+                'top_route_outcome_status' => $routeOutcomeSpotlight['guidance_status'] ?? null,
+                'top_route_outcome_status_label' => $routeOutcomeSpotlight['guidance_label'] ?? null,
+                'top_route_outcome_reason' => $routeOutcomeSpotlight['guidance_reason'] ?? null,
+                'top_route_outcome_recommended_action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? null,
+                'top_route_outcome_recommended_action_label' => $routeOutcomeSpotlight['recommended_action_label'] ?? null,
                 ...$featuredSummary,
                 'window_days' => $windowDays,
                 'long_term_window_days' => $longTermWindowDays,
             ],
             'featured_recommendation' => $featuredRecommendation,
             'route_series_spotlight' => $routeSeriesSpotlight,
+            'route_outcome_spotlight' => $routeOutcomeSpotlight,
             'interaction_sources' => $interactionSources->all(),
             'route_trends' => $routeTrends->all(),
             'long_term_route_trends' => $longTermRouteTrends->all(),
@@ -362,17 +370,22 @@ class ApprovalRemediationAnalyticsService
                 $manualCheckRequired['publish_success_rate'] ?? null,
             ));
             $routeSeriesSpotlight = $this->routeSeriesSpotlight($recommended);
+            $routeOutcomeSpotlight = $this->routeOutcomeSpotlight($recommended, $routeSeriesSpotlight);
 
             return [
                 ...$recommended,
                 'route_series_spotlight' => $routeSeriesSpotlight,
+                'route_outcome_spotlight' => $routeOutcomeSpotlight,
                 'decision_context_route_series_status' => $routeSeriesSpotlight['status'] ?? null,
                 'decision_context_route_series_reason' => $routeSeriesSpotlight['reason'] ?? null,
                 'decision_context_route_series_window_days' => $routeSeriesSpotlight['window_days'] ?? null,
                 'decision_context_route_series_success_rate' => $routeSeriesSpotlight['current_window_success_rate'] ?? null,
+                'decision_context_route_outcome_status' => $routeOutcomeSpotlight['guidance_status'] ?? null,
+                'decision_context_route_outcome_reason' => $routeOutcomeSpotlight['guidance_reason'] ?? null,
+                'decision_context_route_outcome_recommended_action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? null,
                 'decision_status' => 'manual_attention',
                 'decision_reason' => 'Cleanup basarisiz kalan publish hatalari once manuel kontrol gerektiriyor.',
-                'action_mode' => 'focus_cluster',
+                'action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? 'focus_cluster',
             ];
         }
 
@@ -392,15 +405,20 @@ class ApprovalRemediationAnalyticsService
                 $currentReferenceSuccessRate,
             ));
             $routeSeriesSpotlight = $this->routeSeriesSpotlight($recommended);
+            $routeOutcomeSpotlight = $this->routeOutcomeSpotlight($recommended, $routeSeriesSpotlight);
             $longTermSuccessRate = (float) ($recommended['publish_success_rate'] ?? 0);
 
             return [
                 ...$recommended,
                 'route_series_spotlight' => $routeSeriesSpotlight,
+                'route_outcome_spotlight' => $routeOutcomeSpotlight,
                 'decision_context_route_series_status' => $routeSeriesSpotlight['status'] ?? null,
                 'decision_context_route_series_reason' => $routeSeriesSpotlight['reason'] ?? null,
                 'decision_context_route_series_window_days' => $routeSeriesSpotlight['window_days'] ?? null,
                 'decision_context_route_series_success_rate' => $routeSeriesSpotlight['current_window_success_rate'] ?? null,
+                'decision_context_route_outcome_status' => $routeOutcomeSpotlight['guidance_status'] ?? null,
+                'decision_context_route_outcome_reason' => $routeOutcomeSpotlight['guidance_reason'] ?? null,
+                'decision_context_route_outcome_recommended_action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? null,
                 'decision_status' => 'long_term_preferred',
                 'decision_reason' => sprintf(
                     'Son %d gunde uzun vade verisi bu clusterin daha stabil calistigini gosteriyor. Kisa vade sinyali yeterince guclu olmadigi icin uzun vade odagi one cikarildi.',
@@ -413,7 +431,7 @@ class ApprovalRemediationAnalyticsService
                 'decision_context_advantage' => $currentReferenceSuccessRate !== null
                     ? round($longTermSuccessRate - (float) $currentReferenceSuccessRate, 1)
                     : null,
-                'action_mode' => $this->retryGuidedActionMode($recommended, $routeSeriesSpotlight),
+                'action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? $this->retryGuidedActionMode($recommended, $routeSeriesSpotlight),
             ];
         }
 
@@ -436,14 +454,19 @@ class ApprovalRemediationAnalyticsService
                 $topWorkingCluster['publish_success_rate'] ?? null,
             ));
             $routeSeriesSpotlight = $this->routeSeriesSpotlight($recommended);
+            $routeOutcomeSpotlight = $this->routeOutcomeSpotlight($recommended, $routeSeriesSpotlight);
 
             return [
                 ...$recommended,
                 'route_series_spotlight' => $routeSeriesSpotlight,
+                'route_outcome_spotlight' => $routeOutcomeSpotlight,
                 'decision_context_route_series_status' => $routeSeriesSpotlight['status'] ?? null,
                 'decision_context_route_series_reason' => $routeSeriesSpotlight['reason'] ?? null,
                 'decision_context_route_series_window_days' => $routeSeriesSpotlight['window_days'] ?? null,
                 'decision_context_route_series_success_rate' => $routeSeriesSpotlight['current_window_success_rate'] ?? null,
+                'decision_context_route_outcome_status' => $routeOutcomeSpotlight['guidance_status'] ?? null,
+                'decision_context_route_outcome_reason' => $routeOutcomeSpotlight['guidance_reason'] ?? null,
+                'decision_context_route_outcome_recommended_action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? null,
                 'decision_status' => 'draft_detail_preferred',
                 'decision_reason' => sprintf(
                     'Son %d gunde draft detail uzerinden takip edilen remediation aksiyonlari approvals merkezindeki dogrudan akislarin uzerinde sonuc uretti. Bu nedenle draft detail odaginda daha iyi calisan cluster one cikarildi.',
@@ -452,7 +475,7 @@ class ApprovalRemediationAnalyticsService
                 'decision_context_source' => 'draft_detail',
                 'decision_context_success_rate' => $draftDetailPublishSuccessRate,
                 'decision_context_advantage' => round($draftDetailLead, 1),
-                'action_mode' => $this->retryGuidedActionMode($recommended, $routeSeriesSpotlight),
+                'action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? $this->retryGuidedActionMode($recommended, $routeSeriesSpotlight),
             ];
         }
 
@@ -466,20 +489,25 @@ class ApprovalRemediationAnalyticsService
                 $topWorkingCluster['publish_success_rate'] ?? null,
             ));
             $routeSeriesSpotlight = $this->routeSeriesSpotlight($recommended);
+            $routeOutcomeSpotlight = $this->routeOutcomeSpotlight($recommended, $routeSeriesSpotlight);
 
             return [
                 ...$recommended,
                 'route_series_spotlight' => $routeSeriesSpotlight,
+                'route_outcome_spotlight' => $routeOutcomeSpotlight,
                 'decision_context_route_series_status' => $routeSeriesSpotlight['status'] ?? null,
                 'decision_context_route_series_reason' => $routeSeriesSpotlight['reason'] ?? null,
                 'decision_context_route_series_window_days' => $routeSeriesSpotlight['window_days'] ?? null,
                 'decision_context_route_series_success_rate' => $routeSeriesSpotlight['current_window_success_rate'] ?? null,
+                'decision_context_route_outcome_status' => $routeOutcomeSpotlight['guidance_status'] ?? null,
+                'decision_context_route_outcome_reason' => $routeOutcomeSpotlight['guidance_reason'] ?? null,
+                'decision_context_route_outcome_recommended_action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? null,
                 'decision_status' => 'effectiveness_preferred',
                 'decision_reason' => sprintf(
                     'Son %d gunun effectiveness skoruna gore publish toparlama ihtimali en guclu remediation cluster one cikarildi.',
                     $windowDays,
                 ),
-                'action_mode' => $this->retryGuidedActionMode($recommended, $routeSeriesSpotlight),
+                'action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? $this->retryGuidedActionMode($recommended, $routeSeriesSpotlight),
             ];
         }
 
@@ -489,20 +517,25 @@ class ApprovalRemediationAnalyticsService
                 $topWorkingCluster['publish_success_rate'] ?? null,
             ));
             $routeSeriesSpotlight = $this->routeSeriesSpotlight($recommended);
+            $routeOutcomeSpotlight = $this->routeOutcomeSpotlight($recommended, $routeSeriesSpotlight);
 
             return [
                 ...$recommended,
                 'route_series_spotlight' => $routeSeriesSpotlight,
+                'route_outcome_spotlight' => $routeOutcomeSpotlight,
                 'decision_context_route_series_status' => $routeSeriesSpotlight['status'] ?? null,
                 'decision_context_route_series_reason' => $routeSeriesSpotlight['reason'] ?? null,
                 'decision_context_route_series_window_days' => $routeSeriesSpotlight['window_days'] ?? null,
                 'decision_context_route_series_success_rate' => $routeSeriesSpotlight['current_window_success_rate'] ?? null,
+                'decision_context_route_outcome_status' => $routeOutcomeSpotlight['guidance_status'] ?? null,
+                'decision_context_route_outcome_reason' => $routeOutcomeSpotlight['guidance_reason'] ?? null,
+                'decision_context_route_outcome_recommended_action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? null,
                 'decision_status' => 'analytics_preferred',
                 'decision_reason' => sprintf(
                     'Son %d gunun publish sonucuna gore su an en iyi toparlayan remediation cluster one cikarildi.',
                     $windowDays,
                 ),
-                'action_mode' => $this->retryGuidedActionMode($recommended, $routeSeriesSpotlight),
+                'action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? $this->retryGuidedActionMode($recommended, $routeSeriesSpotlight),
             ];
         }
 
@@ -517,20 +550,25 @@ class ApprovalRemediationAnalyticsService
             $topWorkingCluster['publish_success_rate'] ?? null,
         ));
         $routeSeriesSpotlight = $this->routeSeriesSpotlight($recommended);
+        $routeOutcomeSpotlight = $this->routeOutcomeSpotlight($recommended, $routeSeriesSpotlight);
 
         return [
             ...$recommended,
             'route_series_spotlight' => $routeSeriesSpotlight,
+            'route_outcome_spotlight' => $routeOutcomeSpotlight,
             'decision_context_route_series_status' => $routeSeriesSpotlight['status'] ?? null,
             'decision_context_route_series_reason' => $routeSeriesSpotlight['reason'] ?? null,
             'decision_context_route_series_window_days' => $routeSeriesSpotlight['window_days'] ?? null,
             'decision_context_route_series_success_rate' => $routeSeriesSpotlight['current_window_success_rate'] ?? null,
+            'decision_context_route_outcome_status' => $routeOutcomeSpotlight['guidance_status'] ?? null,
+            'decision_context_route_outcome_reason' => $routeOutcomeSpotlight['guidance_reason'] ?? null,
+            'decision_context_route_outcome_recommended_action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? null,
             'decision_status' => 'rule_based',
-            'decision_reason' => sprintf(
-                'Son %d gun icinde yeterli publish sonucu olmadigi icin aktif remediation durumuna gore kurala dayali oncelik secildi.',
-                $windowDays,
-            ),
-            'action_mode' => $this->retryGuidedActionMode($recommended, $routeSeriesSpotlight),
+                'decision_reason' => sprintf(
+                    'Son %d gun icinde yeterli publish sonucu olmadigi icin aktif remediation durumuna gore kurala dayali oncelik secildi.',
+                    $windowDays,
+                ),
+            'action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? $this->retryGuidedActionMode($recommended, $routeSeriesSpotlight),
         ];
     }
 
@@ -685,6 +723,208 @@ class ApprovalRemediationAnalyticsService
             'long_term_window_summary_label' => $longTermWindow['summary_label'] ?? null,
             'route_series' => $series->all(),
         ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $recommended
+     * @param array<string, mixed>|null $routeSeriesSpotlight
+     * @return array<string, mixed>|null
+     */
+    private function routeOutcomeSpotlight(?array $recommended, ?array $routeSeriesSpotlight = null): ?array
+    {
+        $routeSeriesSpotlight ??= $this->routeSeriesSpotlight($recommended);
+
+        if (! is_array($routeSeriesSpotlight)) {
+            return null;
+        }
+
+        $recommendedActionMode = $this->routeOutcomeActionMode($recommended ?? [], $routeSeriesSpotlight);
+        $guidanceStatus = $this->routeOutcomeGuidanceStatus($routeSeriesSpotlight, $recommendedActionMode);
+
+        return [
+            ...$routeSeriesSpotlight,
+            'guidance_status' => $guidanceStatus,
+            'guidance_label' => $this->routeOutcomeGuidanceLabel($guidanceStatus),
+            'guidance_reason' => $this->routeOutcomeGuidanceReason($routeSeriesSpotlight, $recommendedActionMode, $guidanceStatus),
+            'recommended_action_mode' => $recommendedActionMode,
+            'recommended_action_label' => $this->routeOutcomeActionLabel($recommendedActionMode),
+            'decision_context_source' => $this->routeOutcomeDecisionContextSource($routeSeriesSpotlight, $recommendedActionMode),
+            'decision_context_window_days' => $this->routeOutcomeDecisionContextWindowDays($routeSeriesSpotlight, $recommendedActionMode),
+            'decision_context_success_rate' => $this->routeOutcomeDecisionContextSuccessRate($routeSeriesSpotlight, $recommendedActionMode),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $cluster
+     */
+    private function routeOutcomeActionMode(array $cluster, ?array $routeSeriesSpotlight = null): string
+    {
+        if (! (bool) ($cluster['safe_bulk_retry'] ?? false)) {
+            return 'focus_cluster';
+        }
+
+        $routeSeriesSpotlight ??= $this->routeSeriesSpotlight($cluster);
+
+        if (! is_array($routeSeriesSpotlight)) {
+            return 'focus_cluster';
+        }
+
+        $routeKey = (string) data_get($cluster, 'primary_action.route_key', '');
+        $spotlightStatus = (string) ($routeSeriesSpotlight['status'] ?? 'missing');
+        $currentSupportStatus = (string) ($routeSeriesSpotlight['current_window_support_status'] ?? 'missing');
+        $longTermSupportStatus = (string) ($routeSeriesSpotlight['long_term_window_support_status'] ?? 'missing');
+        $currentWindowSuccessRate = isset($routeSeriesSpotlight['current_window_success_rate'])
+            ? (float) $routeSeriesSpotlight['current_window_success_rate']
+            : null;
+        $longTermWindowSuccessRate = isset($routeSeriesSpotlight['long_term_window_success_rate'])
+            ? (float) $routeSeriesSpotlight['long_term_window_success_rate']
+            : null;
+
+        if (in_array($spotlightStatus, ['softening', 'sparse'], true)) {
+            return 'focus_cluster';
+        }
+
+        $currentSupportIsStrong = in_array($currentSupportStatus, ['proven', 'emerging'], true);
+        $longTermSupportIsStrong = in_array($longTermSupportStatus, ['proven', 'emerging'], true);
+
+        if ($routeKey === 'draft_detail') {
+            return $currentSupportIsStrong && $longTermSupportIsStrong ? 'jump_to_item' : 'focus_cluster';
+        }
+
+        if ($routeKey === 'approvals') {
+            if ($currentSupportIsStrong && $longTermSupportIsStrong) {
+                return 'bulk_retry_publish';
+            }
+
+            if ($currentWindowSuccessRate !== null && $currentWindowSuccessRate >= 70.0 && $longTermWindowSuccessRate !== null && $longTermWindowSuccessRate >= 70.0) {
+                return 'bulk_retry_publish';
+            }
+
+            return 'focus_cluster';
+        }
+
+        return $currentSupportIsStrong && $longTermSupportIsStrong ? 'bulk_retry_publish' : 'focus_cluster';
+    }
+
+    /**
+     * @param array<string, mixed> $routeSeriesSpotlight
+     */
+    private function routeOutcomeGuidanceStatus(array $routeSeriesSpotlight, string $recommendedActionMode): string
+    {
+        $spotlightStatus = (string) ($routeSeriesSpotlight['status'] ?? 'missing');
+        $currentSupportStatus = (string) ($routeSeriesSpotlight['current_window_support_status'] ?? 'missing');
+        $longTermSupportStatus = (string) ($routeSeriesSpotlight['long_term_window_support_status'] ?? 'missing');
+
+        if (in_array($spotlightStatus, ['softening', 'sparse'], true)) {
+            return 'guarded';
+        }
+
+        if ($recommendedActionMode === 'focus_cluster') {
+            return 'blocked';
+        }
+
+        if ($currentSupportStatus === 'proven' && $longTermSupportStatus === 'proven') {
+            return 'safe';
+        }
+
+        if (in_array($currentSupportStatus, ['proven', 'emerging'], true) || in_array($longTermSupportStatus, ['proven', 'emerging'], true)) {
+            return 'watching';
+        }
+
+        return 'guarded';
+    }
+
+    private function routeOutcomeGuidanceLabel(string $status): string
+    {
+        return match ($status) {
+            'safe' => 'guvenli',
+            'watching' => 'izleniyor',
+            'blocked' => 'kilitli',
+            default => 'temkinli',
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $routeSeriesSpotlight
+     */
+    private function routeOutcomeGuidanceReason(array $routeSeriesSpotlight, string $recommendedActionMode, string $guidanceStatus): string
+    {
+        $routeLabel = (string) ($routeSeriesSpotlight['route_label'] ?? $this->routeLabel((string) ($routeSeriesSpotlight['route_key'] ?? 'approvals')));
+        $currentWindowDays = (int) ($routeSeriesSpotlight['current_window_days'] ?? ($routeSeriesSpotlight['window_days'] ?? 0));
+        $longTermWindowDays = (int) ($routeSeriesSpotlight['long_term_window_days'] ?? 90);
+        $currentSupportStatus = (string) ($routeSeriesSpotlight['current_window_support_status'] ?? 'missing');
+        $longTermSupportStatus = (string) ($routeSeriesSpotlight['long_term_window_support_status'] ?? 'missing');
+        $currentRate = $routeSeriesSpotlight['current_window_success_rate'] ?? null;
+        $longTermRate = $routeSeriesSpotlight['long_term_window_success_rate'] ?? null;
+
+        $baseReason = match ($recommendedActionMode) {
+            'jump_to_item' => sprintf('%s rotasi current ve long-term pencerelerde yeterince guclu destek aliyor; tek tek detay odagi guvenli gorunuyor.', $routeLabel),
+            'bulk_retry_publish' => sprintf("%s rotasi current ve long-term outcome tarafinda toplu publish''i tasiyabilecek kadar guclu gorunuyor.", $routeLabel),
+            default => sprintf('%s rotasi toplu aksiyon yerine cluster focus gerektiriyor.', $routeLabel),
+        };
+
+        $parts = [$baseReason];
+
+        if ($currentRate !== null) {
+            $parts[] = sprintf('%s gunluk pencere basarisi %s.', $currentWindowDays ?: 7, $this->formatPercentage((float) $currentRate));
+        }
+
+        if ($longTermRate !== null) {
+            $parts[] = sprintf('%s gunluk stabilite %s.', $longTermWindowDays, $this->formatPercentage((float) $longTermRate));
+        }
+
+        $parts[] = sprintf('Current destek: %s, long-term destek: %s, guidance: %s.', $currentSupportStatus, $longTermSupportStatus, $guidanceStatus);
+
+        return implode(' ', $parts);
+    }
+
+    private function routeOutcomeActionLabel(string $actionMode): string
+    {
+        return match ($actionMode) {
+            'jump_to_item' => 'Detaya Git',
+            'bulk_retry_publish' => 'Toplu Publish Dene',
+            default => 'Kumeyi Incele',
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $routeSeriesSpotlight
+     */
+    private function routeOutcomeDecisionContextSource(array $routeSeriesSpotlight, string $recommendedActionMode): string
+    {
+        if (($routeSeriesSpotlight['long_term_window_support_status'] ?? null) === 'proven') {
+            return 'long_term';
+        }
+
+        if ($recommendedActionMode === 'jump_to_item') {
+            return 'current_window';
+        }
+
+        return 'mixed';
+    }
+
+    /**
+     * @param array<string, mixed> $routeSeriesSpotlight
+     */
+    private function routeOutcomeDecisionContextWindowDays(array $routeSeriesSpotlight, string $recommendedActionMode): int
+    {
+        $source = $this->routeOutcomeDecisionContextSource($routeSeriesSpotlight, $recommendedActionMode);
+
+        return $source === 'long_term'
+            ? (int) ($routeSeriesSpotlight['long_term_window_days'] ?? 90)
+            : (int) ($routeSeriesSpotlight['current_window_days'] ?? ($routeSeriesSpotlight['window_days'] ?? 7));
+    }
+
+    /**
+     * @param array<string, mixed> $routeSeriesSpotlight
+     */
+    private function routeOutcomeDecisionContextSuccessRate(array $routeSeriesSpotlight, string $recommendedActionMode): float|null
+    {
+        $source = $this->routeOutcomeDecisionContextSource($routeSeriesSpotlight, $recommendedActionMode);
+
+        return $source === 'long_term'
+            ? ($routeSeriesSpotlight['long_term_window_success_rate'] ?? null)
+            : ($routeSeriesSpotlight['current_window_success_rate'] ?? null);
     }
 
     private function formatPercentage(float $value): string
