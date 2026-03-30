@@ -1949,7 +1949,7 @@ function buildRouteOutcomeOperatorHint(
   const parts: string[] = [];
 
   if (!spotlight) {
-    return "Route outcome sinyali henüz oluşmadi; approvals akisi ve route trend birlikte izlenir.";
+    return "Route outcome sinyali henuz olusmadi; approvals akisi ve route trend birlikte izlenir.";
   }
 
   if (spotlight.statusLabel || spotlight.status) {

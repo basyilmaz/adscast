@@ -85,6 +85,17 @@ type ApprovalRemediationAnalyticsResponse = {
       top_long_term_route_source_label?: string | null;
       top_long_term_route_publish_success_rate?: number | null;
       top_long_term_route_advantage?: number | null;
+      top_route_series_status?: string | null;
+      top_route_series_status_label?: string | null;
+      top_route_series_reason?: string | null;
+      top_route_series_window_days?: number | null;
+      top_route_series_route_key?: string | null;
+      top_route_series_route_label?: string | null;
+      top_route_outcome_status?: string | null;
+      top_route_outcome_status_label?: string | null;
+      top_route_outcome_reason?: string | null;
+      top_route_outcome_recommended_action_mode?: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | null;
+      top_route_outcome_recommended_action_label?: string | null;
       tracked_featured_interactions: number;
       followed_featured_interactions: number;
       override_featured_interactions: number;
@@ -136,7 +147,12 @@ type ApprovalRemediationAnalyticsResponse = {
       decision_context_success_rate?: number | null;
       decision_context_baseline_success_rate?: number | null;
       decision_context_advantage?: number | null;
-      action_mode: "focus_cluster" | "bulk_retry_publish";
+      action_mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_item";
+      route_series_spotlight?: RouteSeriesSpotlight | null;
+      route_outcome_spotlight?: RouteSeriesSpotlight | null;
+      decision_context_route_outcome_status?: string | null;
+      decision_context_route_outcome_reason?: string | null;
+      decision_context_route_outcome_recommended_action_mode?: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | null;
       featured_interactions: number;
       featured_followed_interactions: number;
       featured_override_interactions: number;
@@ -190,6 +206,11 @@ type ApprovalRemediationAnalyticsResponse = {
       top_interaction_source_key: string | null;
       top_interaction_source_label: string | null;
       primary_action?: RetryGuidanceContext["primary_action"];
+      route_series_spotlight?: RouteSeriesSpotlight | null;
+      route_outcome_spotlight?: RouteSeriesSpotlight | null;
+      decision_context_route_outcome_status?: string | null;
+      decision_context_route_outcome_reason?: string | null;
+      decision_context_route_outcome_recommended_action_mode?: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | null;
       source_breakdown: Array<RemediationTelemetrySource>;
       long_term_source_breakdown?: Array<RemediationTelemetrySource>;
       route_window_series?: Array<RouteWindowSeriesMetric>;
@@ -234,6 +255,33 @@ type RouteWindowSeriesMetric = {
   summary_label?: string | null;
   reason?: string | null;
   route_trends?: Array<RouteTrendMetric>;
+};
+
+type RouteSeriesSpotlight = {
+  route_key?: string | null;
+  route_label?: string | null;
+  preferred_flow?: "draft_detail" | "approvals_native" | "balanced" | null;
+  status?: "stable" | "forming" | "softening" | "sparse" | "missing" | string | null;
+  status_label?: string | null;
+  reason?: string | null;
+  guidance_status?: "safe" | "watching" | "blocked" | "guarded" | string | null;
+  guidance_label?: string | null;
+  guidance_reason?: string | null;
+  recommended_action_mode?: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | string | null;
+  recommended_action_label?: string | null;
+  decision_context_source?: string | null;
+  decision_context_window_days?: number | null;
+  decision_context_success_rate?: number | null;
+  window_days?: number | null;
+  current_window_days?: number | null;
+  current_window_support_status?: "proven" | "emerging" | "guarded" | "missing" | string | null;
+  current_window_success_rate?: number | null;
+  current_window_summary_label?: string | null;
+  long_term_window_days?: number | null;
+  long_term_window_support_status?: "proven" | "emerging" | "guarded" | "missing" | string | null;
+  long_term_window_success_rate?: number | null;
+  long_term_window_summary_label?: string | null;
+  route_series?: Array<PrimaryActionRouteSeriesMetric> | null;
 };
 
 type PrimaryActionRouteSeriesMetric = {
@@ -366,7 +414,7 @@ type RetryGuidanceContext = {
   retry_guidance_label?: string | null;
   retry_guidance_reason?: string | null;
   safe_bulk_retry?: boolean | null;
-  action_mode?: "focus_cluster" | "bulk_retry_publish" | null;
+  action_mode?: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | null;
   primary_action?: {
     mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_item";
     route?: string | null;
@@ -440,6 +488,16 @@ type DraftRouteFocusContext = {
   retryGuidanceStatus?: string | null;
   retryGuidanceLabel?: string | null;
   retryGuidanceReason?: string | null;
+  routeOutcomeRouteKey?: string | null;
+  routeOutcomeRouteLabel?: string | null;
+  routeOutcomeStatus?: string | null;
+  routeOutcomeStatusLabel?: string | null;
+  routeOutcomeReason?: string | null;
+  routeOutcomeRecommendedActionMode?: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | null;
+  routeOutcomeRecommendedActionLabel?: string | null;
+  routeOutcomeDecisionContextSource?: string | null;
+  routeOutcomeDecisionContextWindowDays?: number | null;
+  routeOutcomeDecisionContextSuccessRate?: number | null;
   effectivenessScore?: number | null;
   sourceComparisonLabel?: string | null;
   sourceComparisonReason?: string | null;
@@ -1262,6 +1320,10 @@ function ApprovalsPageContent({
 
     return cluster ? clusterItems(cluster) : [];
   }, [clusterByKey, clusterItems, featuredRecommendation]);
+  const routeSeriesSpotlight = useMemo(
+    () => resolveRouteSeriesSpotlight(featuredRecommendation, remediationAnalytics?.summary ?? null),
+    [featuredRecommendation, remediationAnalytics?.summary],
+  );
 
   const featuredDraftRoute = useMemo(
     () =>
@@ -1299,6 +1361,7 @@ function ApprovalsPageContent({
               featuredRecommendation?.decision_context_source === "long_term"
                 ? featuredRecommendation?.long_term_retry_guidance_reason ?? featuredRecommendation?.retry_guidance_reason ?? null
                 : featuredRecommendation?.retry_guidance_reason ?? null,
+            ...buildRouteOutcomeFocusContext(routeSeriesSpotlight),
             effectivenessScore:
               featuredRecommendation?.decision_context_source === "long_term"
                 ? featuredRecommendation?.long_term_effectiveness_score ?? featuredRecommendation?.effectiveness_score ?? null
@@ -1331,15 +1394,19 @@ function ApprovalsPageContent({
             }
           )
         : null,
-    [analyticsWindowDays, featuredClusterMatches, featuredRecommendation, remediationAnalytics?.summary.long_term_window_days, routeTrendInsight, routeWindowSeries, sourceComparisonWinner],
+    [analyticsWindowDays, featuredClusterMatches, featuredRecommendation, remediationAnalytics?.summary.long_term_window_days, routeSeriesSpotlight, routeTrendInsight, routeWindowSeries, sourceComparisonWinner],
   );
   const featuredPrimaryAction = useMemo(
-    () => resolveFeaturedPrimaryAction(featuredRecommendation, sourceComparisonWinner, routeTrendInsight, featuredDraftRoute),
-    [featuredDraftRoute, featuredRecommendation, routeTrendInsight, sourceComparisonWinner],
+    () => resolveFeaturedPrimaryAction(featuredRecommendation, sourceComparisonWinner, routeTrendInsight, featuredDraftRoute, routeSeriesSpotlight),
+    [featuredDraftRoute, featuredRecommendation, routeSeriesSpotlight, routeTrendInsight, sourceComparisonWinner],
   );
   const featuredPrimaryActionRouteSeriesSummary = useMemo(
     () => summarizePrimaryActionRouteSeries(featuredRecommendation?.primary_action, routeWindowSeries),
     [featuredRecommendation?.primary_action, routeWindowSeries],
+  );
+  const routeSeriesSpotlightAction = useMemo(
+    () => resolveRouteSeriesSpotlightAction(routeSeriesSpotlight, featuredRecommendation?.primary_action),
+    [featuredRecommendation?.primary_action, routeSeriesSpotlight],
   );
   const sourceSpotlight = useMemo(
     () =>
@@ -1350,6 +1417,7 @@ function ApprovalsPageContent({
         featuredDraftRoute,
         telemetrySources[0] ?? null,
         featuredPrimaryActionRouteSeriesSummary,
+        routeSeriesSpotlight,
         longTermDraftDetailOutcomeSummary,
         longTermApprovalsNativeOutcomeSummary,
       ),
@@ -1357,6 +1425,7 @@ function ApprovalsPageContent({
       featuredDraftRoute,
       featuredRecommendation,
       featuredPrimaryActionRouteSeriesSummary,
+      routeSeriesSpotlight,
       longTermApprovalsNativeOutcomeSummary,
       longTermDraftDetailOutcomeSummary,
       routeTrendInsight,
@@ -1779,6 +1848,101 @@ function ApprovalsPageContent({
               <p className="mt-2 text-xs muted-text">{featuredPrimaryAction.hint}</p>
             </div>
           ) : null}
+          {routeSeriesSpotlight ? (
+            <div className="rounded-lg border border-[var(--accent)]/25 bg-white p-4 xl:col-span-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge label="Route Outcome Spotlight" variant="neutral" />
+                  <Badge
+                    label={routeSeriesSpotlight.status_label ?? primaryActionTrendStatusLabel(routeSeriesSpotlight.status)}
+                    variant={routeSeriesSpotlight.status === "stable" ? "success" : routeSeriesSpotlight.status === "softening" || routeSeriesSpotlight.status === "sparse" ? "warning" : "neutral"}
+                  />
+                  {routeSeriesSpotlight.window_days != null ? (
+                    <Badge label={`${routeSeriesSpotlight.window_days} gun`} variant="neutral" />
+                  ) : null}
+                  {routeSeriesSpotlight.preferred_flow ? (
+                    <Badge
+                      label={
+                        routeSeriesSpotlight.preferred_flow === "draft_detail"
+                          ? "Draft Detail"
+                          : routeSeriesSpotlight.preferred_flow === "approvals_native"
+                            ? "Approvals Native"
+                            : "Dengeli"
+                      }
+                      variant={routeSeriesSpotlight.preferred_flow === "draft_detail" ? "success" : routeSeriesSpotlight.preferred_flow === "approvals_native" ? "warning" : "neutral"}
+                    />
+                  ) : null}
+                  {routeSeriesSpotlight.current_window_support_status ? (
+                    <Badge
+                      label={primaryActionRouteSeriesSupportLabel(routeSeriesSpotlight.current_window_support_status)}
+                      variant={routeSeriesSpotlight.current_window_support_status === "proven" ? "success" : routeSeriesSpotlight.current_window_support_status === "emerging" ? "warning" : "neutral"}
+                    />
+                  ) : null}
+                </div>
+                {routeSeriesSpotlightAction ? (
+                  <Badge label={routeSeriesSpotlightAction.label} variant={routeSeriesSpotlightAction.variant} />
+                ) : null}
+              </div>
+              <p className="mt-3 text-sm font-semibold">
+                {routeSeriesSpotlight.route_label ?? "Route outcome spotlight"}
+              </p>
+              <p className="mt-1 text-sm muted-text">
+                {routeSeriesSpotlight.reason ?? "Route outcome guidance henuz yeterli sinyal uretmedi."}
+              </p>
+              <div className="mt-3 grid gap-2 text-xs muted-text md:grid-cols-2">
+                <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                  <p className="font-semibold">Kisa Yol</p>
+                  <p className="mt-1">
+                    {routeSeriesSpotlightAction?.hint ?? "Guvenli yol icin daha fazla route sinyali bekleniyor."}
+                  </p>
+                </div>
+                <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                  <p className="font-semibold">Uzun Donem</p>
+                  <p className="mt-1">
+                    {routeSeriesSpotlight.long_term_window_days != null
+                      ? `${routeSeriesSpotlight.long_term_window_days} gunluk destek: ${primaryActionRouteSeriesSupportLabel(routeSeriesSpotlight.long_term_window_support_status)}`
+                      : "Uzun donem destek verisi hazir."}
+                  </p>
+                  {routeSeriesSpotlight.long_term_window_summary_label ? (
+                    <p className="mt-1">{routeSeriesSpotlight.long_term_window_summary_label}</p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {routeSeriesSpotlightAction?.mode === "jump_to_draft_detail" && featuredDraftRoute ? (
+                  <Link href={featuredDraftRoute}>
+                    <Button size="sm">
+                      {routeSeriesSpotlightAction.label}
+                    </Button>
+                  </Link>
+                ) : routeSeriesSpotlightAction?.mode === "bulk_retry_publish" && featuredRecommendation ? (
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      void runClusterRecommendation(
+                        featuredRecommendation.cluster_key,
+                        "bulk_retry_publish",
+                        "approvals_featured",
+                      )
+                    }
+                    disabled={bulkPublishing}
+                  >
+                    {routeSeriesSpotlightAction.label}
+                  </Button>
+                ) : featuredRecommendation ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      void jumpToClusterAction(featuredRecommendation.cluster_key, "approvals_featured")
+                    }
+                  >
+                    {routeSeriesSpotlightAction?.label ?? "Kumeyi Incele"}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
@@ -2084,6 +2248,7 @@ function ApprovalsPageContent({
                   retryGuidanceStatus: analyticsItem?.long_term_retry_guidance_status ?? analyticsItem?.retry_guidance_status ?? null,
                   retryGuidanceLabel: analyticsItem?.long_term_retry_guidance_label ?? analyticsItem?.retry_guidance_label ?? null,
                   retryGuidanceReason: analyticsItem?.long_term_retry_guidance_reason ?? analyticsItem?.retry_guidance_reason ?? null,
+                  ...buildRouteOutcomeFocusContext(analyticsItem?.route_outcome_spotlight ?? analyticsItem?.route_series_spotlight ?? null),
                   effectivenessScore: analyticsItem?.long_term_effectiveness_score ?? analyticsItem?.effectiveness_score ?? null,
                   sourceComparisonLabel: sourceComparisonWinner?.label ?? null,
                   sourceComparisonReason: sourceComparisonWinner?.reason ?? null,
@@ -2120,6 +2285,7 @@ function ApprovalsPageContent({
             analyticsItem?.primary_action,
             analyticsItem?.route_window_series,
           );
+          const clusterRouteSeriesSpotlight = analyticsItem?.route_outcome_spotlight ?? analyticsItem?.route_series_spotlight ?? null;
           const clusterPrimaryAction = resolveClusterPrimaryAction(
             cluster.key,
             analyticsItem,
@@ -2127,6 +2293,7 @@ function ApprovalsPageContent({
             routeTrendInsight,
             clusterDraftRoute,
             retryableMatches.length,
+            clusterRouteSeriesSpotlight,
           );
 
           return (
@@ -2774,6 +2941,157 @@ function resolveGuidedActionLabel(
   return "Onerilen Kume Uzerinde Calis";
 }
 
+function resolveDecisiveActionLabel(
+  baseLabel: string,
+  actionMode: "focus_cluster" | "bulk_retry_publish" | "jump_to_draft_detail",
+  routeSeriesSpotlight?: RouteSeriesSpotlight | null,
+): string {
+  if (!isRouteSeriesSpotlightDecisive(routeSeriesSpotlight)) {
+    return baseLabel;
+  }
+
+  if (actionMode === "bulk_retry_publish") {
+    return "Tekrar Dene";
+  }
+
+  if (actionMode === "jump_to_draft_detail") {
+    return "Detaya Git";
+  }
+
+  return "Kumeye Git";
+}
+
+function isRouteSeriesSpotlightDecisive(routeSeriesSpotlight?: RouteSeriesSpotlight | null): boolean {
+  if (!routeSeriesSpotlight) {
+    return false;
+  }
+
+  if (routeSeriesSpotlight.status === "softening" || routeSeriesSpotlight.status === "sparse") {
+    return false;
+  }
+
+  const supportSignals = [
+    routeSeriesSpotlight.current_window_support_status,
+    routeSeriesSpotlight.long_term_window_support_status,
+  ];
+
+  return supportSignals.some((status) => status === "proven");
+}
+
+function resolveRouteSeriesSpotlight(
+  featuredRecommendation?: ApprovalRemediationAnalyticsResponse["data"]["featured_recommendation"] | null,
+  summary?: ApprovalRemediationAnalyticsResponse["data"]["summary"] | null,
+): RouteSeriesSpotlight | null {
+  const spotlight = featuredRecommendation?.route_outcome_spotlight ?? featuredRecommendation?.route_series_spotlight;
+
+  if (spotlight) {
+    return spotlight;
+  }
+
+  if (
+    !summary?.top_route_series_status
+    && !summary?.top_route_series_reason
+    && !summary?.top_route_series_route_label
+    && !summary?.top_route_outcome_status
+    && !summary?.top_route_outcome_reason
+  ) {
+    return null;
+  }
+
+  return {
+    status: summary.top_route_series_status ?? null,
+    status_label: summary.top_route_series_status_label ?? null,
+    reason: summary.top_route_series_reason ?? null,
+    guidance_status: summary.top_route_outcome_status ?? null,
+    guidance_label: summary.top_route_outcome_status_label ?? null,
+    guidance_reason: summary.top_route_outcome_reason ?? null,
+    recommended_action_mode: summary.top_route_outcome_recommended_action_mode ?? null,
+    recommended_action_label: summary.top_route_outcome_recommended_action_label ?? null,
+    window_days: summary.top_route_series_window_days ?? null,
+    route_key: summary.top_route_series_route_key ?? null,
+    route_label: summary.top_route_series_route_label ?? null,
+  };
+}
+
+function resolveRouteSeriesSpotlightAction(
+  routeSeriesSpotlight?: RouteSeriesSpotlight | null,
+  primaryAction?: RetryGuidanceContext["primary_action"] | null,
+): {
+  label: string;
+  variant: "success" | "warning" | "neutral";
+  hint: string;
+  mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_draft_detail";
+} | null {
+  if (!routeSeriesSpotlight) {
+    return null;
+  }
+
+  if (routeSeriesSpotlight.recommended_action_mode) {
+    const mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_draft_detail" =
+      routeSeriesSpotlight.recommended_action_mode === "jump_to_item"
+        ? "jump_to_draft_detail"
+        : routeSeriesSpotlight.recommended_action_mode === "bulk_retry_publish"
+          ? "bulk_retry_publish"
+          : "focus_cluster";
+
+    return {
+      label: routeSeriesSpotlight.recommended_action_label
+        ?? resolveDecisiveActionLabel(
+          mode === "bulk_retry_publish"
+            ? "Tekrar Dene"
+            : mode === "jump_to_draft_detail"
+              ? "Detaya Git"
+              : "Kumeyi Incele",
+          mode,
+          routeSeriesSpotlight,
+        ),
+      variant: routeSeriesSpotlight.guidance_status === "safe" ? "success" : routeSeriesSpotlight.guidance_status === "watching" ? "warning" : "neutral",
+      hint: [
+        routeSeriesSpotlight.guidance_label,
+        routeSeriesSpotlight.guidance_reason,
+      ]
+        .filter(Boolean)
+        .join(" / "),
+      mode,
+    };
+  }
+
+  const preferredFlow = routeSeriesSpotlight.preferred_flow ?? primaryAction?.preferred_flow ?? "balanced";
+  const decisive = isRouteSeriesSpotlightDecisive(routeSeriesSpotlight);
+  const routeKey = routeSeriesSpotlight.route_key ?? primaryAction?.route_key ?? null;
+  const baseMode =
+    preferredFlow === "draft_detail"
+      ? "jump_to_draft_detail"
+      : preferredFlow === "approvals_native"
+        ? "bulk_retry_publish"
+        : "focus_cluster";
+  const mode =
+    decisive && baseMode === "bulk_retry_publish"
+      ? "bulk_retry_publish"
+      : decisive && baseMode === "jump_to_draft_detail"
+        ? "jump_to_draft_detail"
+        : "focus_cluster";
+  const baseLabel =
+    mode === "bulk_retry_publish"
+      ? "Tekrar Dene"
+      : mode === "jump_to_draft_detail"
+        ? "Detaya Git"
+        : "Kumeyi Incele";
+
+  return {
+    label: resolveDecisiveActionLabel(baseLabel, mode, routeSeriesSpotlight),
+    variant: decisive ? "success" : "warning",
+    hint: [
+      routeSeriesSpotlight.status_label ?? primaryActionTrendStatusLabel(routeSeriesSpotlight.status),
+      routeSeriesSpotlight.reason,
+      routeKey ? `Rota: ${routeKey}` : null,
+    ]
+      .filter(Boolean)
+      .join(" / "),
+    mode,
+  };
+}
+
 function shouldPreferDraftDetailPrimaryAction(
   sourceComparison: SourceComparisonInsight | null,
   routeTrendInsight: RouteTrendInsight | null,
@@ -2822,19 +3140,63 @@ function resolveFeaturedPrimaryAction(
   sourceComparison: SourceComparisonInsight | null,
   routeTrendInsight: RouteTrendInsight | null,
   draftRoute: string | null,
+  routeSeriesSpotlight?: RouteSeriesSpotlight | null,
 ): {
   mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_draft_detail";
   label: string;
   hint: string;
 } {
+  const routeSpotlightAction = resolveRouteSeriesSpotlightAction(routeSeriesSpotlight, context?.primary_action);
+
+  if (
+    routeSpotlightAction?.mode === "jump_to_draft_detail"
+    && draftRoute
+    && context?.primary_action?.confidence_status !== "guarded"
+  ) {
+    return {
+      mode: "jump_to_draft_detail",
+      label: routeSpotlightAction.label,
+      hint: routeSpotlightAction.hint || withPrimaryActionTrendHint(
+        context?.primary_action?.reason ?? routeTrendInsight?.reason ?? sourceComparison?.reason ?? "Bu remediation detay ekranda daha guclu sonuc veriyor.",
+        context?.primary_action,
+      ),
+    };
+  }
+
+  if (routeSpotlightAction?.mode === "bulk_retry_publish") {
+    return {
+      mode: "bulk_retry_publish",
+      label: routeSpotlightAction.label,
+      hint: routeSpotlightAction.hint || context?.retry_guidance_reason || "Route outcome spotlight bu cluster icin guvenli bulk retry sinyali verdi.",
+    };
+  }
+
+  if (
+    routeSpotlightAction?.mode === "focus_cluster"
+    && routeSeriesSpotlight?.guidance_status
+    && routeSeriesSpotlight.guidance_status !== "safe"
+  ) {
+    return {
+      mode: "focus_cluster",
+      label: routeSpotlightAction.label,
+      hint: routeSpotlightAction.hint || context?.retry_guidance_reason || "Route outcome spotlight once cluster odagini korumanizi oneriyor.",
+    };
+  }
+
   if (
     context?.primary_action?.mode === "jump_to_item"
     && draftRoute
     && context.primary_action.confidence_status !== "guarded"
   ) {
+    const label = resolveDecisiveActionLabel(
+      routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
+      "jump_to_draft_detail",
+      routeSeriesSpotlight,
+    );
+
     return {
       mode: "jump_to_draft_detail",
-      label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
+      label,
       hint: withPrimaryActionTrendHint(
         context.primary_action.reason ?? routeTrendInsight?.reason ?? sourceComparison?.reason ?? "Bu remediation detay ekranda daha guclu sonuc veriyor.",
         context.primary_action,
@@ -2843,9 +3205,15 @@ function resolveFeaturedPrimaryAction(
   }
 
   if (shouldPreferDraftDetailPrimaryAction(sourceComparison, routeTrendInsight, draftRoute, context)) {
+    const label = resolveDecisiveActionLabel(
+      routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
+      "jump_to_draft_detail",
+      routeSeriesSpotlight,
+    );
+
     return {
       mode: "jump_to_draft_detail",
-      label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
+      label,
       hint: withPrimaryActionTrendHint(
         routeTrendInsight?.reason ?? sourceComparison?.reason ?? "Bu remediation detay ekranda daha guclu sonuc veriyor.",
         context?.primary_action,
@@ -2854,10 +3222,15 @@ function resolveFeaturedPrimaryAction(
   }
 
   const actionMode = resolveGuidedActionMode(context);
+  const label = resolveDecisiveActionLabel(
+    resolveGuidedActionLabel(context, actionMode),
+    actionMode,
+    routeSeriesSpotlight,
+  );
 
   return {
     mode: actionMode,
-    label: resolveGuidedActionLabel(context, actionMode),
+    label,
     hint:
       actionMode === "bulk_retry_publish"
         ? (context?.retry_guidance_reason ?? "Bu cluster guvenli retry sinyali verdigi icin tek tik retry oneriliyor.")
@@ -2937,20 +3310,72 @@ function resolveClusterPrimaryAction(
   routeTrendInsight: RouteTrendInsight | null,
   draftRoute: string | null,
   retryableMatchesCount: number,
+  routeSeriesSpotlight?: RouteSeriesSpotlight | null,
 ): {
   mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_draft_detail";
   label: string;
   variant: "primary" | "secondary" | "outline";
   hint: string;
 } {
+  const routeSpotlightAction = resolveRouteSeriesSpotlightAction(routeSeriesSpotlight, analyticsItem?.primary_action);
+
+  if (
+    routeSpotlightAction?.mode === "jump_to_draft_detail"
+    && draftRoute
+    && analyticsItem?.primary_action?.confidence_status !== "guarded"
+  ) {
+    return {
+      mode: "jump_to_draft_detail",
+      label: routeSpotlightAction.label,
+      variant: analyticsItem?.primary_action?.confidence_status === "proven" ? "primary" : "secondary",
+      hint: routeSpotlightAction.hint || withPrimaryActionTrendHint(
+        analyticsItem?.primary_action?.reason
+          ?? routeTrendInsight?.reason
+          ?? "Bu cluster icin draft detail aksiyonu daha guclu sonuc veriyor.",
+        analyticsItem?.primary_action,
+      ),
+    };
+  }
+
+  if (
+    routeSpotlightAction?.mode === "bulk_retry_publish"
+    && shouldRunClusterBulkRetry(clusterKey, analyticsItem, retryableMatchesCount)
+  ) {
+    return {
+      mode: "bulk_retry_publish",
+      label: routeSpotlightAction.label,
+      variant: resolveClusterActionVariant(clusterKey, analyticsItem),
+      hint: routeSpotlightAction.hint || analyticsItem?.retry_guidance_reason || "Route outcome spotlight bu cluster icin guvenli bulk retry sinyali verdi.",
+    };
+  }
+
+  if (
+    routeSpotlightAction?.mode === "focus_cluster"
+    && routeSeriesSpotlight?.guidance_status
+    && routeSeriesSpotlight.guidance_status !== "safe"
+  ) {
+    return {
+      mode: "focus_cluster",
+      label: routeSpotlightAction.label,
+      variant: resolveClusterActionVariant(clusterKey, analyticsItem),
+      hint: routeSpotlightAction.hint || analyticsItem?.retry_guidance_reason || "Route outcome spotlight once cluster odagini korumanizi oneriyor.",
+    };
+  }
+
   if (
     analyticsItem?.primary_action?.mode === "jump_to_item"
     && draftRoute
     && analyticsItem.primary_action.confidence_status !== "guarded"
   ) {
+    const label = resolveDecisiveActionLabel(
+      routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
+      "jump_to_draft_detail",
+      routeSeriesSpotlight,
+    );
+
     return {
       mode: "jump_to_draft_detail",
-      label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
+      label,
       variant: analyticsItem.primary_action.confidence_status === "proven" ? "primary" : "secondary",
       hint: withPrimaryActionTrendHint(
         analyticsItem.primary_action.reason
@@ -2962,9 +3387,15 @@ function resolveClusterPrimaryAction(
   }
 
   if (shouldPreferClusterDraftDetailAction(analyticsItem, topSource, routeTrendInsight, draftRoute)) {
+    const label = resolveDecisiveActionLabel(
+      routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
+      "jump_to_draft_detail",
+      routeSeriesSpotlight,
+    );
+
     return {
       mode: "jump_to_draft_detail",
-      label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
+      label,
       variant: "secondary",
       hint: topSource?.publish_success_rate != null
         ? `${routeTrendInsight?.reason ?? `Bu cluster icin ${sourceLabel(topSource.source_key, topSource.label)} kaynagi %${topSource.publish_success_rate} publish basarisi uretmis.`}`
@@ -2973,17 +3404,29 @@ function resolveClusterPrimaryAction(
   }
 
   if (shouldRunClusterBulkRetry(clusterKey, analyticsItem, retryableMatchesCount)) {
+    const label = resolveDecisiveActionLabel(
+      clusterActionLabel(clusterKey, analyticsItem),
+      "bulk_retry_publish",
+      routeSeriesSpotlight,
+    );
+
     return {
       mode: "bulk_retry_publish",
-      label: clusterActionLabel(clusterKey, analyticsItem),
+      label,
       variant: resolveClusterActionVariant(clusterKey, analyticsItem),
       hint: analyticsItem?.retry_guidance_reason ?? "Bu cluster icin toplu retry uygulanabilir.",
     };
   }
 
+  const label = resolveDecisiveActionLabel(
+    clusterActionLabel(clusterKey, analyticsItem),
+    "focus_cluster",
+    routeSeriesSpotlight,
+  );
+
   return {
     mode: "focus_cluster",
-    label: clusterActionLabel(clusterKey, analyticsItem),
+    label,
     variant: resolveClusterActionVariant(clusterKey, analyticsItem),
     hint: analyticsItem?.retry_guidance_reason ?? "Bu cluster once odakli inceleme gerektiriyor.",
   };
@@ -3800,18 +4243,20 @@ function buildSourceSpotlight(
   featuredDraftRoute: string | null,
   topSource: RemediationTelemetrySource | null,
   primaryActionRouteSeriesSummary: string | null,
+  routeSeriesSpotlight: RouteSeriesSpotlight | null,
   longTermDraftDetailOutcomeSummary: RemediationOutcomeChainSummary | null,
   longTermApprovalsNativeOutcomeSummary: RemediationOutcomeChainSummary | null,
 ): SourceSpotlightInsight | null {
   const longTermDraftRate = longTermDraftDetailOutcomeSummary?.publish_success_rate;
   const longTermNativeRate = longTermApprovalsNativeOutcomeSummary?.publish_success_rate;
   const routeSeriesText = primaryActionRouteSeriesSummary ? ` Route serisi: ${primaryActionRouteSeriesSummary}.` : "";
+  const spotlightText = routeSeriesSpotlight?.reason ? ` ${routeSeriesSpotlight.reason}` : "";
 
   if (routeTrendInsight && routeTrendInsight.preferredFlow !== "balanced") {
     return {
       label: "Route Series Spotlight",
       variant: routeTrendInsight.variant,
-      reason: `${routeTrendInsight.reason}${routeSeriesText}`,
+      reason: `${routeTrendInsight.reason}${routeSeriesText}${spotlightText}`,
       nextStepLabel: routeTrendInsight.nextStepLabel,
       preferredFlow: routeTrendInsight.preferredFlow,
     };
@@ -3826,7 +4271,8 @@ function buildSourceSpotlight(
         + (longTermDraftRate != null
           ? ` Uzun donem draft detail basarisi %${longTermDraftRate}.`
           : "")
-        + routeSeriesText,
+        + routeSeriesText
+        + spotlightText,
       nextStepLabel: featuredDraftRoute ? "Draft Detail Akisina Git" : "Draft Detayini Ac",
       preferredFlow: "draft_detail",
     };
@@ -3841,7 +4287,8 @@ function buildSourceSpotlight(
         + (longTermNativeRate != null
           ? ` Uzun donem approvals-native basarisi %${longTermNativeRate}.`
           : "")
-        + routeSeriesText,
+        + routeSeriesText
+        + spotlightText,
       nextStepLabel: featuredRecommendation ? "Featured Kume Uzerinde Calis" : "Clusteri Incele",
       preferredFlow: "approvals_native",
     };
@@ -3862,7 +4309,8 @@ function buildSourceSpotlight(
         + (longTermDraftRate != null || longTermNativeRate != null
           ? ` Uzun donem draft detail / approvals-native: ${longTermDraftRate != null ? `%${longTermDraftRate}` : "veri yok"} / ${longTermNativeRate != null ? `%${longTermNativeRate}` : "veri yok"}.`
           : "")
-        + routeSeriesText,
+        + routeSeriesText
+        + spotlightText,
       nextStepLabel: preferredFlow === "draft_detail"
         ? (featuredDraftRoute ? "Draft Detail Akisina Git" : "Draft Detayini Ac")
         : preferredFlow === "approvals_native"
@@ -3905,6 +4353,40 @@ function buildRouteTrendFocusContext(
     routeLongTermAttempts: routeTrendInsight?.longTermRouteAttempts ?? null,
     routeLongTermSuccessRate: routeTrendInsight?.longTermRouteSuccessRate ?? null,
     routeLongTermAdvantage: routeTrendInsight?.longTermRouteAdvantage ?? null,
+  };
+}
+
+function buildRouteOutcomeFocusContext(
+  routeOutcomeSpotlight: RouteSeriesSpotlight | null | undefined,
+): Pick<
+  DraftRouteFocusContext,
+  | "routeOutcomeRouteKey"
+  | "routeOutcomeRouteLabel"
+  | "routeOutcomeStatus"
+  | "routeOutcomeStatusLabel"
+  | "routeOutcomeReason"
+  | "routeOutcomeRecommendedActionMode"
+  | "routeOutcomeRecommendedActionLabel"
+  | "routeOutcomeDecisionContextSource"
+  | "routeOutcomeDecisionContextWindowDays"
+  | "routeOutcomeDecisionContextSuccessRate"
+> {
+  return {
+    routeOutcomeRouteKey: routeOutcomeSpotlight?.route_key ?? null,
+    routeOutcomeRouteLabel: routeOutcomeSpotlight?.route_label ?? null,
+    routeOutcomeStatus: routeOutcomeSpotlight?.guidance_status ?? null,
+    routeOutcomeStatusLabel: routeOutcomeSpotlight?.guidance_label ?? null,
+    routeOutcomeReason: routeOutcomeSpotlight?.guidance_reason ?? null,
+    routeOutcomeRecommendedActionMode:
+      routeOutcomeSpotlight?.recommended_action_mode === "focus_cluster"
+      || routeOutcomeSpotlight?.recommended_action_mode === "bulk_retry_publish"
+      || routeOutcomeSpotlight?.recommended_action_mode === "jump_to_item"
+        ? routeOutcomeSpotlight.recommended_action_mode
+        : null,
+    routeOutcomeRecommendedActionLabel: routeOutcomeSpotlight?.recommended_action_label ?? null,
+    routeOutcomeDecisionContextSource: routeOutcomeSpotlight?.decision_context_source ?? null,
+    routeOutcomeDecisionContextWindowDays: routeOutcomeSpotlight?.decision_context_window_days ?? null,
+    routeOutcomeDecisionContextSuccessRate: routeOutcomeSpotlight?.decision_context_success_rate ?? null,
   };
 }
 
@@ -3994,6 +4476,63 @@ function buildDraftRoute(
 
   if (focusContext?.retryGuidanceReason) {
     params.set("focus_retry_guidance_reason", focusContext.retryGuidanceReason);
+  }
+
+  if (focusContext?.routeOutcomeRouteKey) {
+    params.set("focus_route_outcome_route_key", focusContext.routeOutcomeRouteKey);
+  }
+
+  if (focusContext?.routeOutcomeRouteLabel) {
+    params.set("focus_route_outcome_route_label", focusContext.routeOutcomeRouteLabel);
+  }
+
+  if (focusContext?.routeOutcomeStatus) {
+    params.set("focus_route_outcome_status", focusContext.routeOutcomeStatus);
+  }
+
+  if (focusContext?.routeOutcomeStatusLabel) {
+    params.set("focus_route_outcome_status_label", focusContext.routeOutcomeStatusLabel);
+  }
+
+  if (focusContext?.routeOutcomeReason) {
+    params.set("focus_route_outcome_reason", focusContext.routeOutcomeReason);
+  }
+
+  if (focusContext?.routeOutcomeRecommendedActionMode) {
+    params.set("focus_route_outcome_recommended_action_mode", focusContext.routeOutcomeRecommendedActionMode);
+  }
+
+  if (focusContext?.routeOutcomeRecommendedActionLabel) {
+    params.set("focus_route_outcome_recommended_action_label", focusContext.routeOutcomeRecommendedActionLabel);
+  }
+
+  if (focusContext?.routeOutcomeDecisionContextSource) {
+    params.set("focus_route_outcome_decision_context_source", focusContext.routeOutcomeDecisionContextSource);
+  }
+
+  if (focusContext?.routeOutcomeDecisionContextWindowDays != null) {
+    params.set("focus_route_outcome_decision_context_window_days", String(focusContext.routeOutcomeDecisionContextWindowDays));
+  }
+
+  if (focusContext?.routeOutcomeDecisionContextSuccessRate != null) {
+    params.set("focus_route_outcome_decision_context_success_rate", String(focusContext.routeOutcomeDecisionContextSuccessRate));
+  }
+
+  const routeOutcomeSpotlight = {
+    route_key: focusContext?.routeOutcomeRouteKey ?? null,
+    route_label: focusContext?.routeOutcomeRouteLabel ?? null,
+    status: focusContext?.routeOutcomeStatus ?? null,
+    status_label: focusContext?.routeOutcomeStatusLabel ?? null,
+    reason: focusContext?.routeOutcomeReason ?? null,
+    recommended_action_mode: focusContext?.routeOutcomeRecommendedActionMode ?? null,
+    recommended_action_label: focusContext?.routeOutcomeRecommendedActionLabel ?? null,
+    decision_context_source: focusContext?.routeOutcomeDecisionContextSource ?? null,
+    decision_context_window_days: focusContext?.routeOutcomeDecisionContextWindowDays ?? null,
+    decision_context_success_rate: focusContext?.routeOutcomeDecisionContextSuccessRate ?? null,
+  };
+
+  if (Object.values(routeOutcomeSpotlight).some((value) => value !== null)) {
+    params.set("focus_route_outcome_spotlight", JSON.stringify(routeOutcomeSpotlight));
   }
 
   if (focusContext?.effectivenessScore != null) {

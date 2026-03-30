@@ -404,3 +404,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 164. Route outcome guidance `watching` durumunda featured CTA'yi otomatik olarak cluster focus'a geri cekip sadece `safe` durumda jump_to_item veya bulk_retry_publish aksiyonunu acik tutmak
 165. Route outcome spotlight'in safe/watching/guarded ayrimini approvals remediation analytics regression'ina ekleyip featured action_mode kararini daha sert kontratla kilitlemek
 166. Route outcome guidance odagini approvals api dokumantasyonunda route outcome recommendation policy olarak netlestirip operator beklenen CTA davranisini tek satirda gorebilir hale getirmek
+167. Approvals featured ve cluster CTA'larini route outcome spotlight'in onerilen action mode'u ile hizalayip featured ile cluster kararlarinda ayni safe/guarded kisayol mantigini kullanmak
+168. Approvals -> draft detail odak query hattina route outcome spotlight route, guidance ve decision-context alanlarini tasiyip operatorun detay ekraninda ayni karar baglamini kaybetmemesini saglamak
+169. Draft detail publish remediation bloguna route outcome spotlight karti ekleyip approvals'tan gelen safe/guarded kisayol nedenini ayri bir operasyon yuzeyinde gostermek
