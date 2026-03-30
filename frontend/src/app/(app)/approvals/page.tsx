@@ -66,6 +66,8 @@ type ApprovalRemediationAnalyticsResponse = {
       top_effective_cluster_score: number | null;
       featured_cluster_label: string | null;
       top_draft_detail_cluster_label: string | null;
+      top_long_term_stable_cluster_label?: string | null;
+      top_long_term_stable_cluster_score?: number | null;
       tracked_sources_count: number;
       top_interaction_source_key: string | null;
       top_interaction_source_label: string | null;
@@ -79,11 +81,14 @@ type ApprovalRemediationAnalyticsResponse = {
       featured_follow_rate: number | null;
       featured_publish_success_rate: number | null;
       window_days: number;
+      long_term_window_days?: number;
     };
     interaction_sources: Array<RemediationTelemetrySource>;
     outcome_chain_summary: RemediationOutcomeChainSummary;
     approvals_native_outcome_summary: RemediationOutcomeChainSummary;
     draft_detail_outcome_summary: RemediationOutcomeChainSummary;
+    long_term_approvals_native_outcome_summary?: RemediationOutcomeChainSummary;
+    long_term_draft_detail_outcome_summary?: RemediationOutcomeChainSummary;
     featured_recommendation: {
       cluster_key: string;
       label: string;
@@ -108,7 +113,9 @@ type ApprovalRemediationAnalyticsResponse = {
       decision_status: string;
       decision_reason: string;
       decision_context_source?: string | null;
+      decision_context_window_days?: number | null;
       decision_context_success_rate?: number | null;
+      decision_context_baseline_success_rate?: number | null;
       decision_context_advantage?: number | null;
       action_mode: "focus_cluster" | "bulk_retry_publish";
       featured_interactions: number;
@@ -123,6 +130,10 @@ type ApprovalRemediationAnalyticsResponse = {
       source_breakdown: Array<RemediationTelemetrySource>;
       outcome_chain_summary: RemediationOutcomeChainSummary;
       draft_detail_outcome_summary: RemediationOutcomeChainSummary;
+      long_term_publish_attempts?: number | null;
+      long_term_publish_success_rate?: number | null;
+      long_term_effectiveness_score?: number | null;
+      long_term_effectiveness_status?: string | null;
     } | null;
     items: Array<{
       cluster_key: string;
@@ -157,6 +168,11 @@ type ApprovalRemediationAnalyticsResponse = {
       source_breakdown: Array<RemediationTelemetrySource>;
       outcome_chain_summary: RemediationOutcomeChainSummary;
       draft_detail_outcome_summary: RemediationOutcomeChainSummary;
+      long_term_publish_attempts?: number | null;
+      long_term_publish_success_rate?: number | null;
+      long_term_effectiveness_score?: number | null;
+      long_term_effectiveness_status?: string | null;
+      long_term_retry_guidance_reason?: string | null;
     }>;
   };
 };
@@ -416,6 +432,10 @@ function ApprovalsPageContent({
   const outcomeChainSummary = remediationAnalytics?.outcome_chain_summary ?? null;
   const draftDetailOutcomeSummary = remediationAnalytics?.draft_detail_outcome_summary ?? null;
   const approvalsNativeOutcomeSummary = remediationAnalytics?.approvals_native_outcome_summary ?? null;
+  const longTermDraftDetailOutcomeSummary =
+    remediationAnalytics?.long_term_draft_detail_outcome_summary ?? null;
+  const longTermApprovalsNativeOutcomeSummary =
+    remediationAnalytics?.long_term_approvals_native_outcome_summary ?? null;
   const approvalsNativeTelemetry = useMemo(
     () =>
       telemetrySources.filter((source) =>
@@ -458,8 +478,39 @@ function ApprovalsPageContent({
     [draftDetailOutcomeSummary, telemetrySources],
   );
   const sourceComparisonWinner = useMemo(
-    () => compareSourceAggressiveness(draftDetailSummary, approvalsNativeSummary),
-    [approvalsNativeSummary, draftDetailSummary],
+    () =>
+      compareSourceAggressiveness(
+        longTermDraftDetailOutcomeSummary
+          ? {
+              tracked_interactions: longTermDraftDetailOutcomeSummary.tracked_interactions,
+              publish_attempts: longTermDraftDetailOutcomeSummary.publish_attempts,
+              successful_publishes: longTermDraftDetailOutcomeSummary.successful_publishes,
+              failed_publishes: longTermDraftDetailOutcomeSummary.failed_publishes,
+              total_retry_actions: longTermDraftDetailOutcomeSummary.total_retry_actions,
+              publish_success_rate: longTermDraftDetailOutcomeSummary.publish_success_rate,
+              top_source_key: longTermDraftDetailOutcomeSummary.top_source_key ?? null,
+              top_source_label: longTermDraftDetailOutcomeSummary.top_source_label ?? null,
+            }
+          : draftDetailSummary,
+        longTermApprovalsNativeOutcomeSummary
+          ? {
+              tracked_interactions: longTermApprovalsNativeOutcomeSummary.tracked_interactions,
+              publish_attempts: longTermApprovalsNativeOutcomeSummary.publish_attempts,
+              successful_publishes: longTermApprovalsNativeOutcomeSummary.successful_publishes,
+              failed_publishes: longTermApprovalsNativeOutcomeSummary.failed_publishes,
+              total_retry_actions: longTermApprovalsNativeOutcomeSummary.total_retry_actions,
+              publish_success_rate: longTermApprovalsNativeOutcomeSummary.publish_success_rate,
+              top_source_key: longTermApprovalsNativeOutcomeSummary.top_source_key ?? null,
+              top_source_label: longTermApprovalsNativeOutcomeSummary.top_source_label ?? null,
+            }
+          : approvalsNativeSummary,
+      ),
+    [
+      approvalsNativeSummary,
+      draftDetailSummary,
+      longTermApprovalsNativeOutcomeSummary,
+      longTermDraftDetailOutcomeSummary,
+    ],
   );
 
   const summary = useMemo(() => {
@@ -1211,6 +1262,16 @@ function ApprovalsPageContent({
                 Draft detail uzerinde en iyi toparlayan cluster: {remediationAnalytics.summary.top_draft_detail_cluster_label}
               </p>
             ) : null}
+            {remediationAnalytics.summary.top_long_term_stable_cluster_label ? (
+              <p className="mt-2 text-xs muted-text">
+                {remediationAnalytics.summary.long_term_window_days ?? 90} gun stabil lider:
+                {" "}
+                {remediationAnalytics.summary.top_long_term_stable_cluster_label}
+                {remediationAnalytics.summary.top_long_term_stable_cluster_score != null
+                  ? ` (skor ${remediationAnalytics.summary.top_long_term_stable_cluster_score})`
+                  : ""}
+              </p>
+            ) : null}
             {remediationAnalytics.summary.featured_follow_rate != null ? (
               <p className="mt-2 text-xs muted-text">
                 Featured takip orani %{remediationAnalytics.summary.featured_follow_rate}
@@ -1239,6 +1300,8 @@ function ApprovalsPageContent({
                   label={
                     featuredRecommendation.decision_status === "manual_attention"
                       ? "Manuel Dikkat"
+                      : featuredRecommendation.decision_status === "long_term_preferred"
+                        ? "Uzun Donem Stabil"
                       : featuredRecommendation.decision_status === "draft_detail_preferred"
                         ? "Draft Detail Lideri"
                       : featuredRecommendation.decision_status === "effectiveness_preferred"
@@ -1250,6 +1313,8 @@ function ApprovalsPageContent({
                   variant={
                     featuredRecommendation.decision_status === "manual_attention"
                       ? "danger"
+                      : featuredRecommendation.decision_status === "long_term_preferred"
+                        ? "success"
                       : featuredRecommendation.decision_status === "draft_detail_preferred"
                         ? "success"
                       : featuredRecommendation.decision_status === "effectiveness_preferred"
@@ -1295,6 +1360,13 @@ function ApprovalsPageContent({
                       variant="success"
                     />
                   ) : null}
+                {featuredRecommendation.decision_context_source === "long_term"
+                  && featuredRecommendation.decision_context_window_days != null ? (
+                    <Badge
+                      label={`${featuredRecommendation.decision_context_window_days} gun stabilite`}
+                      variant="success"
+                    />
+                  ) : null}
               </div>
               <p className="mt-3 text-sm font-semibold">
                 {featuredRecommendation.decision_reason}
@@ -1316,9 +1388,44 @@ function ApprovalsPageContent({
                     Draft detail kaynakli remediation publish basarisi %{featuredRecommendation.decision_context_success_rate}.
                   </p>
                 ) : null}
+              {featuredRecommendation.decision_context_source === "long_term"
+                && featuredRecommendation.decision_context_success_rate != null ? (
+                  <p className="mt-2 text-xs muted-text">
+                    {featuredRecommendation.decision_context_window_days ?? remediationAnalytics.summary.long_term_window_days ?? 90}
+                    {" "}gunluk uzun donem publish basarisi %{featuredRecommendation.decision_context_success_rate}
+                    {featuredRecommendation.decision_context_baseline_success_rate != null
+                      ? ` / mevcut pencere referansi %${featuredRecommendation.decision_context_baseline_success_rate}`
+                      : ""}.
+                  </p>
+                ) : null}
               {featuredRecommendation.retry_guidance_reason ? (
                 <p className="mt-2 text-xs muted-text">{featuredRecommendation.retry_guidance_reason}</p>
               ) : null}
+              <div className="mt-3 rounded-md border border-[var(--border)] bg-white p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge label="Uzun Donem Karsilastirma" variant="neutral" />
+                  {sourceComparisonWinner ? (
+                    <Badge label={sourceComparisonWinner.label} variant={sourceComparisonWinner.variant} />
+                  ) : null}
+                  {featuredRecommendation.decision_context_source === "draft_detail" ? (
+                    <Badge label="Draft Detail Odakli" variant="success" />
+                  ) : featuredRecommendation.decision_context_source === "long_term" ? (
+                    <Badge label="Uzun Donem Stabilite" variant="success" />
+                  ) : (
+                    <Badge label="Approvals Native Odakli" variant="warning" />
+                  )}
+                </div>
+                <p className="mt-2 text-sm muted-text">
+                  {sourceComparisonWinner?.reason ?? "Draft detail ve approvals-native karsilastirmasi icin yeterli veri bekleniyor."}
+                </p>
+                {featuredRecommendation.decision_context_source === "draft_detail"
+                  && featuredRecommendation.decision_context_success_rate != null ? (
+                    <p className="mt-1 text-xs muted-text">
+                      Bu featured karar draft detail tarafinda %{featuredRecommendation.decision_context_success_rate}
+                      publish basarisi goren akisla destekleniyor.
+                    </p>
+                  ) : null}
+              </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   size="sm"
@@ -1412,7 +1519,7 @@ function ApprovalsPageContent({
                 <Badge label={sourceComparisonWinner.label} variant={sourceComparisonWinner.variant} />
               ) : null}
             </div>
-            <p className="mt-3 text-sm font-semibold">Draft detail vs approvals native</p>
+            <p className="mt-3 text-sm font-semibold">Uzun Donem: Draft detail vs approvals native</p>
             <div className="mt-3 grid gap-2 text-xs muted-text md:grid-cols-2">
               <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
                 <p className="font-semibold">Draft detail</p>
@@ -1499,6 +1606,18 @@ function ApprovalsPageContent({
                     variant={retryGuidanceVariant(resolveRetryGuidanceStatus(analyticsItem))}
                   />
                 ) : null}
+                {analyticsItem?.long_term_publish_success_rate != null ? (
+                  <Badge
+                    label={`${remediationAnalytics?.summary.long_term_window_days ?? 90}g %${analyticsItem.long_term_publish_success_rate} basari`}
+                    variant="neutral"
+                  />
+                ) : null}
+                {analyticsItem?.long_term_effectiveness_status ? (
+                  <Badge
+                    label={`${remediationAnalytics?.summary.long_term_window_days ?? 90}g ${effectivenessStatusLabel(analyticsItem.long_term_effectiveness_status)}`}
+                    variant={effectivenessStatusVariant(analyticsItem.long_term_effectiveness_status)}
+                  />
+                ) : null}
               </div>
               <p className="mt-3 text-sm font-semibold">{cluster.label}</p>
               <p className="mt-1 text-sm muted-text">{cluster.detail}</p>
@@ -1529,8 +1648,18 @@ function ApprovalsPageContent({
                       {` ${clusterOutcomeSummary.successful_publishes}`} basarili publish
                     </p>
                   ) : null}
+                  {analyticsItem.long_term_publish_attempts != null ? (
+                    <p>
+                      {remediationAnalytics?.summary.long_term_window_days ?? 90} gun: {analyticsItem.long_term_publish_attempts}
+                      {" "}publish denemesi /
+                      {` %${analyticsItem.long_term_publish_success_rate ?? 0}`} basari
+                    </p>
+                  ) : null}
                   {analyticsItem.retry_guidance_reason ? (
                     <p>{analyticsItem.retry_guidance_reason}</p>
+                  ) : null}
+                  {analyticsItem.long_term_retry_guidance_reason ? (
+                    <p>{analyticsItem.long_term_retry_guidance_reason}</p>
                   ) : null}
                 </div>
               ) : null}
