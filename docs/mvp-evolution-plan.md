@@ -371,3 +371,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 131. Approvals remediation analytics'te 90 gunluk long-term cluster sinyallerini uretip sparse current-window durumlarinda featured karari uzun donem stabil cluster'a kaydirabilmek
 132. `long_term_approvals_native_outcome_summary` ve `long_term_draft_detail_outcome_summary` alanlariyla approvals-native ve draft detail remediation akislarini uzun donemde de karsilastirabilir hale getirmek
 133. Approvals featured ve cluster kartlarinda uzun donem stabilite, long-term success ve guidance baglamini gorunur kilarak operatorun neden o remediation'in one ciktigini daha hizli anlamasini saglamak
+134. Approvals featured ve cluster kartlarinin draft detail linklerine long-term retry guidance, source comparison ve uzun donem basari baglamini query focus olarak tasiyip remediation odagini detail ekraninda kaybetmemek
+135. Draft detail remediation blogunda long-term stabilite, kaynak karsilastirmasi ve pencere baz basari sinyallerini rozet ve aciklama katmani olarak gosterip approvals analytics baglamini detail yuzeyinde de okunur kilmak
+136. Approvals featured ve cluster CTA'larini long-term safe guidance ile daha agresif ama guvenli tek tik remediation akisina tasiyip proven cluster'larda bulk retry'yi one cikarmak

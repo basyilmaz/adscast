@@ -53,6 +53,9 @@ type DraftDetailResponse = {
 };
 
 type DraftPublishState = NonNullable<DraftDetailResponse["data"]["approval"]>["publish_state"];
+type SearchParamsLike = {
+  get(name: string): string | null;
+};
 
 export function DraftDetailClient() {
   const searchParams = useSearchParams();
@@ -67,6 +70,35 @@ export function DraftDetailClient() {
   const focusRetryGuidanceLabel = searchParams.get("focus_retry_guidance_label");
   const focusRetryGuidanceReason = searchParams.get("focus_retry_guidance_reason");
   const focusEffectivenessScore = resolveOptionalNumber(searchParams.get("focus_effectiveness_score"));
+  const focusLongTermWindowDays = resolveOptionalWindowDays(
+    readFirstSearchParam(searchParams, ["focus_long_term_window_days", "focus_window_days"]),
+  );
+  const focusLongTermPublishSuccessRate = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, [
+      "focus_long_term_publish_success_rate",
+      "focus_long_term_success_rate",
+      "focus_long_term_approvals_native_publish_success_rate",
+    ]),
+  );
+  const focusLongTermBaselineSuccessRate = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_long_term_baseline_success_rate"]),
+  );
+  const focusLongTermEffectivenessScore = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_long_term_effectiveness_score"]),
+  );
+  const focusLongTermEffectivenessStatus = readFirstSearchParam(searchParams, [
+    "focus_long_term_effectiveness_status",
+  ]);
+  const focusSourceComparisonLabel = readFirstSearchParam(searchParams, [
+    "focus_source_comparison_label",
+    "focus_source_comparison_winner",
+  ]);
+  const focusSourceComparisonReason = readFirstSearchParam(searchParams, [
+    "focus_source_comparison_reason",
+  ]);
+  const focusSourceComparisonWinner = readFirstSearchParam(searchParams, [
+    "focus_source_comparison_winner",
+  ]);
   const analyticsWindowDays = resolveAnalyticsWindow(searchParams.get("window_days"));
   const hasDraftId = Boolean(draftId);
   const [submitting, setSubmitting] = useState(false);
@@ -323,6 +355,27 @@ export function DraftDetailClient() {
                   {focusEffectivenessScore != null ? (
                     <Badge label={`Effectiveness ${focusEffectivenessScore}`} variant="neutral" />
                   ) : null}
+                  {focusLongTermWindowDays != null ? (
+                    <Badge label={`${focusLongTermWindowDays} gun long-term`} variant="neutral" />
+                  ) : null}
+                  {focusLongTermPublishSuccessRate != null ? (
+                    <Badge label={`%${focusLongTermPublishSuccessRate} long-term success`} variant="success" />
+                  ) : null}
+                  {focusLongTermBaselineSuccessRate != null ? (
+                    <Badge label={`%${focusLongTermBaselineSuccessRate} pencere baz`} variant="neutral" />
+                  ) : null}
+                  {focusLongTermEffectivenessScore != null ? (
+                    <Badge label={`LT Effectiveness ${focusLongTermEffectivenessScore}`} variant="neutral" />
+                  ) : null}
+                  {focusLongTermEffectivenessStatus ? (
+                    <Badge
+                      label={focusLongTermEffectivenessStatusLabel(focusLongTermEffectivenessStatus)}
+                      variant={focusLongTermEffectivenessStatusVariant(focusLongTermEffectivenessStatus)}
+                    />
+                  ) : null}
+                  {focusSourceComparisonLabel ? (
+                    <Badge label={focusSourceComparisonLabel} variant="neutral" />
+                  ) : null}
                   {analyticsWindowDays ? (
                     <Badge label={`${analyticsWindowDays} gun analytics`} variant="neutral" />
                   ) : null}
@@ -339,6 +392,14 @@ export function DraftDetailClient() {
                     focusRetryGuidanceLabel,
                     focusRetryGuidanceReason,
                     focusEffectivenessScore,
+                    focusLongTermWindowDays,
+                    focusLongTermPublishSuccessRate,
+                    focusLongTermBaselineSuccessRate,
+                    focusLongTermEffectivenessScore,
+                    focusLongTermEffectivenessStatus,
+                    focusSourceComparisonLabel,
+                    focusSourceComparisonReason,
+                    focusSourceComparisonWinner,
                   )}
                 </p>
                 {approvalsReturnRoute ? (
@@ -399,16 +460,57 @@ export function DraftDetailClient() {
               <div className="mt-3 rounded-md border border-[var(--accent)]/30 bg-white p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge label="Onerilen Aksiyon" variant="success" />
-                  {focusSource === "approvals_featured" ? (
+                  {focusSource === "approvals_featured" || focusSource === "approvals_featured_long_term" ? (
                     <Badge label="Featured Karardan Geldi" variant="neutral" />
                   ) : null}
-                  {focusSource === "approvals_cluster" ? (
+                  {focusSource === "approvals_featured_long_term" ? (
+                    <Badge label="Uzun Donem Featured" variant="success" />
+                  ) : null}
+                  {focusSource === "approvals_cluster" || focusSource === "approvals_cluster_long_term" ? (
                     <Badge label="Cluster Odagi" variant="neutral" />
+                  ) : null}
+                  {focusSource === "approvals_cluster_long_term" ? (
+                    <Badge label="Uzun Donem Cluster" variant="success" />
                   ) : null}
                 </div>
                 <p className="mt-2 text-sm font-semibold">{remediationPrimaryAction.label}</p>
                 {remediationPrimaryAction.hint ? (
                   <p className="mt-1 text-xs muted-text">{remediationPrimaryAction.hint}</p>
+                ) : null}
+                {focusLongTermWindowDays != null || focusSourceComparisonLabel ? (
+                  <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide muted-text">Uzun Donem Baglami</p>
+                    {focusLongTermWindowDays != null ? (
+                      <p className="mt-1 text-xs muted-text">
+                        {focusLongTermWindowDays} gunluk uzun donem pencere, bu aksiyonun daha stabil calistigi akisi one cikarir.
+                      </p>
+                    ) : null}
+                    {focusLongTermPublishSuccessRate != null ? (
+                      <p className="mt-1 text-xs muted-text">
+                        Uzun donem publish basarisi %{focusLongTermPublishSuccessRate}.
+                      </p>
+                    ) : null}
+                    {focusLongTermBaselineSuccessRate != null ? (
+                      <p className="mt-1 text-xs muted-text">
+                        Mevcut pencere referansi %{focusLongTermBaselineSuccessRate}.
+                      </p>
+                    ) : null}
+                    {focusLongTermEffectivenessScore != null ? (
+                      <p className="mt-1 text-xs muted-text">
+                        Uzun donem effectiveness {focusLongTermEffectivenessScore}
+                        {focusLongTermEffectivenessStatus
+                          ? ` (${focusLongTermEffectivenessStatusLabel(focusLongTermEffectivenessStatus)})`
+                          : ""}.
+                      </p>
+                    ) : null}
+                    {focusSourceComparisonLabel ? (
+                      <p className="mt-1 text-xs muted-text">
+                        Kaynak karsilastirmasi: {focusSourceComparisonLabel}
+                        {focusSourceComparisonReason ? ` - ${focusSourceComparisonReason}` : ""}
+                        {focusSourceComparisonWinner ? ` [kazanan: ${focusSourceComparisonWinner}]` : ""}
+                      </p>
+                    ) : null}
+                  </div>
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
@@ -496,6 +598,7 @@ function focusDecisionStatusLabel(code: string): string {
       draft_detail_preferred: "Draft Detail Lideri",
       effectiveness_preferred: "Effectiveness Destekli",
       analytics_preferred: "Analytics Destekli",
+      long_term_preferred: "Uzun Donem Stabil",
       manual_attention: "Manuel Dikkat",
       rule_based: "Kural Tabanli",
       manual_check_required: "Manuel Kontrol Gerekli",
@@ -549,10 +652,38 @@ function buildFocusGuidance(
   focusRetryGuidanceLabel: string | null,
   focusRetryGuidanceReason: string | null,
   focusEffectivenessScore: number | null,
+  focusLongTermWindowDays: number | null,
+  focusLongTermPublishSuccessRate: number | null,
+  focusLongTermBaselineSuccessRate: number | null,
+  focusLongTermEffectivenessScore: number | null,
+  focusLongTermEffectivenessStatus: string | null,
+  focusSourceComparisonLabel: string | null,
+  focusSourceComparisonReason: string | null,
+  focusSourceComparisonWinner: string | null,
 ): string {
   const windowPrefix = analyticsWindowDays
     ? `Bu odak ${analyticsWindowDays} gunluk approvals analytics penceresinden geldi. `
     : "";
+
+  if (focusDecisionStatus === "long_term_preferred" || focusSourceComparisonLabel || focusLongTermWindowDays != null) {
+    const longTermPrefix = focusLongTermWindowDays != null
+      ? `Bu odak ${focusLongTermWindowDays} gunluk uzun donem pencereden geldi. `
+      : "";
+    const comparisonSuffix = focusSourceComparisonLabel
+      ? ` Kaynak karsilastirmasi: ${focusSourceComparisonLabel}${focusSourceComparisonReason ? ` - ${focusSourceComparisonReason}` : ""}${focusSourceComparisonWinner ? ` (kazanan: ${focusSourceComparisonWinner})` : ""}.`
+      : "";
+    const successSuffix = focusLongTermPublishSuccessRate != null
+      ? ` Uzun donem publish basarisi %${focusLongTermPublishSuccessRate}.`
+      : "";
+    const baselineSuffix = focusLongTermBaselineSuccessRate != null
+      ? ` Mevcut pencere referansi %${focusLongTermBaselineSuccessRate}.`
+      : "";
+    const effectivenessSuffix = focusLongTermEffectivenessScore != null
+      ? ` Uzun donem effectiveness ${focusLongTermEffectivenessScore}${focusLongTermEffectivenessStatus ? ` (${focusLongTermEffectivenessStatusLabel(focusLongTermEffectivenessStatus)})` : ""}.`
+      : "";
+
+    return `${windowPrefix}${longTermPrefix}Uzun donem stabilite ve kaynak dagilimini birlikte inceleyin.${comparisonSuffix}${successSuffix}${baselineSuffix}${effectivenessSuffix}`;
+  }
 
   if (focusDecisionStatus === "draft_detail_preferred") {
     return `${windowPrefix}Bu odak draft detail outcome'una gore secildi. Ustteki decision, guidance ve effectiveness badge'lerini birlikte inceleyin.`;
@@ -635,6 +766,47 @@ function resolveOptionalNumber(rawValue: string | null): number | null {
   const parsedValue = Number(rawValue);
 
   return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+function resolveOptionalWindowDays(rawValue: string | null): 7 | 30 | 90 | null {
+  return resolveAnalyticsWindow(rawValue);
+}
+
+function readFirstSearchParam(searchParams: SearchParamsLike, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = searchParams.get(key);
+    if (value != null && value.trim() !== "") {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function focusLongTermEffectivenessStatusLabel(code: string): string {
+  return (
+    {
+      proven: "Kanitlandi",
+      mixed: "Karisik Sonuc",
+      weak: "Zayif",
+      insufficient_data: "Veri Yetersiz",
+      idle: "Pasif",
+    }[code] ?? code
+  );
+}
+
+function focusLongTermEffectivenessStatusVariant(
+  code: string,
+): "success" | "warning" | "danger" | "neutral" {
+  const variants: Record<string, "success" | "warning" | "danger" | "neutral"> = {
+    proven: "success",
+    mixed: "warning",
+    weak: "danger",
+    insufficient_data: "neutral",
+    idle: "neutral",
+  };
+
+  return variants[code] ?? "neutral";
 }
 
 function normalizeRetryGuidanceStatus(rawValue: string | null | undefined): "safe" | "guarded" | "blocked" | "unknown" {
@@ -737,7 +909,9 @@ function resolveRemediationInteractionSource(focusSource: string | null): string
   return (
     {
       approvals_featured: "draft_detail_from_approvals_featured",
+      approvals_featured_long_term: "draft_detail_from_approvals_featured",
       approvals_cluster: "draft_detail_from_approvals_cluster",
+      approvals_cluster_long_term: "draft_detail_from_approvals_cluster",
       approvals_retry_ready: "draft_detail_from_approvals_retry_ready",
       approvals_item: "draft_detail_from_approvals_item",
     }[focusSource ?? ""] ?? "draft_detail"

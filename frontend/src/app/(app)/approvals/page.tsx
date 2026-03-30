@@ -98,6 +98,10 @@ type ApprovalRemediationAnalyticsResponse = {
       retry_guidance_label?: string | null;
       retry_guidance_reason?: string | null;
       safe_bulk_retry?: boolean | null;
+      long_term_retry_guidance_status?: string | null;
+      long_term_retry_guidance_label?: string | null;
+      long_term_retry_guidance_reason?: string | null;
+      long_term_safe_bulk_retry?: boolean | null;
       current_items: number;
       manual_check_completions: number;
       publish_attempts: number;
@@ -144,6 +148,10 @@ type ApprovalRemediationAnalyticsResponse = {
       retry_guidance_label?: string | null;
       retry_guidance_reason?: string | null;
       safe_bulk_retry?: boolean | null;
+      long_term_retry_guidance_status?: string | null;
+      long_term_retry_guidance_label?: string | null;
+      long_term_retry_guidance_reason?: string | null;
+      long_term_safe_bulk_retry?: boolean | null;
       current_items: number;
       manual_check_completions: number;
       publish_attempts: number;
@@ -172,7 +180,6 @@ type ApprovalRemediationAnalyticsResponse = {
       long_term_publish_success_rate?: number | null;
       long_term_effectiveness_score?: number | null;
       long_term_effectiveness_status?: string | null;
-      long_term_retry_guidance_reason?: string | null;
     }>;
   };
 };
@@ -293,6 +300,12 @@ type RetryGuidanceContext = {
   retry_guidance_reason?: string | null;
   safe_bulk_retry?: boolean | null;
   action_mode?: "focus_cluster" | "bulk_retry_publish" | null;
+  decision_context_source?: string | null;
+  long_term_retry_guidance_status?: string | null;
+  long_term_retry_guidance_label?: string | null;
+  long_term_retry_guidance_reason?: string | null;
+  long_term_safe_bulk_retry?: boolean | null;
+  long_term_effectiveness_status?: string | null;
 };
 
 type DraftRouteFocusContext = {
@@ -302,6 +315,13 @@ type DraftRouteFocusContext = {
   retryGuidanceLabel?: string | null;
   retryGuidanceReason?: string | null;
   effectivenessScore?: number | null;
+  sourceComparisonLabel?: string | null;
+  sourceComparisonReason?: string | null;
+  sourceComparisonWinner?: string | null;
+  longTermWindowDays?: number | null;
+  longTermSuccessRate?: number | null;
+  longTermBaselineSuccessRate?: number | null;
+  longTermEffectivenessStatus?: string | null;
 };
 
 export default function ApprovalsPage() {
@@ -1088,16 +1108,54 @@ function ApprovalsPageContent({
   const featuredDraftRoute = useMemo(
     () =>
       featuredClusterMatches.length > 0
-        ? buildDraftRoute(featuredClusterMatches[0], analyticsWindowDays, "approvals_featured", {
-            decisionStatus: featuredRecommendation?.decision_status ?? null,
-            decisionReason: featuredRecommendation?.decision_reason ?? null,
-            retryGuidanceStatus: featuredRecommendation?.retry_guidance_status ?? null,
-            retryGuidanceLabel: featuredRecommendation?.retry_guidance_label ?? null,
-            retryGuidanceReason: featuredRecommendation?.retry_guidance_reason ?? null,
-            effectivenessScore: featuredRecommendation?.effectiveness_score ?? null,
-          })
+        ? buildDraftRoute(
+            featuredClusterMatches[0],
+            analyticsWindowDays,
+            featuredRecommendation?.decision_context_source === "long_term"
+              ? "approvals_featured_long_term"
+              : "approvals_featured",
+            {
+            decisionStatus:
+              featuredRecommendation?.decision_context_source === "long_term"
+                ? "long_term_preferred"
+                : featuredRecommendation?.decision_status ?? null,
+            decisionReason: buildFocusRouteReason({
+              baseReason: featuredRecommendation?.decision_reason ?? null,
+              decisionContextSource: featuredRecommendation?.decision_context_source ?? null,
+              longTermWindowDays: featuredRecommendation?.decision_context_window_days ?? remediationAnalytics?.summary.long_term_window_days ?? null,
+              longTermSuccessRate: featuredRecommendation?.long_term_publish_success_rate ?? null,
+              longTermBaselineSuccessRate: featuredRecommendation?.decision_context_baseline_success_rate ?? null,
+              sourceComparisonReason: sourceComparisonWinner?.reason ?? null,
+              sourceComparisonLabel: sourceComparisonWinner?.label ?? null,
+              decisionContextAdvantage: featuredRecommendation?.decision_context_advantage ?? null,
+            }),
+            retryGuidanceStatus:
+              featuredRecommendation?.decision_context_source === "long_term"
+                ? featuredRecommendation?.long_term_retry_guidance_status ?? featuredRecommendation?.retry_guidance_status ?? null
+                : featuredRecommendation?.retry_guidance_status ?? null,
+            retryGuidanceLabel:
+              featuredRecommendation?.decision_context_source === "long_term"
+                ? featuredRecommendation?.long_term_retry_guidance_label ?? featuredRecommendation?.retry_guidance_label ?? null
+                : featuredRecommendation?.retry_guidance_label ?? null,
+            retryGuidanceReason:
+              featuredRecommendation?.decision_context_source === "long_term"
+                ? featuredRecommendation?.long_term_retry_guidance_reason ?? featuredRecommendation?.retry_guidance_reason ?? null
+                : featuredRecommendation?.retry_guidance_reason ?? null,
+            effectivenessScore:
+              featuredRecommendation?.decision_context_source === "long_term"
+                ? featuredRecommendation?.long_term_effectiveness_score ?? featuredRecommendation?.effectiveness_score ?? null
+                : featuredRecommendation?.effectiveness_score ?? null,
+            sourceComparisonLabel: sourceComparisonWinner?.label ?? null,
+            sourceComparisonReason: sourceComparisonWinner?.reason ?? null,
+            sourceComparisonWinner: sourceComparisonWinner?.label ?? null,
+            longTermWindowDays: featuredRecommendation?.decision_context_window_days ?? remediationAnalytics?.summary.long_term_window_days ?? null,
+            longTermSuccessRate: featuredRecommendation?.long_term_publish_success_rate ?? null,
+            longTermBaselineSuccessRate: featuredRecommendation?.decision_context_baseline_success_rate ?? null,
+            longTermEffectivenessStatus: featuredRecommendation?.long_term_effectiveness_status ?? null,
+            }
+          )
         : null,
-    [analyticsWindowDays, featuredClusterMatches, featuredRecommendation],
+    [analyticsWindowDays, featuredClusterMatches, featuredRecommendation, remediationAnalytics?.summary.long_term_window_days, sourceComparisonWinner],
   );
 
   return (
@@ -1565,14 +1623,31 @@ function ApprovalsPageContent({
           const retryableMatches = matches.filter((item) => canRetryPublish(item));
           const clusterDraftRoute =
             matches.length > 0
-              ? buildDraftRoute(matches[0], analyticsWindowDays, "approvals_cluster", {
-                  decisionStatus: analyticsItem?.retry_guidance_status ?? analyticsItem?.effectiveness_status ?? null,
-                  decisionReason: analyticsItem?.health_summary ?? cluster.detail,
-                  retryGuidanceStatus: analyticsItem?.retry_guidance_status ?? null,
-                  retryGuidanceLabel: analyticsItem?.retry_guidance_label ?? null,
-                  retryGuidanceReason: analyticsItem?.retry_guidance_reason ?? null,
-                  effectivenessScore: analyticsItem?.effectiveness_score ?? null,
-                })
+              ? buildDraftRoute(
+                  matches[0],
+                  analyticsWindowDays,
+                  resolveLongTermSafeBulkRetry(analyticsItem)
+                    ? "approvals_cluster_long_term"
+                    : "approvals_cluster",
+                  {
+                  decisionStatus:
+                    resolveClusterDecisionStatus(analyticsItem) ??
+                    analyticsItem?.retry_guidance_status ??
+                    analyticsItem?.effectiveness_status ??
+                    null,
+                  decisionReason: buildClusterFocusReason(cluster, analyticsItem, remediationAnalytics?.summary.long_term_window_days ?? null),
+                  retryGuidanceStatus: analyticsItem?.long_term_retry_guidance_status ?? analyticsItem?.retry_guidance_status ?? null,
+                  retryGuidanceLabel: analyticsItem?.long_term_retry_guidance_label ?? analyticsItem?.retry_guidance_label ?? null,
+                  retryGuidanceReason: analyticsItem?.long_term_retry_guidance_reason ?? analyticsItem?.retry_guidance_reason ?? null,
+                  effectivenessScore: analyticsItem?.long_term_effectiveness_score ?? analyticsItem?.effectiveness_score ?? null,
+                  sourceComparisonLabel: sourceComparisonWinner?.label ?? null,
+                  sourceComparisonReason: sourceComparisonWinner?.reason ?? null,
+                  sourceComparisonWinner: sourceComparisonWinner?.label ?? null,
+                  longTermWindowDays: remediationAnalytics?.summary.long_term_window_days ?? null,
+                  longTermSuccessRate: analyticsItem?.long_term_publish_success_rate ?? null,
+                  longTermEffectivenessStatus: analyticsItem?.long_term_effectiveness_status ?? null,
+                  }
+                )
               : null;
           const topSource = topSourceBreakdown(analyticsItem?.source_breakdown);
           const clusterOutcomeSummary = analyticsItem?.outcome_chain_summary ?? null;
@@ -2024,8 +2099,19 @@ function extractErrorMessage(reason: unknown): string {
   return "Toplu publish retry aksiyonu basarisiz.";
 }
 
-function clusterActionLabel(clusterKey: string, analyticsItem?: { retry_guidance_status?: string | null }): string {
+function clusterActionLabel(
+  clusterKey: string,
+  analyticsItem?: {
+    retry_guidance_status?: string | null;
+    safe_bulk_retry?: boolean | null;
+    long_term_retry_guidance_status?: string | null;
+    long_term_safe_bulk_retry?: boolean | null;
+    long_term_effectiveness_status?: string | null;
+    long_term_publish_success_rate?: number | null;
+  },
+): string {
   const guidanceStatus = resolveRetryGuidanceStatus(analyticsItem);
+  const longTermSafe = resolveLongTermSafeBulkRetry(analyticsItem);
 
   if (guidanceStatus === "blocked") {
     return "Manuel Kontrole Git";
@@ -2033,6 +2119,10 @@ function clusterActionLabel(clusterKey: string, analyticsItem?: { retry_guidance
 
   if (guidanceStatus === "guarded") {
     return "Kumeyi Incele";
+  }
+
+  if (longTermSafe) {
+    return "Uzun Donem Stabil Retry Publish";
   }
 
   if (shouldRunClusterBulkRetry(clusterKey, analyticsItem, 1)) {
@@ -2120,6 +2210,15 @@ function resolveGuidedActionMode(
     return "bulk_retry_publish";
   }
 
+  if (
+    context?.decision_context_source === "long_term"
+    && context?.long_term_safe_bulk_retry !== false
+    && context?.long_term_effectiveness_status === "proven"
+    && (status === "unknown" || status === "safe")
+  ) {
+    return "bulk_retry_publish";
+  }
+
   return "focus_cluster";
 }
 
@@ -2128,6 +2227,14 @@ function resolveGuidedActionLabel(
   actionMode: "focus_cluster" | "bulk_retry_publish",
 ): string {
   const status = resolveRetryGuidanceStatus(context);
+
+  if (context?.decision_context_source === "long_term" && actionMode === "bulk_retry_publish") {
+    return "Uzun Donem Stabil Retry Publish";
+  }
+
+  if (context?.decision_context_source === "long_term") {
+    return "Uzun Donem Stabil Kume Uzerinde Calis";
+  }
 
   if (context?.retry_guidance_label) {
     return context.retry_guidance_label;
@@ -2150,12 +2257,24 @@ function resolveGuidedActionLabel(
 
 function resolveClusterActionVariant(
   clusterKey: string,
-  analyticsItem?: { retry_guidance_status?: string | null; safe_bulk_retry?: boolean | null },
+  analyticsItem?: {
+    retry_guidance_status?: string | null;
+    safe_bulk_retry?: boolean | null;
+    long_term_retry_guidance_status?: string | null;
+    long_term_safe_bulk_retry?: boolean | null;
+    long_term_effectiveness_status?: string | null;
+    long_term_publish_success_rate?: number | null;
+  },
 ): "primary" | "secondary" | "outline" {
   const guidanceStatus = resolveRetryGuidanceStatus(analyticsItem);
+  const longTermSafe = resolveLongTermSafeBulkRetry(analyticsItem);
 
   if (guidanceStatus === "blocked" || guidanceStatus === "guarded") {
     return "outline";
+  }
+
+  if (longTermSafe) {
+    return "primary";
   }
 
   return shouldRunClusterBulkRetry(clusterKey, analyticsItem, 1) ? "primary" : "secondary";
@@ -2163,7 +2282,13 @@ function resolveClusterActionVariant(
 
 function shouldRunClusterBulkRetry(
   clusterKey: string,
-  analyticsItem?: { retry_guidance_status?: string | null; safe_bulk_retry?: boolean | null },
+  analyticsItem?: {
+    retry_guidance_status?: string | null;
+    safe_bulk_retry?: boolean | null;
+    long_term_retry_guidance_status?: string | null;
+    long_term_safe_bulk_retry?: boolean | null;
+    long_term_effectiveness_status?: string | null;
+  },
   retryableMatchesCount = 0,
 ): boolean {
   if (retryableMatchesCount === 0) {
@@ -2180,6 +2305,10 @@ function shouldRunClusterBulkRetry(
     return false;
   }
 
+  if (resolveLongTermSafeBulkRetry(analyticsItem)) {
+    return true;
+  }
+
   if (guidanceStatus === "safe") {
     return true;
   }
@@ -2194,11 +2323,139 @@ function sourceLabel(sourceKey: string, fallbackLabel: string): string {
       approvals_cluster: "Cluster Karari",
       approvals_retry_ready: "Retry-Hazir Akisi",
       approvals_item: "Item Aksiyonu",
+      approvals_featured_long_term: "Featured Uzun Donem",
+      approvals_cluster_long_term: "Cluster Uzun Donem",
       approvals: "Approvals Merkezi",
       draft_detail: "Draft Detayi",
       other: "Diger",
     }[sourceKey] ?? fallbackLabel
   );
+}
+
+function buildFocusRouteReason({
+  baseReason,
+  decisionContextSource,
+  longTermWindowDays,
+  longTermSuccessRate,
+  longTermBaselineSuccessRate,
+  sourceComparisonReason,
+  sourceComparisonLabel,
+  decisionContextAdvantage,
+}: {
+  baseReason: string | null;
+  decisionContextSource?: string | null;
+  longTermWindowDays?: number | null;
+  longTermSuccessRate?: number | null;
+  longTermBaselineSuccessRate?: number | null;
+  sourceComparisonReason?: string | null;
+  sourceComparisonLabel?: string | null;
+  decisionContextAdvantage?: number | null;
+}): string {
+  const parts: string[] = [];
+
+  if (decisionContextSource === "long_term" && longTermWindowDays != null) {
+    parts.push(`${longTermWindowDays} gunluk uzun donem stabil cluster odagi.`);
+    if (longTermSuccessRate != null) {
+      parts.push(`Uzun donem publish basarisi %${longTermSuccessRate}.`);
+    }
+    if (longTermBaselineSuccessRate != null) {
+      parts.push(`Mevcut pencere referansi %${longTermBaselineSuccessRate}.`);
+    }
+  }
+
+  if (decisionContextSource === "draft_detail" && decisionContextAdvantage != null) {
+    parts.push(`Draft detail akisiyla %+${decisionContextAdvantage} avantaj.`);
+  }
+
+  if (sourceComparisonLabel || sourceComparisonReason) {
+    parts.push(`${sourceComparisonLabel ?? "Kaynak karsilastirmasi"}: ${sourceComparisonReason ?? ""}`.trim());
+  }
+
+  if (baseReason) {
+    parts.push(baseReason);
+  }
+
+  return parts.filter(Boolean).join(" ").trim();
+}
+
+function resolveLongTermSafeBulkRetry(
+  context?: {
+    long_term_retry_guidance_status?: string | null;
+    long_term_safe_bulk_retry?: boolean | null;
+    long_term_effectiveness_status?: string | null;
+    long_term_publish_success_rate?: number | null;
+  } | null,
+): boolean {
+  if (!context) {
+    return false;
+  }
+
+  if (context.long_term_safe_bulk_retry === true) {
+    return true;
+  }
+
+  const guidanceStatus = resolveRetryGuidanceStatus({
+    retry_guidance_status: context.long_term_retry_guidance_status ?? null,
+    safe_bulk_retry: context.long_term_safe_bulk_retry ?? null,
+  });
+
+  return guidanceStatus === "safe" && context.long_term_effectiveness_status === "proven";
+}
+
+function resolveClusterDecisionStatus(
+  analyticsItem?: {
+    long_term_effectiveness_status?: string | null;
+    long_term_safe_bulk_retry?: boolean | null;
+    long_term_publish_success_rate?: number | null;
+    retry_guidance_status?: string | null;
+    effectiveness_status?: string | null;
+  } | null,
+): string | null {
+  if (!analyticsItem) {
+    return null;
+  }
+
+  if (resolveLongTermSafeBulkRetry(analyticsItem)) {
+    return "long_term_preferred";
+  }
+
+  return analyticsItem.retry_guidance_status ?? analyticsItem.effectiveness_status ?? null;
+}
+
+function buildClusterFocusReason(
+  cluster: QuickCluster,
+  analyticsItem?: {
+    health_summary?: string | null;
+    long_term_publish_success_rate?: number | null;
+    long_term_effectiveness_status?: string | null;
+    long_term_retry_guidance_reason?: string | null;
+    long_term_window_days?: number | null;
+    retry_guidance_reason?: string | null;
+    effectiveness_status?: string | null;
+  } | null,
+  longTermWindowDays?: number | null,
+): string {
+  const parts: string[] = [];
+
+  if (analyticsItem?.long_term_effectiveness_status === "proven" && analyticsItem.long_term_publish_success_rate != null) {
+    parts.push(
+      `${longTermWindowDays ?? 90} gunluk uzun donem basari %${analyticsItem.long_term_publish_success_rate} ile bu kume oneriliyor.`,
+    );
+  }
+
+  if (analyticsItem?.long_term_retry_guidance_reason) {
+    parts.push(analyticsItem.long_term_retry_guidance_reason);
+  } else if (analyticsItem?.retry_guidance_reason) {
+    parts.push(analyticsItem.retry_guidance_reason);
+  }
+
+  if (analyticsItem?.health_summary) {
+    parts.push(analyticsItem.health_summary);
+  } else {
+    parts.push(cluster.detail);
+  }
+
+  return parts.filter(Boolean).join(" ").trim();
 }
 
 function topSourceBreakdown(
@@ -2305,7 +2562,7 @@ function compareSourceAggressiveness(
       ? {
           label: "Draft detail daha aktif",
           variant: "neutral",
-          reason: "Draft detail etkilesim hacmi approvals-native toplanmiÅŸ akislerden daha yuksek.",
+          reason: "Draft detail etkilesim hacmi approvals-native toplanmis akislerden daha yuksek.",
         }
       : {
           label: "Approvals-native daha aktif",
@@ -2352,7 +2609,14 @@ function effectivenessStatusVariant(status: string): "success" | "warning" | "da
 function buildDraftRoute(
   item: Approval,
   analyticsWindowDays: number,
-  focusSource: "approvals" | "approvals_featured" | "approvals_cluster" | "approvals_retry_ready" | "approvals_item",
+  focusSource:
+    | "approvals"
+    | "approvals_featured"
+    | "approvals_featured_long_term"
+    | "approvals_cluster"
+    | "approvals_cluster_long_term"
+    | "approvals_retry_ready"
+    | "approvals_item",
   focusContext?: DraftRouteFocusContext,
 ): string | null {
   if (!item.approvable_route) {
@@ -2404,6 +2668,34 @@ function buildDraftRoute(
 
   if (focusContext?.effectivenessScore != null) {
     params.set("focus_effectiveness_score", String(focusContext.effectivenessScore));
+  }
+
+  if (focusContext?.sourceComparisonLabel) {
+    params.set("focus_source_comparison_label", focusContext.sourceComparisonLabel);
+  }
+
+  if (focusContext?.sourceComparisonReason) {
+    params.set("focus_source_comparison_reason", focusContext.sourceComparisonReason);
+  }
+
+  if (focusContext?.sourceComparisonWinner) {
+    params.set("focus_source_comparison_winner", focusContext.sourceComparisonWinner);
+  }
+
+  if (focusContext?.longTermWindowDays != null) {
+    params.set("focus_long_term_window_days", String(focusContext.longTermWindowDays));
+  }
+
+  if (focusContext?.longTermSuccessRate != null) {
+    params.set("focus_long_term_success_rate", String(focusContext.longTermSuccessRate));
+  }
+
+  if (focusContext?.longTermBaselineSuccessRate != null) {
+    params.set("focus_long_term_baseline_success_rate", String(focusContext.longTermBaselineSuccessRate));
+  }
+
+  if (focusContext?.longTermEffectivenessStatus) {
+    params.set("focus_long_term_effectiveness_status", focusContext.longTermEffectivenessStatus);
   }
 
   const nextQuery = params.toString();
