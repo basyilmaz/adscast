@@ -70,6 +70,19 @@ type RouteWindowSeriesFocus = {
   reason: string | null;
   routeTrends: string | null;
 };
+
+type RouteOutcomeSpotlightFocus = {
+  routeKey: string | null;
+  routeLabel: string | null;
+  status: string | null;
+  statusLabel: string | null;
+  reason: string | null;
+  recommendedActionMode: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | string | null;
+  recommendedActionLabel: string | null;
+  source: string | null;
+  windowDays: 7 | 30 | 90 | null;
+  successRate: number | null;
+};
 type SearchParamsLike = {
   get(name: string): string | null;
 };
@@ -164,6 +177,7 @@ export function DraftDetailClient() {
   const focusRouteLongTermAdvantage = resolveOptionalNumber(
     readFirstSearchParam(searchParams, ["focus_route_long_term_advantage"]),
   );
+  const focusRouteOutcomeSpotlight = readRouteOutcomeSpotlightFocus(searchParams);
   const focusRouteWindowSeries = readRouteWindowSeriesFocus(searchParams);
   const analyticsWindowDays = resolveAnalyticsWindow(searchParams.get("window_days"));
   const hasDraftId = Boolean(draftId);
@@ -383,6 +397,16 @@ export function DraftDetailClient() {
     || focusRouteLongTermLabel,
   );
   const hasRouteWindowSeriesFocus = focusRouteWindowSeries.length > 0;
+  const hasRouteOutcomeFocus = Boolean(
+    focusRouteOutcomeSpotlight
+    || focusDecisionStatus
+    || focusDecisionReason
+    || focusPrimaryActionMode
+    || focusPrimaryActionReason
+    || focusSourceComparisonLabel
+    || focusRouteTrendLabel
+    || hasRouteWindowSeriesFocus,
+  );
 
   return (
     <div className="space-y-4">
@@ -515,6 +539,41 @@ export function DraftDetailClient() {
                         focusLongTermWindowDays,
                         focusLongTermPublishSuccessRate,
                         focusLongTermBaselineSuccessRate,
+                      )}
+                    </p>
+                  </div>
+                ) : null}
+                {hasRouteOutcomeFocus && focusRouteOutcomeSpotlight ? (
+                  <div className="mt-3 rounded-md border border-[var(--accent)]/25 bg-white p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge label="Route Outcome Spotlight" variant="neutral" />
+                      <Badge
+                        label={focusRouteOutcomeSpotlight.statusLabel ?? routeOutcomeGuidanceLabel(focusRouteOutcomeSpotlight.status)}
+                        variant={routeOutcomeGuidanceVariant(focusRouteOutcomeSpotlight.status)}
+                      />
+                      {focusRouteOutcomeSpotlight.recommendedActionLabel ? (
+                        <Badge label={focusRouteOutcomeSpotlight.recommendedActionLabel} variant="success" />
+                      ) : null}
+                      {focusRouteOutcomeSpotlight.windowDays != null ? (
+                        <Badge label={`${focusRouteOutcomeSpotlight.windowDays} gun`} variant="neutral" />
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-sm font-semibold">
+                      {focusRouteOutcomeSpotlight.routeLabel ?? "Route outcome spotlight"}
+                    </p>
+                    <p className="mt-1 text-xs muted-text">
+                      {buildRouteOutcomeOperatorHint(
+                        focusRouteOutcomeSpotlight,
+                        focusRouteTrendLabel,
+                        focusRouteTrendReason,
+                        focusRoutePreferredFlow,
+                        focusRouteTrendConfidence,
+                        focusRouteCurrentLabel,
+                        focusRouteCurrentSuccessRate,
+                        focusRouteLongTermLabel,
+                        focusRouteLongTermSuccessRate,
+                        focusPrimaryActionMode,
+                        focusPrimaryActionRouteLabel,
                       )}
                     </p>
                   </div>
@@ -1647,6 +1706,300 @@ function buildRouteWindowSeriesOperatorHint(series: RouteWindowSeriesFocus[]): s
   }
 
   parts.push("Current ve top route sinyallerini pencere bazinda karsilastirin.");
+
+  return parts.join(" ");
+}
+
+function readRouteOutcomeSpotlightFocus(searchParams: SearchParamsLike): RouteOutcomeSpotlightFocus | null {
+  const rawSpotlight = readFirstSearchParam(searchParams, [
+    "focus_route_outcome_spotlight",
+    "focus_route_outcome",
+    "route_outcome_spotlight",
+  ]);
+
+  const parsedSpotlight = normalizeRouteOutcomeSpotlightFocus(rawSpotlight);
+  if (parsedSpotlight) {
+    return parsedSpotlight;
+  }
+
+  const routeKey = readFirstSearchParam(searchParams, [
+    "focus_route_outcome_route_key",
+    "focus_route_outcome_key",
+  ]);
+  const routeLabel = readFirstSearchParam(searchParams, [
+    "focus_route_outcome_route_label",
+    "focus_route_outcome_label",
+  ]);
+  const status = readFirstSearchParam(searchParams, [
+    "focus_route_outcome_status",
+    "focus_route_outcome_guidance_status",
+  ]);
+  const statusLabel = readFirstSearchParam(searchParams, [
+    "focus_route_outcome_status_label",
+    "focus_route_outcome_guidance_label",
+  ]);
+  const reason = readFirstSearchParam(searchParams, [
+    "focus_route_outcome_reason",
+    "focus_route_outcome_guidance_reason",
+  ]);
+  const recommendedActionMode = readFirstSearchParam(searchParams, [
+    "focus_route_outcome_recommended_action_mode",
+    "focus_route_outcome_decision_context_recommended_action_mode",
+  ]);
+  const recommendedActionLabel = readFirstSearchParam(searchParams, [
+    "focus_route_outcome_recommended_action_label",
+  ]);
+  const source = readFirstSearchParam(searchParams, [
+    "focus_route_outcome_source",
+    "focus_route_outcome_decision_context_source",
+  ]);
+  const windowDays = resolveOptionalWindowDays(
+    readFirstSearchParam(searchParams, [
+      "focus_route_outcome_window_days",
+      "focus_route_outcome_decision_context_window_days",
+      "focus_window_days",
+    ]),
+  );
+  const successRate = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, [
+      "focus_route_outcome_success_rate",
+      "focus_route_outcome_decision_context_success_rate",
+    ]),
+  );
+
+  if (
+    !routeKey
+    && !routeLabel
+    && !status
+    && !statusLabel
+    && !reason
+    && !recommendedActionMode
+    && !recommendedActionLabel
+    && !source
+    && windowDays == null
+    && successRate == null
+  ) {
+    return null;
+  }
+
+  return {
+    routeKey,
+    routeLabel,
+    status,
+    statusLabel,
+    reason,
+    recommendedActionMode,
+    recommendedActionLabel,
+    source,
+    windowDays,
+    successRate,
+  };
+}
+
+function normalizeRouteOutcomeSpotlightFocus(rawValue: string | null): RouteOutcomeSpotlightFocus | null {
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as unknown;
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    const data = parsed as Record<string, unknown>;
+    const routeKey = resolveRouteOutcomeText(data.route_key ?? data.routeKey);
+    const routeLabel = resolveRouteOutcomeText(data.route_label ?? data.routeLabel);
+    const status = resolveRouteOutcomeText(data.status);
+    const statusLabel = resolveRouteOutcomeText(data.status_label ?? data.statusLabel);
+    const reason = resolveRouteOutcomeText(data.reason);
+    const recommendedActionMode = resolveRouteOutcomeText(
+      data.recommended_action_mode ?? data.recommendedActionMode,
+    );
+    const recommendedActionLabel = resolveRouteOutcomeText(
+      data.recommended_action_label ?? data.recommendedActionLabel,
+    );
+    const source = resolveRouteOutcomeText(data.source ?? data.decision_context_source);
+    const windowDays = resolveRouteOutcomeWindowDays(
+      data.window_days ?? data.windowDays ?? data.decision_context_window_days,
+    );
+    const successRate = resolveRouteOutcomeNumber(
+      data.success_rate ?? data.decision_context_success_rate,
+    );
+
+    if (
+      !routeKey
+      && !routeLabel
+      && !status
+      && !statusLabel
+      && !reason
+      && !recommendedActionMode
+      && !recommendedActionLabel
+      && !source
+      && windowDays == null
+      && successRate == null
+    ) {
+      return null;
+    }
+
+    return {
+      routeKey,
+      routeLabel,
+      status,
+      statusLabel,
+      reason,
+      recommendedActionMode,
+      recommendedActionLabel,
+      source,
+      windowDays,
+      successRate,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function resolveRouteOutcomeText(rawValue: unknown): string | null {
+  if (typeof rawValue !== "string") {
+    return null;
+  }
+
+  const trimmed = rawValue.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+function resolveRouteOutcomeNumber(rawValue: unknown): number | null {
+  if (typeof rawValue === "number") {
+    return Number.isFinite(rawValue) ? rawValue : null;
+  }
+
+  if (typeof rawValue === "string" && rawValue.trim() !== "") {
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function resolveRouteOutcomeWindowDays(rawValue: unknown): 7 | 30 | 90 | null {
+  if (typeof rawValue === "number") {
+    return resolveAnalyticsWindow(String(rawValue));
+  }
+
+  if (typeof rawValue === "string") {
+    return resolveAnalyticsWindow(rawValue);
+  }
+
+  return null;
+}
+
+function routeOutcomeGuidanceLabel(status: string | null | undefined): string {
+  const normalized = (status ?? "").toLowerCase();
+
+  if (normalized === "safe") {
+    return "Guvenli";
+  }
+
+  if (normalized === "watching") {
+    return "Izleniyor";
+  }
+
+  if (normalized === "guarded") {
+    return "Kontrollu";
+  }
+
+  if (normalized === "blocked") {
+    return "Bloklu";
+  }
+
+  return "Belirsiz";
+}
+
+function routeOutcomeGuidanceVariant(status: string | null | undefined): "success" | "warning" | "danger" | "neutral" {
+  const normalized = (status ?? "").toLowerCase();
+
+  if (normalized === "safe") {
+    return "success";
+  }
+
+  if (normalized === "watching" || normalized === "guarded") {
+    return "warning";
+  }
+
+  if (normalized === "blocked") {
+    return "danger";
+  }
+
+  return "neutral";
+}
+
+function buildRouteOutcomeOperatorHint(
+  spotlight: RouteOutcomeSpotlightFocus | null,
+  routeTrendLabel: string | null,
+  routeTrendReason: string | null,
+  preferredFlow: string | null,
+  routeTrendConfidence: string | null,
+  currentRouteLabel: string | null,
+  currentRouteSuccessRate: number | null,
+  longTermRouteLabel: string | null,
+  longTermRouteSuccessRate: number | null,
+  primaryActionMode: string | null,
+  primaryActionRouteLabel: string | null,
+): string {
+  const parts: string[] = [];
+
+  if (!spotlight) {
+    return "Route outcome sinyali henüz oluşmadi; approvals akisi ve route trend birlikte izlenir.";
+  }
+
+  if (spotlight.statusLabel || spotlight.status) {
+    parts.push(`Route outcome: ${spotlight.statusLabel ?? routeOutcomeGuidanceLabel(spotlight.status)}.`);
+  }
+
+  if (spotlight.reason) {
+    parts.push(spotlight.reason);
+  }
+
+  if (spotlight.recommendedActionLabel) {
+    parts.push(`Onerilen adim: ${spotlight.recommendedActionLabel}.`);
+  } else if (spotlight.recommendedActionMode) {
+    parts.push(`Onerilen adim modu: ${spotlight.recommendedActionMode}.`);
+  }
+
+  if (spotlight.source) {
+    parts.push(`Kaynak: ${spotlight.source}.`);
+  }
+
+  if (spotlight.windowDays != null) {
+    parts.push(`${spotlight.windowDays} gunluk pencere bu odagi destekliyor.`);
+  }
+
+  if (spotlight.successRate != null) {
+    parts.push(`Bu odakta success rate %${spotlight.successRate}.`);
+  }
+
+  if (routeTrendLabel || routeTrendReason || preferredFlow) {
+    parts.push(
+      buildRouteTrendOperatorHint(
+        routeTrendLabel,
+        routeTrendReason,
+        preferredFlow,
+        routeTrendConfidence,
+        currentRouteLabel,
+        null,
+        currentRouteSuccessRate,
+        null,
+        longTermRouteLabel,
+        null,
+        longTermRouteSuccessRate,
+        null,
+      ),
+    );
+  }
+
+  if (primaryActionMode || primaryActionRouteLabel) {
+    parts.push(`Birincil rota ${primaryActionRouteLabel ?? primaryActionMode ?? "belirlenmedi"} ile hizali.`);
+  }
 
   return parts.join(" ");
 }
