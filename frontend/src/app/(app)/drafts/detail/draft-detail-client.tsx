@@ -83,6 +83,23 @@ type RouteOutcomeSpotlightFocus = {
   windowDays: 7 | 30 | 90 | null;
   successRate: number | null;
 };
+
+type RouteOutcomeWindowSeriesFocus = {
+  windowDays: 7 | 30 | 90;
+  label: string | null;
+  routeLabel: string | null;
+  preferredFlow: string | null;
+  guidanceStatus: string | null;
+  guidanceLabel: string | null;
+  guidanceReason: string | null;
+  recommendedActionMode: string | null;
+  recommendedActionLabel: string | null;
+  successRate: number | null;
+  summaryLabel: string | null;
+  currentSupportStatus: string | null;
+  longTermSupportStatus: string | null;
+  routeTrends: string | null;
+};
 type SearchParamsLike = {
   get(name: string): string | null;
 };
@@ -178,6 +195,7 @@ export function DraftDetailClient() {
     readFirstSearchParam(searchParams, ["focus_route_long_term_advantage"]),
   );
   const focusRouteOutcomeSpotlight = readRouteOutcomeSpotlightFocus(searchParams);
+  const focusRouteOutcomeWindowSeries = readRouteOutcomeWindowSeriesFocus(searchParams);
   const focusRouteWindowSeries = readRouteWindowSeriesFocus(searchParams);
   const analyticsWindowDays = resolveAnalyticsWindow(searchParams.get("window_days"));
   const hasDraftId = Boolean(draftId);
@@ -396,6 +414,7 @@ export function DraftDetailClient() {
     || focusRouteCurrentLabel
     || focusRouteLongTermLabel,
   );
+  const hasRouteOutcomeWindowSeriesFocus = focusRouteOutcomeWindowSeries.length > 0;
   const hasRouteWindowSeriesFocus = focusRouteWindowSeries.length > 0;
   const hasRouteOutcomeFocus = Boolean(
     focusRouteOutcomeSpotlight
@@ -405,6 +424,7 @@ export function DraftDetailClient() {
     || focusPrimaryActionReason
     || focusSourceComparisonLabel
     || focusRouteTrendLabel
+    || hasRouteOutcomeWindowSeriesFocus
     || hasRouteWindowSeriesFocus,
   );
 
@@ -576,6 +596,47 @@ export function DraftDetailClient() {
                         focusPrimaryActionRouteLabel,
                       )}
                     </p>
+                    {hasRouteOutcomeWindowSeriesFocus ? (
+                      <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge label="Outcome Pencere Serisi" variant="neutral" />
+                          <Badge label={`${focusRouteOutcomeWindowSeries.length} pencere`} variant="neutral" />
+                        </div>
+                        <p className="mt-2 text-xs muted-text">
+                          {buildRouteOutcomeWindowSeriesOperatorHint(focusRouteOutcomeWindowSeries)}
+                        </p>
+                        <div className="mt-3 grid gap-2 md:grid-cols-3">
+                          {focusRouteOutcomeWindowSeries.map((item) => (
+                            <div key={item.windowDays} className="rounded-md border border-[var(--border)] bg-white p-3 text-xs muted-text">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge label={`${item.windowDays} Gun`} variant="neutral" />
+                                {item.label ? <Badge label={item.label} variant="neutral" /> : null}
+                                <Badge
+                                  label={item.guidanceLabel ?? routeOutcomeGuidanceLabel(item.guidanceStatus)}
+                                  variant={routeOutcomeGuidanceVariant(item.guidanceStatus)}
+                                />
+                              </div>
+                              <p className="mt-2 text-sm font-semibold">
+                                {item.routeLabel ?? item.summaryLabel ?? `${item.windowDays} gunluk outcome pencere`}
+                              </p>
+                              <p className="mt-1">
+                                {item.guidanceReason ?? item.routeTrends ?? "Outcome guidance bu pencere icin ek takip uretiyor."}
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {item.recommendedActionLabel ? (
+                                  <Badge label={item.recommendedActionLabel} variant="neutral" />
+                                ) : item.recommendedActionMode ? (
+                                  <Badge label={focusPrimaryActionModeLabel(item.recommendedActionMode)} variant="neutral" />
+                                ) : null}
+                                {item.successRate != null ? (
+                                  <Badge label={`%${item.successRate} basari`} variant="success" />
+                                ) : null}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
                 {approvalsReturnRoute ? (
@@ -1710,6 +1771,36 @@ function buildRouteWindowSeriesOperatorHint(series: RouteWindowSeriesFocus[]): s
   return parts.join(" ");
 }
 
+function buildRouteOutcomeWindowSeriesOperatorHint(
+  series: RouteOutcomeWindowSeriesFocus[],
+): string {
+  if (series.length === 0) {
+    return "Route outcome pencere serisi bu odakta henuz olusmadi.";
+  }
+
+  const orderedWindows = series.map((item) => `${item.windowDays} gun`).join(" / ");
+  const topLabels = series
+    .map((item) => item.guidanceLabel ?? routeOutcomeGuidanceLabel(item.guidanceStatus))
+    .filter((value) => value.trim() !== "")
+    .slice(0, 2)
+    .join(" / ");
+  const preferredRoute = series.find((item) => item.routeLabel)?.routeLabel ?? null;
+
+  const parts = [`${orderedWindows} outcome penceresi birlikte izleniyor.`];
+
+  if (topLabels) {
+    parts.push(`Durum: ${topLabels}.`);
+  }
+
+  if (preferredRoute) {
+    parts.push(`One cikan rota: ${preferredRoute}.`);
+  }
+
+  parts.push("Safe / guarded driftini pencere bazinda kontrol edin.");
+
+  return parts.join(" ");
+}
+
 function readRouteOutcomeSpotlightFocus(searchParams: SearchParamsLike): RouteOutcomeSpotlightFocus | null {
   const rawSpotlight = readFirstSearchParam(searchParams, [
     "focus_route_outcome_spotlight",
@@ -2004,6 +2095,33 @@ function buildRouteOutcomeOperatorHint(
   return parts.join(" ");
 }
 
+function readRouteOutcomeWindowSeriesFocus(searchParams: SearchParamsLike): RouteOutcomeWindowSeriesFocus[] {
+  const rawSeries = readFirstSearchParam(searchParams, [
+    "focus_route_outcome_window_series",
+    "route_outcome_window_series",
+  ]);
+
+  if (!rawSeries) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawSeries) as unknown;
+    const candidates = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>).route_outcome_window_series)
+        ? ((parsed as Record<string, unknown>).route_outcome_window_series as unknown[])
+        : [];
+
+    return candidates
+      .map((candidate) => normalizeRouteOutcomeWindowSeriesFocus(candidate))
+      .filter((item): item is RouteOutcomeWindowSeriesFocus => item !== null)
+      .sort((left, right) => left.windowDays - right.windowDays);
+  } catch {
+    return [];
+  }
+}
+
 function readRouteWindowSeriesFocus(searchParams: SearchParamsLike): RouteWindowSeriesFocus[] {
   const rawSeries = readFirstSearchParam(searchParams, [
     "focus_primary_action_route_series",
@@ -2169,6 +2287,67 @@ function normalizeRouteWindowSeriesFocus(candidate: unknown): RouteWindowSeriesF
     summaryLabel: resolveRouteWindowSeriesText(data.summary_label ?? data.summaryLabel),
     reason: resolveRouteWindowSeriesText(data.reason),
     routeTrends: resolveRouteWindowSeriesText(data.route_trends ?? data.routeTrends),
+  };
+}
+
+function normalizeRouteOutcomeWindowSeriesFocus(candidate: unknown): RouteOutcomeWindowSeriesFocus | null {
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+
+  const data = candidate as Record<string, unknown>;
+  const windowDays = resolveRouteOutcomeWindowDays(data.window_days ?? data.windowDays);
+
+  if (windowDays === null) {
+    return null;
+  }
+
+  return {
+    windowDays,
+    label: resolveRouteOutcomeText(data.label),
+    routeLabel: resolveRouteOutcomeText(data.route_label ?? data.routeLabel),
+    preferredFlow: resolveRouteOutcomeText(data.preferred_flow ?? data.preferredFlow),
+    guidanceStatus: resolveRouteOutcomeText(data.guidance_status ?? data.guidanceStatus),
+    guidanceLabel: resolveRouteOutcomeText(data.guidance_label ?? data.guidanceLabel),
+    guidanceReason: resolveRouteOutcomeText(data.guidance_reason ?? data.guidanceReason),
+    recommendedActionMode: resolveRouteOutcomeText(data.recommended_action_mode ?? data.recommendedActionMode),
+    recommendedActionLabel: resolveRouteOutcomeText(data.recommended_action_label ?? data.recommendedActionLabel),
+    successRate: resolveRouteOutcomeNumber(data.success_rate ?? data.successRate),
+    summaryLabel: resolveRouteOutcomeText(data.summary_label ?? data.summaryLabel),
+    currentSupportStatus: resolveRouteOutcomeText(data.current_support_status ?? data.currentSupportStatus),
+    longTermSupportStatus: resolveRouteOutcomeText(data.long_term_support_status ?? data.longTermSupportStatus),
+    routeTrends:
+      typeof data.route_trends === "string"
+        ? data.route_trends
+        : Array.isArray(data.route_trends)
+          ? data.route_trends
+              .map((trend) => {
+                if (!trend || typeof trend !== "object") {
+                  return null;
+                }
+
+                const routeTrend = trend as Record<string, unknown>;
+                const label = resolveRouteOutcomeText(routeTrend.label);
+                const successRate = resolveRouteOutcomeNumber(routeTrend.publish_success_rate);
+                const attempts = resolveRouteOutcomeNumber(routeTrend.publish_attempts);
+
+                if (!label && successRate == null && attempts == null) {
+                  return null;
+                }
+
+                const parts = [label];
+                if (successRate != null) {
+                  parts.push(`%${successRate} basari`);
+                }
+                if (attempts != null) {
+                  parts.push(`${attempts} deneme`);
+                }
+
+                return parts.filter(Boolean).join(" / ");
+              })
+              .filter((value): value is string => Boolean(value))
+              .join(" ; ")
+          : null,
   };
 }
 

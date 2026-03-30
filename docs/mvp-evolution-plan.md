@@ -411,3 +411,4 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 170. Approvals remediation analytics kontratina `route_outcome_window_series[]` ve `summary.top_route_outcome_window_*` alanlarini ekleyip 7/30/90 pencere bazli outcome guidance drift'ini render-ready hale getirmek
 171. Featured remediation CTA seciminde route outcome window serisini kullanip sadece guvenli outcome pencerelerinde draft detail veya bulk retry kisayolunu acik tutmak, diger durumlarda cluster odagina geri cekmek
 172. Approvals ekranindaki route outcome spotlight kartina outcome pencere serisini ekleyip operatorun hangi pencerenin hangi aksiyonu destekledigini tek blokta gorebilmesini saglamak
+173. Approvals'tan acilan draft detail remediation blogunda `focus_route_outcome_window_series` baglamini okuyup route outcome spotlight altinda ayni 7/30/90 guidance serisini operatora gostermek
