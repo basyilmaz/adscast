@@ -487,11 +487,97 @@ export function DraftDetailClient() {
             {draft.approval.publish_state.cleanup_message ? <p className="mt-2 text-xs text-[var(--danger)]">{draft.approval.publish_state.cleanup_message}</p> : null}
             {draft.approval.publish_state.manual_check_note ? (
               <p className="mt-2 text-xs muted-text">Kontrol notu: {draft.approval.publish_state.manual_check_note}</p>
-            ) : null}
-            {remediationPrimaryAction ? (
-              <div className="mt-3 rounded-md border border-[var(--accent)]/30 bg-white p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge label="Onerilen Aksiyon" variant="success" />
+                ) : null}
+                {hasPublishFocus && (focusSource?.startsWith("approvals") || focusDecisionStatus || focusSourceComparisonLabel) ? (
+                  <div className="mt-3 rounded-md border border-[var(--accent)]/35 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,250,251,0.98))] p-4 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge label="Operasyon Karari" variant="success" />
+                      {focusSource?.startsWith("approvals") ? <Badge label="Approvals Kaynakli" variant="neutral" /> : null}
+                      {focusDecisionStatus ? <Badge label={focusDecisionStatusLabel(focusDecisionStatus)} variant="neutral" /> : null}
+                      {focusSourceComparisonWinner ? (
+                        <Badge label={focusSourceComparisonWinner} variant="success" />
+                      ) : null}
+                      {focusLongTermWindowDays != null ? (
+                        <Badge label={`${focusLongTermWindowDays} gunluk pencere`} variant="neutral" />
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-sm font-semibold">
+                      {remediationPrimaryAction?.label ?? "Publish durumunu dogrula"}
+                    </p>
+                    <p className="mt-1 text-xs muted-text">
+                      {focusSourceComparisonLabel
+                        ? `${focusSourceComparisonLabel}${focusSourceComparisonReason ? ` - ${focusSourceComparisonReason}` : ""}${focusSourceComparisonWinner ? ` (kazanan: ${focusSourceComparisonWinner})` : ""}`
+                        : "Approvals odagindan gelen karar ve route trend bilgisi burada toplanir."}
+                    </p>
+                    <div className="mt-3 grid gap-2 md:grid-cols-3">
+                      <div className="rounded-md border border-[var(--border)] bg-white p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide muted-text">Birincil Aksiyon</p>
+                        <p className="mt-1 text-sm font-semibold">
+                          {remediationPrimaryAction?.label ?? "Publish durumunu dogrula"}
+                        </p>
+                        <p className="mt-1 text-xs muted-text">
+                          {remediationPrimaryAction?.hint ?? "Bu blok approvals kararini daha hizli aksiyona cevirir."}
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-[var(--border)] bg-white p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide muted-text">Route Trendi</p>
+                        <p className="mt-1 text-sm font-semibold">
+                          {focusSourceComparisonWinner ?? focusSourceComparisonLabel ?? "Belirlenmedi"}
+                        </p>
+                        <p className="mt-1 text-xs muted-text">
+                          {focusSourceComparisonReason
+                            ? focusSourceComparisonReason
+                            : focusSource?.startsWith("approvals")
+                              ? "Approvals-native ve draft detail akislari bu odakta karsilastiriliyor."
+                              : "Kaynak karsilastirmasi bu draft icin takip ediliyor."}
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-[var(--border)] bg-white p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide muted-text">Uzun Donem</p>
+                        <p className="mt-1 text-sm font-semibold">
+                          {focusLongTermWindowDays != null ? `${focusLongTermWindowDays} gunluk pencere` : "Pencere yok"}
+                        </p>
+                        <p className="mt-1 text-xs muted-text">
+                          {focusLongTermPublishSuccessRate != null
+                            ? `%${focusLongTermPublishSuccessRate} publish basarisi`
+                            : "Uzun donem performans burada izlenir."}
+                        </p>
+                        {focusLongTermEffectivenessStatus ? (
+                          <p className="mt-1 text-xs muted-text">
+                            {focusLongTermEffectivenessStatusLabel(focusLongTermEffectivenessStatus)}
+                            {focusLongTermEffectivenessScore != null
+                              ? ` / ${focusLongTermEffectivenessScore}`
+                              : ""}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {remediationPrimaryAction ? (
+                        <Button
+                          size="sm"
+                          onClick={() => void applyApprovalRemediation(remediationPrimaryAction.mode)}
+                          disabled={Boolean(remediationSubmitting)}
+                        >
+                          {remediationSubmitting && remediationMode === remediationPrimaryAction.mode
+                            ? "Isleniyor..."
+                            : remediationPrimaryAction.label}
+                        </Button>
+                      ) : null}
+                      {approvalsReturnRoute ? (
+                        <Link href={approvalsReturnRoute}>
+                          <Button variant="outline" size="sm">
+                            Approvals Akisina Geri Don
+                          </Button>
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                {remediationPrimaryAction ? (
+                  <div className="mt-3 rounded-md border border-[var(--accent)]/30 bg-white p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge label="Onerilen Aksiyon" variant="success" />
                   {focusSource === "approvals_featured" || focusSource === "approvals_featured_long_term" ? (
                     <Badge label="Featured Karardan Geldi" variant="neutral" />
                   ) : null}
