@@ -131,6 +131,7 @@ type ApprovalRemediationAnalyticsResponse = {
       featured_publish_success_rate: number | null;
       top_interaction_source_key: string | null;
       top_interaction_source_label: string | null;
+      primary_action?: RetryGuidanceContext["primary_action"];
       source_breakdown: Array<RemediationTelemetrySource>;
       outcome_chain_summary: RemediationOutcomeChainSummary;
       draft_detail_outcome_summary: RemediationOutcomeChainSummary;
@@ -173,6 +174,7 @@ type ApprovalRemediationAnalyticsResponse = {
       featured_publish_success_rate: number | null;
       top_interaction_source_key: string | null;
       top_interaction_source_label: string | null;
+      primary_action?: RetryGuidanceContext["primary_action"];
       source_breakdown: Array<RemediationTelemetrySource>;
       long_term_source_breakdown?: Array<RemediationTelemetrySource>;
       outcome_chain_summary: RemediationOutcomeChainSummary;
@@ -301,6 +303,18 @@ type RetryGuidanceContext = {
   retry_guidance_reason?: string | null;
   safe_bulk_retry?: boolean | null;
   action_mode?: "focus_cluster" | "bulk_retry_publish" | null;
+  primary_action?: {
+    mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_item";
+    route?: string | null;
+    route_key?: string | null;
+    route_label?: string | null;
+    source_key?: string | null;
+    source_label?: string | null;
+    publish_attempts?: number | null;
+    publish_success_rate?: number | null;
+    advantage_vs_alternative_route?: number | null;
+    reason?: string | null;
+  } | null;
   decision_context_source?: string | null;
   long_term_retry_guidance_status?: string | null;
   long_term_retry_guidance_label?: string | null;
@@ -322,6 +336,16 @@ type SourceSpotlightInsight = {
   reason: string;
   nextStepLabel: string;
   preferredFlow: "draft_detail" | "approvals_native" | "balanced";
+};
+
+type RouteTrendInsight = {
+  label: string;
+  variant: "success" | "warning" | "neutral";
+  reason: string;
+  nextStepLabel: string;
+  preferredFlow: "draft_detail" | "approvals_native" | "balanced";
+  currentLabel: string;
+  longTermLabel: string;
 };
 
 type DraftRouteFocusContext = {
@@ -481,71 +505,66 @@ function ApprovalsPageContent({
   );
   const approvalsNativeSummary = useMemo(
     () =>
-      approvalsNativeOutcomeSummary
-        ? {
-            tracked_interactions: approvalsNativeOutcomeSummary.tracked_interactions,
-            publish_attempts: approvalsNativeOutcomeSummary.publish_attempts,
-            successful_publishes: approvalsNativeOutcomeSummary.successful_publishes,
-            failed_publishes: approvalsNativeOutcomeSummary.failed_publishes,
-            total_retry_actions: approvalsNativeOutcomeSummary.total_retry_actions,
-            publish_success_rate: approvalsNativeOutcomeSummary.publish_success_rate,
-            top_source_key: approvalsNativeOutcomeSummary.top_source_key ?? null,
-            top_source_label: approvalsNativeOutcomeSummary.top_source_label ?? null,
-          }
-        : summarizeTelemetrySources(approvalsNativeTelemetry),
+      telemetryAggregateFromOutcomeSummary(approvalsNativeOutcomeSummary)
+      ?? summarizeTelemetrySources(approvalsNativeTelemetry),
     [approvalsNativeOutcomeSummary, approvalsNativeTelemetry],
   );
   const draftDetailSummary = useMemo(
     () =>
-      draftDetailOutcomeSummary
-        ? {
-            tracked_interactions: draftDetailOutcomeSummary.tracked_interactions,
-            publish_attempts: draftDetailOutcomeSummary.publish_attempts,
-            successful_publishes: draftDetailOutcomeSummary.successful_publishes,
-            failed_publishes: draftDetailOutcomeSummary.failed_publishes,
-            total_retry_actions: draftDetailOutcomeSummary.total_retry_actions,
-            publish_success_rate: draftDetailOutcomeSummary.publish_success_rate,
-            top_source_key: draftDetailOutcomeSummary.top_source_key ?? null,
-            top_source_label: draftDetailOutcomeSummary.top_source_label ?? null,
-          }
-        : summarizeTelemetrySources(
-            telemetrySources.filter((source) => source.source_key.startsWith("draft_detail")),
-          ),
+      telemetryAggregateFromOutcomeSummary(draftDetailOutcomeSummary)
+      ?? summarizeTelemetrySources(
+        telemetrySources.filter((source) => source.source_key.startsWith("draft_detail")),
+      ),
     [draftDetailOutcomeSummary, telemetrySources],
   );
-  const sourceComparisonWinner = useMemo(
+  const longTermDraftDetailSummary = useMemo(
+    () =>
+      telemetryAggregateFromOutcomeSummary(longTermDraftDetailOutcomeSummary)
+      ?? draftDetailSummary,
+    [draftDetailSummary, longTermDraftDetailOutcomeSummary],
+  );
+  const longTermApprovalsNativeSummary = useMemo(
+    () =>
+      telemetryAggregateFromOutcomeSummary(longTermApprovalsNativeOutcomeSummary)
+      ?? approvalsNativeSummary,
+    [approvalsNativeSummary, longTermApprovalsNativeOutcomeSummary],
+  );
+  const currentSourceComparison = useMemo(
+    () => compareSourceAggressiveness(draftDetailSummary, approvalsNativeSummary),
+    [approvalsNativeSummary, draftDetailSummary],
+  );
+  const longTermSourceComparison = useMemo(
     () =>
       compareSourceAggressiveness(
-        longTermDraftDetailOutcomeSummary
-          ? {
-              tracked_interactions: longTermDraftDetailOutcomeSummary.tracked_interactions,
-              publish_attempts: longTermDraftDetailOutcomeSummary.publish_attempts,
-              successful_publishes: longTermDraftDetailOutcomeSummary.successful_publishes,
-              failed_publishes: longTermDraftDetailOutcomeSummary.failed_publishes,
-              total_retry_actions: longTermDraftDetailOutcomeSummary.total_retry_actions,
-              publish_success_rate: longTermDraftDetailOutcomeSummary.publish_success_rate,
-              top_source_key: longTermDraftDetailOutcomeSummary.top_source_key ?? null,
-              top_source_label: longTermDraftDetailOutcomeSummary.top_source_label ?? null,
-            }
-          : draftDetailSummary,
-        longTermApprovalsNativeOutcomeSummary
-          ? {
-              tracked_interactions: longTermApprovalsNativeOutcomeSummary.tracked_interactions,
-              publish_attempts: longTermApprovalsNativeOutcomeSummary.publish_attempts,
-              successful_publishes: longTermApprovalsNativeOutcomeSummary.successful_publishes,
-              failed_publishes: longTermApprovalsNativeOutcomeSummary.failed_publishes,
-              total_retry_actions: longTermApprovalsNativeOutcomeSummary.total_retry_actions,
-              publish_success_rate: longTermApprovalsNativeOutcomeSummary.publish_success_rate,
-              top_source_key: longTermApprovalsNativeOutcomeSummary.top_source_key ?? null,
-              top_source_label: longTermApprovalsNativeOutcomeSummary.top_source_label ?? null,
-            }
-          : approvalsNativeSummary,
+        longTermDraftDetailSummary,
+        longTermApprovalsNativeSummary,
+      ),
+    [
+      longTermApprovalsNativeSummary,
+      longTermDraftDetailSummary,
+    ],
+  );
+  const sourceComparisonWinner = useMemo(
+    () => longTermSourceComparison ?? currentSourceComparison,
+    [currentSourceComparison, longTermSourceComparison],
+  );
+  const routeTrendInsight = useMemo(
+    () =>
+      buildRouteTrendInsight(
+        currentSourceComparison,
+        longTermSourceComparison,
+        draftDetailSummary,
+        approvalsNativeSummary,
+        longTermDraftDetailSummary,
+        longTermApprovalsNativeSummary,
       ),
     [
       approvalsNativeSummary,
+      currentSourceComparison,
       draftDetailSummary,
-      longTermApprovalsNativeOutcomeSummary,
-      longTermDraftDetailOutcomeSummary,
+      longTermApprovalsNativeSummary,
+      longTermDraftDetailSummary,
+      longTermSourceComparison,
     ],
   );
   const summary = useMemo(() => {
@@ -1173,12 +1192,13 @@ function ApprovalsPageContent({
     [analyticsWindowDays, featuredClusterMatches, featuredRecommendation, remediationAnalytics?.summary.long_term_window_days, sourceComparisonWinner],
   );
   const featuredPrimaryAction = useMemo(
-    () => resolveFeaturedPrimaryAction(featuredRecommendation, sourceComparisonWinner, featuredDraftRoute),
-    [featuredDraftRoute, featuredRecommendation, sourceComparisonWinner],
+    () => resolveFeaturedPrimaryAction(featuredRecommendation, sourceComparisonWinner, routeTrendInsight, featuredDraftRoute),
+    [featuredDraftRoute, featuredRecommendation, routeTrendInsight, sourceComparisonWinner],
   );
   const sourceSpotlight = useMemo(
     () =>
       buildSourceSpotlight(
+        routeTrendInsight,
         sourceComparisonWinner,
         featuredRecommendation,
         featuredDraftRoute,
@@ -1191,6 +1211,7 @@ function ApprovalsPageContent({
       featuredRecommendation,
       longTermApprovalsNativeOutcomeSummary,
       longTermDraftDetailOutcomeSummary,
+      routeTrendInsight,
       sourceComparisonWinner,
       telemetrySources,
     ],
@@ -1648,12 +1669,12 @@ function ApprovalsPageContent({
           </div>
           <div className="rounded-lg border border-[var(--accent)]/25 bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <Badge label="Karsilastirma" variant="neutral" />
-              {sourceComparisonWinner ? (
-                <Badge label={sourceComparisonWinner.label} variant={sourceComparisonWinner.variant} />
+              <Badge label="Route Trend" variant="neutral" />
+              {routeTrendInsight ? (
+                <Badge label={routeTrendInsight.label} variant={routeTrendInsight.variant} />
               ) : null}
             </div>
-            <p className="mt-3 text-sm font-semibold">Uzun Donem: Draft detail vs approvals native</p>
+            <p className="mt-3 text-sm font-semibold">Draft detail vs approvals native</p>
             <div className="mt-3 grid gap-2 text-xs muted-text md:grid-cols-2">
               <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
                 <p className="font-semibold">Draft detail</p>
@@ -1684,9 +1705,38 @@ function ApprovalsPageContent({
                 ) : null}
               </div>
             </div>
+            <div className="mt-3 grid gap-2 text-xs muted-text md:grid-cols-2">
+              <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold">Mevcut pencere</p>
+                  {currentSourceComparison ? (
+                    <Badge label={currentSourceComparison.label} variant={currentSourceComparison.variant} />
+                  ) : null}
+                </div>
+                <p className="mt-2">
+                  {currentSourceComparison?.reason ?? "Mevcut pencere route karsilastirmasi icin veri birikmedi."}
+                </p>
+              </div>
+              <div className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold">{remediationAnalytics.summary.long_term_window_days ?? 90} gun</p>
+                  {longTermSourceComparison ? (
+                    <Badge label={longTermSourceComparison.label} variant={longTermSourceComparison.variant} />
+                  ) : null}
+                </div>
+                <p className="mt-2">
+                  {longTermSourceComparison?.reason ?? "Uzun donem route karsilastirmasi icin veri birikmedi."}
+                </p>
+              </div>
+            </div>
             <p className="mt-3 text-xs muted-text">
-              {sourceComparisonWinner?.reason ?? "Kaynak karsilastirmasi icin yeterli veri bekleniyor."}
+              {routeTrendInsight?.reason ?? sourceComparisonWinner?.reason ?? "Kaynak karsilastirmasi icin yeterli veri bekleniyor."}
             </p>
+            {routeTrendInsight ? (
+              <p className="mt-2 text-xs muted-text">
+                Sonraki adim: {routeTrendInsight.nextStepLabel}
+              </p>
+            ) : null}
           </div>
           <div className="rounded-lg border border-[var(--accent)]/25 bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1797,6 +1847,7 @@ function ApprovalsPageContent({
             cluster.key,
             analyticsItem,
             topSource,
+            routeTrendInsight,
             clusterDraftRoute,
             retryableMatches.length,
           );
@@ -2434,6 +2485,7 @@ function resolveGuidedActionLabel(
 
 function shouldPreferDraftDetailPrimaryAction(
   sourceComparison: SourceComparisonInsight | null,
+  routeTrendInsight: RouteTrendInsight | null,
   draftRoute: string | null,
   context?: RetryGuidanceContext | null,
 ): boolean {
@@ -2449,23 +2501,40 @@ function shouldPreferDraftDetailPrimaryAction(
     return true;
   }
 
+  if (routeTrendInsight?.preferredFlow === "approvals_native") {
+    return false;
+  }
+
+  if (routeTrendInsight?.preferredFlow === "draft_detail") {
+    return true;
+  }
+
   return sourceComparison?.preferredFlow === "draft_detail";
 }
 
 function resolveFeaturedPrimaryAction(
   context: RetryGuidanceContext | undefined | null,
   sourceComparison: SourceComparisonInsight | null,
+  routeTrendInsight: RouteTrendInsight | null,
   draftRoute: string | null,
 ): {
   mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_draft_detail";
   label: string;
   hint: string;
 } {
-  if (shouldPreferDraftDetailPrimaryAction(sourceComparison, draftRoute, context)) {
+  if (context?.primary_action?.mode === "jump_to_item" && draftRoute) {
     return {
       mode: "jump_to_draft_detail",
-      label: "Draft Detail Akisina Git",
-      hint: sourceComparison?.reason ?? "Bu remediation detay ekranda daha guclu sonuc veriyor.",
+      label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
+      hint: context.primary_action.reason ?? routeTrendInsight?.reason ?? sourceComparison?.reason ?? "Bu remediation detay ekranda daha guclu sonuc veriyor.",
+    };
+  }
+
+  if (shouldPreferDraftDetailPrimaryAction(sourceComparison, routeTrendInsight, draftRoute, context)) {
+    return {
+      mode: "jump_to_draft_detail",
+      label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
+      hint: routeTrendInsight?.reason ?? sourceComparison?.reason ?? "Bu remediation detay ekranda daha guclu sonuc veriyor.",
     };
   }
 
@@ -2493,6 +2562,7 @@ function shouldPreferClusterDraftDetailAction(
     long_term_publish_success_rate?: number | null;
   } | undefined,
   topSource: RemediationTelemetrySource | null,
+  routeTrendInsight: RouteTrendInsight | null,
   draftRoute: string | null,
 ): boolean {
   if (!analyticsItem || !topSource || !draftRoute) {
@@ -2503,11 +2573,19 @@ function shouldPreferClusterDraftDetailAction(
     return false;
   }
 
+  if (routeTrendInsight?.preferredFlow === "approvals_native") {
+    return false;
+  }
+
   const normalizedSourceKey = topSource.source_key.trim().toLowerCase();
   const sourcePrefersDraftDetail = normalizedSourceKey.startsWith("draft_detail");
   const sourceSuccessRate = topSource.publish_success_rate ?? 0;
 
-  return sourcePrefersDraftDetail && (sourceSuccessRate >= 60 || topSource.successful_publishes > 0);
+  return sourcePrefersDraftDetail && (
+    routeTrendInsight?.preferredFlow === "draft_detail"
+    || sourceSuccessRate >= 60
+    || topSource.successful_publishes > 0
+  );
 }
 
 function resolveClusterPrimaryAction(
@@ -2523,6 +2601,7 @@ function resolveClusterPrimaryAction(
     long_term_publish_success_rate?: number | null;
   } | undefined,
   topSource: RemediationTelemetrySource | null,
+  routeTrendInsight: RouteTrendInsight | null,
   draftRoute: string | null,
   retryableMatchesCount: number,
 ): {
@@ -2531,14 +2610,14 @@ function resolveClusterPrimaryAction(
   variant: "primary" | "secondary" | "outline";
   hint: string;
 } {
-  if (shouldPreferClusterDraftDetailAction(analyticsItem, topSource, draftRoute)) {
+  if (shouldPreferClusterDraftDetailAction(analyticsItem, topSource, routeTrendInsight, draftRoute)) {
     return {
       mode: "jump_to_draft_detail",
-      label: "Draft Detail Akisina Git",
+      label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
       variant: "secondary",
       hint: topSource?.publish_success_rate != null
-        ? `Bu cluster icin ${sourceLabel(topSource.source_key, topSource.label)} kaynagi %${topSource.publish_success_rate} publish basarisi uretmis.`
-        : "Bu cluster detay ekranda daha guclu sinyal veriyor.",
+        ? `${routeTrendInsight?.reason ?? `Bu cluster icin ${sourceLabel(topSource.source_key, topSource.label)} kaynagi %${topSource.publish_success_rate} publish basarisi uretmis.`}`
+        : (routeTrendInsight?.reason ?? "Bu cluster detay ekranda daha guclu sinyal veriyor."),
     };
   }
 
@@ -2787,6 +2866,25 @@ type TelemetryAggregateSummary = {
   top_source_label: string | null;
 };
 
+function telemetryAggregateFromOutcomeSummary(
+  summary: RemediationOutcomeChainSummary | null | undefined,
+): TelemetryAggregateSummary | null {
+  if (!summary) {
+    return null;
+  }
+
+  return {
+    tracked_interactions: summary.tracked_interactions,
+    total_retry_actions: summary.total_retry_actions,
+    publish_attempts: summary.publish_attempts,
+    successful_publishes: summary.successful_publishes,
+    failed_publishes: summary.failed_publishes,
+    publish_success_rate: summary.publish_success_rate,
+    top_source_key: summary.top_source_key ?? null,
+    top_source_label: summary.top_source_label ?? null,
+  };
+}
+
 function summarizeTelemetrySources(
   sources: ReadonlyArray<RemediationTelemetrySource> | undefined,
 ): TelemetryAggregateSummary {
@@ -2889,7 +2987,85 @@ function compareSourceAggressiveness(
   };
 }
 
+function buildRouteTrendInsight(
+  currentComparison: SourceComparisonInsight | null,
+  longTermComparison: SourceComparisonInsight | null,
+  draftDetailSummary: TelemetryAggregateSummary,
+  approvalsNativeSummary: TelemetryAggregateSummary,
+  longTermDraftDetailSummary: TelemetryAggregateSummary,
+  longTermApprovalsNativeSummary: TelemetryAggregateSummary,
+): RouteTrendInsight | null {
+  const currentPreferredFlow = currentComparison?.preferredFlow ?? "balanced";
+  const longTermPreferredFlow = longTermComparison?.preferredFlow ?? "balanced";
+  const currentDraftRate = draftDetailSummary.publish_success_rate;
+  const currentNativeRate = approvalsNativeSummary.publish_success_rate;
+  const longTermDraftRate = longTermDraftDetailSummary.publish_success_rate;
+  const longTermNativeRate = longTermApprovalsNativeSummary.publish_success_rate;
+
+  if (currentPreferredFlow === "balanced" && longTermPreferredFlow === "balanced") {
+    return {
+      label: "Route dengede",
+      variant: "neutral",
+      reason: "Mevcut pencere ve uzun donem tarafinda draft detail ile approvals-native akislar birbirine yakin gorunuyor.",
+      nextStepLabel: "Odagi Incele",
+      preferredFlow: "balanced",
+      currentLabel: currentComparison?.label ?? "Denge",
+      longTermLabel: longTermComparison?.label ?? "Denge",
+    };
+  }
+
+  if (
+    currentPreferredFlow !== "balanced"
+    && currentPreferredFlow === longTermPreferredFlow
+  ) {
+    const preferredDraftDetail = currentPreferredFlow === "draft_detail";
+
+    return {
+      label: preferredDraftDetail ? "Draft detail kalici lider" : "Approvals-native kalici lider",
+      variant: preferredDraftDetail ? "success" : "warning",
+      reason: `${currentComparison?.reason ?? "Mevcut pencere bu route'u onde gosteriyor."} ${longTermComparison?.reason ?? "Uzun donem de ayni route'u destekliyor."}`.trim(),
+      nextStepLabel: preferredDraftDetail ? "Draft Detail Akisina Git" : "Featured Kume Uzerinde Calis",
+      preferredFlow: currentPreferredFlow,
+      currentLabel: currentComparison?.label ?? "Denge",
+      longTermLabel: longTermComparison?.label ?? "Denge",
+    };
+  }
+
+  if (longTermPreferredFlow !== "balanced") {
+    const preferredDraftDetail = longTermPreferredFlow === "draft_detail";
+    const longTermRate = preferredDraftDetail ? longTermDraftRate : longTermNativeRate;
+    const currentRate = preferredDraftDetail ? currentDraftRate : currentNativeRate;
+
+    return {
+      label: preferredDraftDetail ? "Draft detail uzun donemde onde" : "Approvals-native uzun donemde onde",
+      variant: preferredDraftDetail ? "success" : "warning",
+      reason: `${longTermComparison?.reason ?? "Uzun donem verisi bu route'u onde gosteriyor."}${longTermRate != null ? ` Uzun donem basari %${longTermRate}.` : ""}${currentRate != null ? ` Mevcut pencere referansi %${currentRate}.` : ""}`,
+      nextStepLabel: preferredDraftDetail ? "Draft Detail Akisina Git" : "Featured Kume Uzerinde Calis",
+      preferredFlow: longTermPreferredFlow,
+      currentLabel: currentComparison?.label ?? "Denge",
+      longTermLabel: longTermComparison?.label ?? "Denge",
+    };
+  }
+
+  if (currentPreferredFlow !== "balanced") {
+    const preferredDraftDetail = currentPreferredFlow === "draft_detail";
+
+    return {
+      label: preferredDraftDetail ? "Draft detail bu pencerede onde" : "Approvals-native bu pencerede onde",
+      variant: preferredDraftDetail ? "success" : "warning",
+      reason: currentComparison?.reason ?? "Mevcut pencere route karari icin daha guclu sinyal veriyor.",
+      nextStepLabel: preferredDraftDetail ? "Draft Detail Akisina Git" : "Featured Kume Uzerinde Calis",
+      preferredFlow: currentPreferredFlow,
+      currentLabel: currentComparison?.label ?? "Denge",
+      longTermLabel: longTermComparison?.label ?? "Denge",
+    };
+  }
+
+  return null;
+}
+
 function buildSourceSpotlight(
+  routeTrendInsight: RouteTrendInsight | null,
   comparison: SourceComparisonInsight | null,
   featuredRecommendation: ApprovalRemediationAnalyticsResponse["data"]["featured_recommendation"] | null,
   featuredDraftRoute: string | null,
@@ -2899,6 +3075,16 @@ function buildSourceSpotlight(
 ): SourceSpotlightInsight | null {
   const longTermDraftRate = longTermDraftDetailOutcomeSummary?.publish_success_rate;
   const longTermNativeRate = longTermApprovalsNativeOutcomeSummary?.publish_success_rate;
+
+  if (routeTrendInsight && routeTrendInsight.preferredFlow !== "balanced") {
+    return {
+      label: routeTrendInsight.label,
+      variant: routeTrendInsight.variant,
+      reason: routeTrendInsight.reason,
+      nextStepLabel: routeTrendInsight.nextStepLabel,
+      preferredFlow: routeTrendInsight.preferredFlow,
+    };
+  }
 
   if (comparison?.preferredFlow === "draft_detail") {
     return {

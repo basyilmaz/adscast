@@ -380,3 +380,9 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 140. Approvals analytics icinde source spotlight kartini current-window ve long-term source karsilastirmasini tek operasyon karari halinde sunacak sekilde gorunurlestirmek
 141. Cluster kartlarinda current source yerine long-term source breakdown'i da dikkate alip draft detail ile approvals-native route kararini daha gercek veriyle vermek
 142. Featured ve cluster remediation kartlarinda source spotlight ve long-term source sinyallerini ayni karar akisina baglayip operatorun hangi route'u neden sectigini tek yuzeyde aciklamak
+143. Approvals analytics'te draft detail ve approvals-native akislari icin mevcut pencere ile uzun donemi ayni kartta gosteren route trend insight katmani eklemek
+144. Featured remediation birincil CTA'sini route trend insight ile hizalayip draft detail ile approvals-native arasindaki secimi sadece tek snapshot yerine current ve long-term sinyallerle yapmak
+145. Cluster kartlarindaki draft detail route karari icin long-term source breakdown ve route trend tercihlerini birlikte kullanip jump-to-detail kararini daha sikı ve veri odakli hale getirmek
+146. Approvals remediation analytics kontratina route-level `route_trends[]` ve top route summary alanlari ekleyip approvals-native ile draft detail arasindaki kazanan remediation yolunu backend seviyesinde de acik hale getirmek
+147. Featured remediation payload'ina additive `primary_action` blogu ekleyip cluster secimi ile operatorun gercekten hangi route veya aksiyona indirilmesi gerektigini tek kontratta toplamak
+148. Draft detail kazandiginda featured `primary_action.mode=jump_to_item`, approvals-native kazandiginda cluster odaginda kalma davranisini regression testleriyle kilitlemek

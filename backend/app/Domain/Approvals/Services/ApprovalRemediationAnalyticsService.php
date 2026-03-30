@@ -18,6 +18,7 @@ class ApprovalRemediationAnalyticsService
      *     summary: array<string, mixed>,
      *     featured_recommendation: array<string, mixed>|null,
      *     interaction_sources: array<int, array<string, mixed>>,
+     *     route_trends: array<int, array<string, mixed>>,
      *     outcome_chain_summary: array<string, mixed>,
      *     approvals_native_outcome_summary: array<string, mixed>,
      *     draft_detail_outcome_summary: array<string, mixed>,
@@ -65,6 +66,7 @@ class ApprovalRemediationAnalyticsService
 
         $clusterDefinitions = collect($this->clusterDefinitions());
         $interactionSources = $this->sourceBreakdown($currentFeaturedInteractionLogs);
+        $routeTrends = $this->routeTrends($interactionSources);
         $outcomeChainSummary = $this->outcomeChainSummary($currentFeaturedInteractionLogs);
         $approvalsNativeOutcomeSummary = $this->approvalsNativeOutcomeSummary($currentFeaturedInteractionLogs);
         $draftDetailOutcomeSummary = $this->draftDetailOutcomeSummary($currentFeaturedInteractionLogs);
@@ -75,6 +77,8 @@ class ApprovalRemediationAnalyticsService
             ->filter(fn (array $item): bool => $item['publish_success_rate'] !== null)
             ->sortByDesc(fn (array $item): float => (float) ($item['publish_success_rate'] ?? 0))
             ->first();
+        $topRouteTrend = $routeTrends->first();
+        $secondaryRouteTrend = $routeTrends->slice(1)->first();
 
         $currentRawItems = $this->buildClusterItems(
             $clusterDefinitions,
@@ -190,12 +194,19 @@ class ApprovalRemediationAnalyticsService
                 'top_interaction_source_label' => $topInteractionSource['label'] ?? null,
                 'top_success_source_key' => $topSuccessSource['source_key'] ?? null,
                 'top_success_source_label' => $topSuccessSource['label'] ?? null,
+                'top_route_key' => $topRouteTrend['route_key'] ?? null,
+                'top_route_label' => $topRouteTrend['label'] ?? null,
+                'top_route_source_key' => $topRouteTrend['top_source_key'] ?? null,
+                'top_route_source_label' => $topRouteTrend['top_source_label'] ?? null,
+                'top_route_publish_success_rate' => $topRouteTrend['publish_success_rate'] ?? null,
+                'top_route_advantage' => $this->routeAdvantage($topRouteTrend, $secondaryRouteTrend),
                 ...$featuredSummary,
                 'window_days' => $windowDays,
                 'long_term_window_days' => $longTermWindowDays,
             ],
             'featured_recommendation' => $featuredRecommendation,
             'interaction_sources' => $interactionSources->all(),
+            'route_trends' => $routeTrends->all(),
             'outcome_chain_summary' => $outcomeChainSummary,
             'approvals_native_outcome_summary' => $approvalsNativeOutcomeSummary,
             'draft_detail_outcome_summary' => $draftDetailOutcomeSummary,
@@ -319,10 +330,10 @@ class ApprovalRemediationAnalyticsService
         );
 
         if (is_array($manualCheckRequired)) {
-            $recommended = $this->applyRetryGuidance(
+            $recommended = $this->withPrimaryAction($this->applyRetryGuidance(
                 $manualCheckRequired,
                 $manualCheckRequired['publish_success_rate'] ?? null,
-            );
+            ));
 
             return [
                 ...$recommended,
@@ -343,10 +354,10 @@ class ApprovalRemediationAnalyticsService
                 ?? $topEffectiveCluster['publish_success_rate']
                 ?? $topDraftDetailCluster['publish_success_rate']
                 ?? null;
-            $recommended = $this->applyRetryGuidance(
+            $recommended = $this->withPrimaryAction($this->applyRetryGuidance(
                 $topLongTermStableCluster,
                 $currentReferenceSuccessRate,
-            );
+            ));
             $longTermSuccessRate = (float) ($recommended['publish_success_rate'] ?? 0);
 
             return [
@@ -381,10 +392,10 @@ class ApprovalRemediationAnalyticsService
             && $draftDetailLead !== null
             && $draftDetailLead >= 15
         ) {
-            $recommended = $this->applyRetryGuidance(
+            $recommended = $this->withPrimaryAction($this->applyRetryGuidance(
                 $topDraftDetailCluster,
                 $topWorkingCluster['publish_success_rate'] ?? null,
-            );
+            ));
 
             return [
                 ...$recommended,
@@ -405,10 +416,10 @@ class ApprovalRemediationAnalyticsService
             && ($topEffectiveCluster['current_items'] ?? 0) > 0
             && ($topEffectiveCluster['effectiveness_score'] ?? 0) >= 40
         ) {
-            $recommended = $this->applyRetryGuidance(
+            $recommended = $this->withPrimaryAction($this->applyRetryGuidance(
                 $topEffectiveCluster,
                 $topWorkingCluster['publish_success_rate'] ?? null,
-            );
+            ));
 
             return [
                 ...$recommended,
@@ -422,10 +433,10 @@ class ApprovalRemediationAnalyticsService
         }
 
         if (is_array($topWorkingCluster) && ($topWorkingCluster['current_items'] ?? 0) > 0) {
-            $recommended = $this->applyRetryGuidance(
+            $recommended = $this->withPrimaryAction($this->applyRetryGuidance(
                 $topWorkingCluster,
                 $topWorkingCluster['publish_success_rate'] ?? null,
-            );
+            ));
 
             return [
                 ...$recommended,
@@ -444,10 +455,10 @@ class ApprovalRemediationAnalyticsService
             return null;
         }
 
-        $recommended = $this->applyRetryGuidance(
+        $recommended = $this->withPrimaryAction($this->applyRetryGuidance(
             $fallback,
             $topWorkingCluster['publish_success_rate'] ?? null,
-        );
+        ));
 
         return [
             ...$recommended,
@@ -588,9 +599,16 @@ class ApprovalRemediationAnalyticsService
                 $clusterOutcomeLogs = $featuredInteractionLogs
                     ->filter(fn (AuditLog $log): bool => data_get($log->metadata, 'acted_cluster_key') === $cluster['key']);
                 $sourceBreakdown = $this->sourceBreakdown($clusterOutcomeLogs);
+                $routeTrends = $this->routeTrends($sourceBreakdown);
                 $topInteractionSource = $sourceBreakdown->first();
+                $topOutcomeSource = $this->topOutcomeSource($sourceBreakdown);
+                $topRoute = $routeTrends->first();
                 $outcomeChainSummary = $this->outcomeChainSummary($clusterOutcomeLogs);
                 $draftDetailOutcomeSummary = $this->draftDetailOutcomeSummary($clusterOutcomeLogs);
+                $sampleItemRoute = $currentItems
+                    ->pluck('approvable_route')
+                    ->filter(fn (mixed $route): bool => is_string($route) && $route !== '')
+                    ->first();
 
                 $manualChecks = $clusterLogs->where('action', 'approval_manual_check_completed');
                 $publishAttempts = $clusterLogs->where('action', 'publish_attempted');
@@ -636,7 +654,17 @@ class ApprovalRemediationAnalyticsService
                     'route' => $route,
                     'top_interaction_source_key' => $topInteractionSource['source_key'] ?? null,
                     'top_interaction_source_label' => $topInteractionSource['label'] ?? null,
+                    'top_outcome_source_key' => $topOutcomeSource['source_key'] ?? null,
+                    'top_outcome_source_label' => $topOutcomeSource['label'] ?? null,
+                    'top_outcome_publish_success_rate' => $topOutcomeSource['publish_success_rate'] ?? null,
+                    'top_route_key' => $topRoute['route_key'] ?? null,
+                    'top_route_label' => $topRoute['label'] ?? null,
+                    'top_route_source_key' => $topRoute['top_source_key'] ?? null,
+                    'top_route_source_label' => $topRoute['top_source_label'] ?? null,
+                    'top_route_publish_success_rate' => $topRoute['publish_success_rate'] ?? null,
+                    'sample_item_route' => $sampleItemRoute,
                     'source_breakdown' => $sourceBreakdown->all(),
+                    'route_trends' => $routeTrends->all(),
                     'outcome_chain_summary' => $outcomeChainSummary,
                     'draft_detail_outcome_summary' => $draftDetailOutcomeSummary,
                     ...$featuredMetrics,
@@ -644,6 +672,133 @@ class ApprovalRemediationAnalyticsService
             })
             ->sortByDesc(fn (array $item): int => $item['current_items'] * 1000 + $item['publish_attempts'] * 10 + $item['manual_check_completions'])
             ->values();
+    }
+
+    /**
+     * @param Collection<int, array<string, mixed>> $sourceBreakdown
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function routeTrends(Collection $sourceBreakdown): Collection
+    {
+        return $sourceBreakdown
+            ->groupBy(fn (array $item): string => $this->routeKeyForSource((string) ($item['source_key'] ?? 'other')))
+            ->map(function (Collection $items, string $routeKey): array {
+                $trackedInteractions = $items->sum(fn (array $item): int => (int) ($item['tracked_interactions'] ?? 0));
+                $followedInteractions = $items->sum(fn (array $item): int => (int) ($item['followed_featured_interactions'] ?? 0));
+                $publishAttempts = $items->sum(fn (array $item): int => (int) ($item['publish_attempts'] ?? 0));
+                $successfulPublishes = $items->sum(fn (array $item): int => (int) ($item['successful_publishes'] ?? 0));
+                $failedPublishes = $items->sum(fn (array $item): int => (int) ($item['failed_publishes'] ?? 0));
+                $topSource = $this->topOutcomeSource($items);
+
+                return [
+                    'route_key' => $routeKey,
+                    'label' => $this->routeLabel($routeKey),
+                    'tracked_interactions' => $trackedInteractions,
+                    'followed_featured_interactions' => $followedInteractions,
+                    'publish_attempts' => $publishAttempts,
+                    'successful_publishes' => $successfulPublishes,
+                    'failed_publishes' => $failedPublishes,
+                    'publish_success_rate' => $publishAttempts > 0
+                        ? round(($successfulPublishes / $publishAttempts) * 100, 1)
+                        : null,
+                    'top_source_key' => $topSource['source_key'] ?? null,
+                    'top_source_label' => $topSource['label'] ?? null,
+                ];
+            })
+            ->sortByDesc(function (array $item): float {
+                return ((float) ($item['publish_success_rate'] ?? 0) * 1000)
+                    + ((float) ($item['publish_attempts'] ?? 0) * 10)
+                    + ((float) ($item['successful_publishes'] ?? 0));
+            })
+            ->values();
+    }
+
+    /**
+     * @param Collection<int, array<string, mixed>> $sourceBreakdown
+     * @return array<string, mixed>|null
+     */
+    private function topOutcomeSource(Collection $sourceBreakdown): ?array
+    {
+        return $sourceBreakdown
+            ->sortByDesc(function (array $item): float {
+                return ((float) ($item['publish_success_rate'] ?? 0) * 1000)
+                    + ((float) ($item['publish_attempts'] ?? 0) * 10)
+                    + ((float) ($item['successful_publishes'] ?? 0));
+            })
+            ->first();
+    }
+
+    /**
+     * @param array<string, mixed> $cluster
+     * @return array<string, mixed>
+     */
+    private function withPrimaryAction(array $cluster): array
+    {
+        return [
+            ...$cluster,
+            'primary_action' => $this->buildPrimaryAction($cluster),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $cluster
+     * @return array<string, mixed>
+     */
+    private function buildPrimaryAction(array $cluster): array
+    {
+        $routeTrends = collect($cluster['route_trends'] ?? []);
+        $topRoute = $routeTrends->first();
+        $alternativeRoute = $routeTrends
+            ->first(fn (array $item): bool => $item['route_key'] !== ($topRoute['route_key'] ?? null));
+        $routeKey = (string) ($topRoute['route_key'] ?? 'approvals');
+        $routeLabel = (string) ($topRoute['label'] ?? $this->routeLabel($routeKey));
+        $sourceKey = $topRoute['top_source_key'] ?? $cluster['top_outcome_source_key'] ?? null;
+        $sourceLabel = $topRoute['top_source_label'] ?? $cluster['top_outcome_source_label'] ?? null;
+        $publishAttempts = (int) ($topRoute['publish_attempts'] ?? 0);
+        $publishSuccessRate = isset($topRoute['publish_success_rate']) ? (float) $topRoute['publish_success_rate'] : null;
+        $advantage = $this->routeAdvantage($topRoute, $alternativeRoute);
+
+        if (
+            $routeKey === 'draft_detail'
+            && filled($cluster['sample_item_route'] ?? null)
+            && ($publishSuccessRate !== null || (int) ($topRoute['successful_publishes'] ?? 0) > 0)
+        ) {
+            return [
+                'mode' => 'jump_to_item',
+                'route' => $cluster['sample_item_route'],
+                'route_key' => $routeKey,
+                'route_label' => $routeLabel,
+                'source_key' => $sourceKey,
+                'source_label' => $sourceLabel,
+                'publish_attempts' => $publishAttempts,
+                'publish_success_rate' => $publishSuccessRate,
+                'advantage_vs_alternative_route' => $advantage,
+                'reason' => $publishSuccessRate !== null
+                    ? sprintf(
+                        '%s kaynagi draft detail uzerinde %s publish basarisi urettigi icin operatoru dogrudan ilgili taslak detayina indir.',
+                        $sourceLabel ?? 'Bu route',
+                        $this->formatPercentage($publishSuccessRate),
+                    )
+                    : 'Draft detail kaynagi bu cluster icin daha guclu sonuc urettigi icin operatoru dogrudan ilgili taslak detayina indir.',
+            ];
+        }
+
+        $mode = (bool) ($cluster['safe_bulk_retry'] ?? false) ? 'bulk_retry_publish' : 'focus_cluster';
+
+        return [
+            'mode' => $mode,
+            'route' => $cluster['route'] ?? null,
+            'route_key' => $routeKey,
+            'route_label' => $routeLabel,
+            'source_key' => $sourceKey,
+            'source_label' => $sourceLabel,
+            'publish_attempts' => $publishAttempts,
+            'publish_success_rate' => $publishSuccessRate,
+            'advantage_vs_alternative_route' => $advantage,
+            'reason' => $mode === 'bulk_retry_publish'
+                ? ($cluster['retry_guidance_reason'] ?? 'Bu cluster guvenli toplu retry sinyali verdigi icin approvals merkezi uzerinden bulk retry oneriliyor.')
+                : ($cluster['retry_guidance_reason'] ?? 'Bu cluster once approvals merkezinde odakli inceleme gerektiriyor.'),
+        ];
     }
 
     /**
@@ -812,6 +967,48 @@ class ApprovalRemediationAnalyticsService
             ->filter()
             ->sortByDesc(fn (array $item): int => $item['tracked_interactions'] * 1000 + $item['publish_attempts'] * 10 + $item['successful_publishes'])
             ->values();
+    }
+
+    /**
+     * @param array<string, mixed>|null $topRoute
+     * @param array<string, mixed>|null $alternativeRoute
+     */
+    private function routeAdvantage(?array $topRoute, ?array $alternativeRoute): ?float
+    {
+        if (! is_array($topRoute) || ! is_array($alternativeRoute)) {
+            return null;
+        }
+
+        $topRate = $topRoute['publish_success_rate'] ?? null;
+        $alternativeRate = $alternativeRoute['publish_success_rate'] ?? null;
+
+        if ($topRate === null || $alternativeRate === null) {
+            return null;
+        }
+
+        return round((float) $topRate - (float) $alternativeRate, 1);
+    }
+
+    private function routeKeyForSource(string $sourceKey): string
+    {
+        if (str_starts_with($sourceKey, 'draft_detail')) {
+            return 'draft_detail';
+        }
+
+        if (str_starts_with($sourceKey, 'approvals')) {
+            return 'approvals';
+        }
+
+        return 'other';
+    }
+
+    private function routeLabel(string $routeKey): string
+    {
+        return match ($routeKey) {
+            'draft_detail' => 'Draft Detail',
+            'approvals' => 'Approvals Native',
+            default => 'Diger',
+        };
     }
 
     /**
