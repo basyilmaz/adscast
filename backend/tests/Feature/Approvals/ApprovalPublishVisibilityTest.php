@@ -394,6 +394,8 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.summary.top_long_term_route_label', 'Draft Detail')
             ->assertJsonPath('data.long_term_draft_detail_outcome_summary.tracked_interactions', 1)
             ->assertJsonPath('data.long_term_draft_detail_outcome_summary.publish_success_rate', 100)
+            ->assertJsonPath('data.route_window_series.2.window_days', 90)
+            ->assertJsonPath('data.route_window_series.2.top_route_key', 'draft_detail')
             ->assertJsonPath('data.long_term_route_trends.0.route_key', 'draft_detail')
             ->assertJsonPath('data.long_term_route_trends.0.top_source_label', 'Draft Detay / Featured Kart')
             ->assertJsonPath('data.featured_recommendation.cluster_key', 'cleanup-recovered')
@@ -647,11 +649,84 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.featured_recommendation.primary_action.mode', 'jump_to_item')
             ->assertJsonPath('data.featured_recommendation.primary_action.route_key', 'draft_detail')
             ->assertJsonPath('data.featured_recommendation.primary_action.confidence_status', 'proven')
+            ->assertJsonPath('data.featured_recommendation.primary_action.trend_status', 'stable')
             ->assertJsonPath('data.featured_recommendation.primary_action.tracked_interactions', 1)
             ->assertJsonPath('data.featured_recommendation.primary_action.alternative_route_label', null)
+            ->assertJsonPath('data.route_window_series.0.label', 'Kisa Vade')
+            ->assertJsonPath('data.route_window_series.0.preferred_flow', 'draft_detail')
+            ->assertJsonPath('data.route_window_series.0.confidence', 'high')
+            ->assertJsonPath('data.route_window_series.0.current_route_key', 'draft_detail')
+            ->assertJsonPath('data.route_window_series.0.top_route_attempts', 2)
+            ->assertJsonPath('data.route_window_series.0.top_route_success_rate', 100)
+            ->assertJsonPath('data.items.0.route_window_series.0.window_days', 7)
+            ->assertJsonPath('data.items.0.route_window_series.0.top_route_key', 'draft_detail')
             ->assertJsonPath('data.featured_recommendation.primary_action.route', sprintf('/drafts/detail?id=%s', $retryReadyDraft->id))
             ->assertJsonPath('data.items.0.retry_guidance_status', 'safe')
             ->assertJsonPath('data.items.0.safe_bulk_retry', true);
+    }
+
+    public function test_featured_primary_action_softens_when_recent_route_signal_weakens(): void
+    {
+        [$workspaceId, $token, $retryReadyDraft] = $this->seedFailedPublishFixture([
+            'product_service' => 'Retry hazir route softening',
+            'meta_campaign_id' => 'meta_campaign_retry_softening',
+            'manual_check' => [
+                'completed' => true,
+                'completed_at' => now()->subMinutes(5)->toIso8601String(),
+                'completed_by' => 'analytics-user',
+                'note' => 'Kontrol tamam.',
+            ],
+        ]);
+
+        $this->createFeaturedRemediationLog(
+            $workspaceId,
+            'retry-ready',
+            'publish_retry',
+            true,
+            2,
+            2,
+            0,
+            'draft_detail_from_approvals_featured',
+            now()->subDays(60),
+        );
+        $this->createFeaturedRemediationLog(
+            $workspaceId,
+            'retry-ready',
+            'publish_retry',
+            true,
+            2,
+            2,
+            0,
+            'draft_detail_from_approvals_featured',
+            now()->subDays(20),
+        );
+        $this->createFeaturedRemediationLog(
+            $workspaceId,
+            'retry-ready',
+            'publish_retry',
+            true,
+            3,
+            2,
+            1,
+            'draft_detail_from_approvals_featured',
+            now()->subDays(3),
+        );
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->getJson('/api/v1/approvals/remediation-analytics');
+
+        $response->assertOk()
+            ->assertJsonPath('data.featured_recommendation.cluster_key', 'retry-ready')
+            ->assertJsonPath('data.featured_recommendation.primary_action.mode', 'jump_to_item')
+            ->assertJsonPath('data.featured_recommendation.primary_action.route', sprintf('/drafts/detail?id=%s', $retryReadyDraft->id))
+            ->assertJsonPath('data.featured_recommendation.primary_action.route_key', 'draft_detail')
+            ->assertJsonPath('data.featured_recommendation.primary_action.confidence_status', 'emerging')
+            ->assertJsonPath('data.featured_recommendation.primary_action.trend_status', 'softening')
+            ->assertJsonPath('data.featured_recommendation.primary_action.route_series.0.window_days', 7)
+            ->assertJsonPath('data.featured_recommendation.primary_action.route_series.0.support_status', 'emerging')
+            ->assertJsonPath('data.featured_recommendation.primary_action.route_series.1.window_days', 30)
+            ->assertJsonPath('data.featured_recommendation.primary_action.route_series.1.support_status', 'proven');
     }
 
     public function test_featured_primary_action_stays_cluster_focused_when_approvals_native_outperforms_draft_detail(): void
@@ -805,5 +880,35 @@ class ApprovalPublishVisibilityTest extends TestCase
         ]);
 
         return [$workspaceId, $token, $draft->fresh(['approval']), $approval];
+    }
+
+    private function createFeaturedRemediationLog(
+        string $workspaceId,
+        string $clusterKey,
+        string $interactionType,
+        bool $followedFeatured,
+        int $attemptedCount,
+        int $successCount,
+        int $failureCount,
+        string $interactionSource,
+        \Carbon\CarbonInterface $occurredAt,
+    ): void {
+        AuditLog::query()->create([
+            'workspace_id' => $workspaceId,
+            'action' => 'approval_featured_remediation_tracked',
+            'target_type' => 'approval_remediation',
+            'target_id' => $clusterKey,
+            'metadata' => [
+                'featured_cluster_key' => $clusterKey,
+                'acted_cluster_key' => $clusterKey,
+                'interaction_type' => $interactionType,
+                'followed_featured' => $followedFeatured,
+                'attempted_count' => $attemptedCount,
+                'success_count' => $successCount,
+                'failure_count' => $failureCount,
+                'interaction_source' => $interactionSource,
+            ],
+            'occurred_at' => $occurredAt,
+        ]);
     }
 }

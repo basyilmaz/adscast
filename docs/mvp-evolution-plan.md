@@ -389,4 +389,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 149. `primary_action` blogunu confidence, tracked interactions ve alternatif route basari bilgisiyle genisletip route seciminin ne kadar guvenilir oldugunu backend kontratinda acik hale getirmek
 150. Approvals featured ve cluster CTA seciminde backend `primary_action.confidence_status` sinyalini kullanip guarded route'larda draft detail'e otomatik atlamayi kisarken proven route'larda daha cesur birincil aksiyon secmek
 151. Draft detail remediation yuzeyinde `primary_action` route, confidence ve alternatif route farkini gorunur bir operasyon kartina tasiyip approvals'tan gelen karar baglamini ekranda aciklamak
-
+152. Approvals remediation analytics kontratina render-ready `route_window_series[]` ekleyip 7/30/90 gunluk route sinyallerini ek frontend turetimi gerektirmeden okunur hale getirmek
+153. `primary_action` confidence hesabina route pencerelerinden gelen `softening` ve `sparse` sinyallerini ekleyip route karari zayiflarken sadece asagi yonde frenleyen bir guard katmani kurmak
+154. `primary_action` altina additive `trend_status`, `trend_reason` ve `route_series[]` alanlari ekleyip approvals ile draft detail arasindaki route kararinin zaman penceresi bazli dayanaklarini acik hale getirmek

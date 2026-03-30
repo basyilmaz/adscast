@@ -20,6 +20,7 @@ class ApprovalRemediationAnalyticsService
      *     interaction_sources: array<int, array<string, mixed>>,
      *     route_trends: array<int, array<string, mixed>>,
      *     long_term_route_trends: array<int, array<string, mixed>>,
+     *     route_window_series: array<int, array<string, mixed>>,
      *     outcome_chain_summary: array<string, mixed>,
      *     approvals_native_outcome_summary: array<string, mixed>,
      *     draft_detail_outcome_summary: array<string, mixed>,
@@ -84,18 +85,22 @@ class ApprovalRemediationAnalyticsService
         $secondaryRouteTrend = $routeTrends->slice(1)->first();
         $topLongTermRouteTrend = $longTermRouteTrends->first();
         $secondaryLongTermRouteTrend = $longTermRouteTrends->slice(1)->first();
+        $routeWindowSeries = $this->routeWindowSeries($longTermFeaturedInteractionLogs, $topRouteTrend);
+        $clusterRouteWindowSeries = $this->clusterRouteWindowSeries($clusterDefinitions, $longTermFeaturedInteractionLogs);
 
         $currentRawItems = $this->buildClusterItems(
             $clusterDefinitions,
             $presentedApprovals,
             $currentWindowAuditLogs,
             $currentFeaturedInteractionLogs,
+            $clusterRouteWindowSeries,
         );
         $longTermRawItems = $this->buildClusterItems(
             $clusterDefinitions,
             $presentedApprovals,
             $longTermWindowAuditLogs,
             $longTermFeaturedInteractionLogs,
+            $clusterRouteWindowSeries,
         );
 
         $currentTopWorkingCluster = $currentRawItems
@@ -219,6 +224,7 @@ class ApprovalRemediationAnalyticsService
             'interaction_sources' => $interactionSources->all(),
             'route_trends' => $routeTrends->all(),
             'long_term_route_trends' => $longTermRouteTrends->all(),
+            'route_window_series' => $routeWindowSeries->all(),
             'outcome_chain_summary' => $outcomeChainSummary,
             'approvals_native_outcome_summary' => $approvalsNativeOutcomeSummary,
             'draft_detail_outcome_summary' => $draftDetailOutcomeSummary,
@@ -591,6 +597,7 @@ class ApprovalRemediationAnalyticsService
      * @param Collection<int, array<string, mixed>> $presentedApprovals
      * @param Collection<int, AuditLog> $auditLogs
      * @param Collection<int, AuditLog> $featuredInteractionLogs
+     * @param array<string, array<int, array<string, mixed>>> $clusterRouteWindowSeries
      * @return Collection<int, array<string, mixed>>
      */
     private function buildClusterItems(
@@ -598,9 +605,10 @@ class ApprovalRemediationAnalyticsService
         Collection $presentedApprovals,
         Collection $auditLogs,
         Collection $featuredInteractionLogs,
+        array $clusterRouteWindowSeries = [],
     ): Collection {
         return $clusterDefinitions
-            ->map(function (array $cluster) use ($presentedApprovals, $auditLogs, $featuredInteractionLogs): array {
+            ->map(function (array $cluster) use ($presentedApprovals, $auditLogs, $featuredInteractionLogs, $clusterRouteWindowSeries): array {
                 $currentItems = $presentedApprovals
                     ->filter(fn (array $approval): bool => $this->matchesCluster($approval, $cluster['recommended_action_code']));
 
@@ -677,6 +685,7 @@ class ApprovalRemediationAnalyticsService
                     'sample_item_route' => $sampleItemRoute,
                     'source_breakdown' => $sourceBreakdown->all(),
                     'route_trends' => $routeTrends->all(),
+                    'route_window_series' => $clusterRouteWindowSeries[$cluster['key']] ?? [],
                     'outcome_chain_summary' => $outcomeChainSummary,
                     'draft_detail_outcome_summary' => $draftDetailOutcomeSummary,
                     ...$featuredMetrics,
@@ -723,6 +732,328 @@ class ApprovalRemediationAnalyticsService
                     + ((float) ($item['successful_publishes'] ?? 0));
             })
             ->values();
+    }
+
+    /**
+     * @param Collection<int, AuditLog> $featuredInteractionLogs
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function routeWindowSeries(Collection $featuredInteractionLogs, ?array $selectedRoute = null): Collection
+    {
+        return collect([7, 30, 90])
+            ->map(fn (int $windowDays): array => $this->routeWindowSnapshot($featuredInteractionLogs, $windowDays, $selectedRoute))
+            ->values();
+    }
+
+    /**
+     * @param Collection<int, array{key: string, label: string, description: string, recommended_action_code: string}> $clusterDefinitions
+     * @param Collection<int, AuditLog> $featuredInteractionLogs
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function clusterRouteWindowSeries(Collection $clusterDefinitions, Collection $featuredInteractionLogs): array
+    {
+        return $clusterDefinitions
+            ->mapWithKeys(function (array $cluster) use ($featuredInteractionLogs): array {
+                $clusterLogs = $featuredInteractionLogs
+                    ->filter(fn (AuditLog $log): bool => data_get($log->metadata, 'acted_cluster_key') === $cluster['key'])
+                    ->values();
+
+                return [
+                    $cluster['key'] => $this->routeWindowSeries($clusterLogs)->all(),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @param Collection<int, AuditLog> $featuredInteractionLogs
+     * @return array<string, mixed>
+     */
+    private function routeWindowSnapshot(Collection $featuredInteractionLogs, int $windowDays, ?array $selectedRoute = null): array
+    {
+        $windowStart = now()->subDays($windowDays);
+        $windowLogs = $featuredInteractionLogs
+            ->filter(fn (AuditLog $log): bool => $log->occurred_at >= $windowStart)
+            ->values();
+        $sourceBreakdown = $this->sourceBreakdown($windowLogs);
+        $routeTrends = $this->routeTrends($sourceBreakdown);
+        $topRoute = $routeTrends->first();
+        $secondaryRoute = $routeTrends->slice(1)->first();
+        $selectedRouteKey = $selectedRoute['route_key'] ?? $topRoute['route_key'] ?? null;
+        $currentRoute = $selectedRouteKey !== null
+            ? $routeTrends->first(fn (array $item): bool => ($item['route_key'] ?? null) === $selectedRouteKey)
+            : null;
+        if (! is_array($currentRoute) && $selectedRoute === null && is_array($topRoute)) {
+            $currentRoute = $topRoute;
+        }
+        $currentAlternativeRoute = is_array($currentRoute)
+            ? $routeTrends->first(fn (array $item): bool => ($item['route_key'] ?? null) !== ($currentRoute['route_key'] ?? null))
+            : null;
+        $topSupportStatus = $this->routeWindowSupportStatus($topRoute, $secondaryRoute);
+        $currentSupportStatus = $this->routeWindowSupportStatus($currentRoute, $currentAlternativeRoute);
+        $topRouteKey = $topRoute['route_key'] ?? null;
+        $topRouteLabel = $topRoute['label'] ?? null;
+        $currentRouteKey = $currentRoute['route_key'] ?? $selectedRouteKey;
+        $currentRouteLabel = $currentRoute['label'] ?? ($currentRouteKey !== null ? $this->routeLabel((string) $currentRouteKey) : null);
+        $topRouteSuccessRate = isset($topRoute['publish_success_rate']) ? (float) $topRoute['publish_success_rate'] : null;
+        $topRouteAttempts = isset($topRoute['publish_attempts']) ? (int) $topRoute['publish_attempts'] : 0;
+        $currentRouteSuccessRate = isset($currentRoute['publish_success_rate']) ? (float) $currentRoute['publish_success_rate'] : null;
+        $currentRouteAttempts = is_array($currentRoute) ? (int) ($currentRoute['publish_attempts'] ?? 0) : null;
+        $currentRouteAdvantage = is_array($currentRoute)
+            ? $this->routeAdvantage($currentRoute, $currentAlternativeRoute)
+            : null;
+        $topRouteAdvantage = $this->routeAdvantage($topRoute, $secondaryRoute);
+        $preferredFlow = $this->preferredFlowForRouteKey($topRouteKey);
+
+        return [
+            'window_days' => $windowDays,
+            'label' => $this->routeWindowLabel($windowDays),
+            'tracked_interactions' => $windowLogs->count(),
+            'preferred_flow' => $preferredFlow,
+            'confidence' => $this->routeWindowConfidence($topSupportStatus),
+            'current_route_key' => $currentRouteKey,
+            'current_route_label' => $currentRouteLabel,
+            'current_route_success_rate' => $currentRouteSuccessRate,
+            'current_route_attempts' => $currentRouteAttempts,
+            'current_route_advantage' => $currentRouteAdvantage,
+            'top_route_key' => $topRouteKey,
+            'top_route_label' => $topRouteLabel,
+            'top_route_source_key' => $topRoute['top_source_key'] ?? null,
+            'top_route_source_label' => $topRoute['top_source_label'] ?? null,
+            'top_route_publish_attempts' => $topRouteAttempts,
+            'top_route_tracked_interactions' => $topRoute['tracked_interactions'] ?? 0,
+            'top_route_publish_success_rate' => $topRouteSuccessRate,
+            'top_route_success_rate' => $topRouteSuccessRate,
+            'top_route_attempts' => $topRouteAttempts,
+            'top_route_advantage' => $topRouteAdvantage,
+            'summary_label' => $this->routeWindowSummaryLabel($windowDays, $currentRouteLabel, $topRouteLabel, $currentRouteKey, $topRouteKey),
+            'reason' => $this->routeWindowReason(
+                $windowDays,
+                $currentRouteLabel,
+                $topRouteLabel,
+                $topRouteSuccessRate,
+                $topRouteAdvantage,
+                $topSupportStatus,
+                $currentSupportStatus,
+                $topRoute['top_source_label'] ?? null,
+            ),
+            'route_trends' => $routeTrends->all(),
+        ];
+    }
+
+    private function routeWindowLabel(int $windowDays): string
+    {
+        return match ($windowDays) {
+            7 => 'Kisa Vade',
+            30 => 'Operasyon Penceresi',
+            90 => 'Uzun Donem',
+            default => sprintf('%s Gun', $windowDays),
+        };
+    }
+
+    private function preferredFlowForRouteKey(string|null $routeKey): string
+    {
+        return match ($routeKey) {
+            'draft_detail' => 'draft_detail',
+            'approvals' => 'approvals_native',
+            default => 'balanced',
+        };
+    }
+
+    private function routeWindowConfidence(string $supportStatus): string
+    {
+        return match ($supportStatus) {
+            'proven' => 'high',
+            'emerging' => 'medium',
+            default => 'low',
+        };
+    }
+
+    private function routeWindowSupportStatus(?array $route, ?array $alternativeRoute, bool $safeBulkRetry = false): string
+    {
+        if (! is_array($route)) {
+            return 'missing';
+        }
+
+        $routeKey = (string) ($route['route_key'] ?? 'other');
+        $publishAttempts = (int) ($route['publish_attempts'] ?? 0);
+        $publishSuccessRate = isset($route['publish_success_rate']) ? (float) $route['publish_success_rate'] : null;
+        $advantage = $this->routeAdvantage($route, $alternativeRoute) ?? 0.0;
+
+        if ($publishAttempts < 1 || $publishSuccessRate === null) {
+            return 'missing';
+        }
+
+        if ($routeKey === 'draft_detail') {
+            if ($publishAttempts >= 2 && ($publishSuccessRate >= 70.0 || $advantage >= 10.0)) {
+                return 'proven';
+            }
+
+            if ($publishSuccessRate >= 50.0 || $advantage >= 5.0) {
+                return 'emerging';
+            }
+
+            return 'guarded';
+        }
+
+        if ($publishAttempts >= 2 && $publishSuccessRate >= 70.0 && ($advantage >= 5.0 || ! $safeBulkRetry)) {
+            return 'proven';
+        }
+
+        if ($publishSuccessRate >= ($safeBulkRetry ? 60.0 : 55.0) || $advantage >= 3.0) {
+            return 'emerging';
+        }
+
+        return 'guarded';
+    }
+
+    private function routeSupportLabel(string $status): string
+    {
+        return match ($status) {
+            'proven' => 'kanitli',
+            'emerging' => 'yukselen',
+            'guarded' => 'temkinli',
+            default => 'veri bekleyen',
+        };
+    }
+
+    private function routeWindowSummaryLabel(
+        int $windowDays,
+        string|null $currentRouteLabel,
+        string|null $topRouteLabel,
+        string|null $currentRouteKey,
+        string|null $topRouteKey,
+    ): string {
+        if ($topRouteLabel === null) {
+            return sprintf('%s gunluk pencerede route verisi bekleniyor', $windowDays);
+        }
+
+        if ($currentRouteKey !== null && $currentRouteKey === $topRouteKey) {
+            return sprintf('%s bu pencerede one cikiyor', $topRouteLabel);
+        }
+
+        if ($currentRouteLabel !== null) {
+            return sprintf('%s, secili %s rotasini geride birakiyor', $topRouteLabel, $currentRouteLabel);
+        }
+
+        return sprintf('%s bu pencerede kazanan rota', $topRouteLabel);
+    }
+
+    private function routeWindowReason(
+        int $windowDays,
+        string|null $currentRouteLabel,
+        string|null $topRouteLabel,
+        float|null $topRouteSuccessRate,
+        float|null $topRouteAdvantage,
+        string $topSupportStatus,
+        string $currentSupportStatus,
+        string|null $topRouteSourceLabel,
+    ): string {
+        if ($topRouteLabel === null) {
+            return sprintf('%s gunluk pencere icin route telemetry henuz yeterli degil.', $windowDays);
+        }
+
+        $parts = [];
+
+        if ($currentRouteLabel !== null && $currentRouteLabel !== $topRouteLabel) {
+            $parts[] = sprintf('%s gunluk pencerede %s, secili %s rotasinin onune geciyor.', $windowDays, $topRouteLabel, $currentRouteLabel);
+        } else {
+            $parts[] = sprintf('%s gunluk pencerede %s %s destek sinyali veriyor.', $windowDays, $topRouteLabel, $this->routeSupportLabel($topSupportStatus));
+        }
+
+        if ($topRouteSuccessRate !== null) {
+            $parts[] = sprintf('Publish basarisi %s.', $this->formatPercentage($topRouteSuccessRate));
+        }
+
+        if ($topRouteAdvantage !== null) {
+            $parts[] = sprintf('Alternatif route farki %+0.1f puan.', $topRouteAdvantage);
+        }
+
+        if ($currentRouteLabel !== null && $currentRouteLabel !== $topRouteLabel) {
+            $parts[] = sprintf('Secili route su an %s gorunuyor.', $this->routeSupportLabel($currentSupportStatus));
+        }
+
+        if ($topRouteSourceLabel !== null) {
+            $parts[] = sprintf('Top kaynak: %s.', $topRouteSourceLabel);
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * @return array{status: string, reason: string, series: array<int, array<string, mixed>>}
+     */
+    private function primaryActionTrendContext(string $routeKey, array $cluster, bool $safeBulkRetry): array
+    {
+        $series = collect($cluster['route_window_series'] ?? [])
+            ->map(function (array $item) use ($routeKey, $safeBulkRetry): array {
+                $routeTrends = collect($item['route_trends'] ?? []);
+                $selectedRoute = $routeTrends
+                    ->first(fn (array $route): bool => ($route['route_key'] ?? null) === $routeKey);
+                $alternativeRoute = $routeTrends
+                    ->first(fn (array $route): bool => ($route['route_key'] ?? null) !== $routeKey);
+                $supportStatus = $this->routeWindowSupportStatus($selectedRoute, $alternativeRoute, $safeBulkRetry);
+
+                return [
+                    'window_days' => (int) ($item['window_days'] ?? 0),
+                    'route_key' => $routeKey,
+                    'route_label' => $this->routeLabel($routeKey),
+                    'is_window_leader' => ($item['top_route_key'] ?? null) === $routeKey,
+                    'tracked_interactions' => (int) ($selectedRoute['tracked_interactions'] ?? 0),
+                    'publish_attempts' => (int) ($selectedRoute['publish_attempts'] ?? 0),
+                    'successful_publishes' => (int) ($selectedRoute['successful_publishes'] ?? 0),
+                    'failed_publishes' => (int) ($selectedRoute['failed_publishes'] ?? 0),
+                    'publish_success_rate' => isset($selectedRoute['publish_success_rate'])
+                        ? (float) $selectedRoute['publish_success_rate']
+                        : null,
+                    'leader_route_key' => $item['top_route_key'] ?? null,
+                    'leader_route_label' => $item['top_route_label'] ?? null,
+                    'support_status' => $supportStatus,
+                ];
+            })
+            ->sortBy('window_days')
+            ->values();
+
+        $byWindow = $series->keyBy('window_days');
+        $shortWindow = $byWindow->get(7);
+        $midWindow = $byWindow->get(30);
+        $longWindow = $byWindow->get(90);
+        $shortAttempts = (int) ($shortWindow['publish_attempts'] ?? 0);
+        $midAttempts = (int) ($midWindow['publish_attempts'] ?? 0);
+        $longAttempts = (int) ($longWindow['publish_attempts'] ?? 0);
+        $shortRate = isset($shortWindow['publish_success_rate']) ? (float) $shortWindow['publish_success_rate'] : null;
+        $midRate = isset($midWindow['publish_success_rate']) ? (float) $midWindow['publish_success_rate'] : null;
+        $longRate = isset($longWindow['publish_success_rate']) ? (float) $longWindow['publish_success_rate'] : null;
+        $shortStable = in_array($shortWindow['support_status'] ?? null, ['proven', 'emerging'], true);
+        $midStable = in_array($midWindow['support_status'] ?? null, ['proven', 'emerging'], true);
+        $longStable = in_array($longWindow['support_status'] ?? null, ['proven', 'emerging'], true);
+        $status = 'missing';
+        $reason = 'Route pencerelerinde anlamli telemetry birikmedi.';
+
+        if ($longStable && ($shortAttempts + $midAttempts) < 2) {
+            $status = 'sparse';
+            $reason = 'Uzun donem sinyal var ama son 7 ve 30 gunde route karari yeterli deneme biriktirmedi.';
+        } elseif (
+            $shortStable
+            && $midStable
+            && $shortRate !== null
+            && max(array_filter([$midRate, $longRate], fn ($value): bool => $value !== null)) - $shortRate >= 15.0
+        ) {
+            $status = 'softening';
+            $reason = 'Son 7 gun sinyali, 30 veya 90 gunluk route basarisinin belirgin altina inmeye basladi.';
+        } elseif ($shortStable && $midStable) {
+            $status = 'stable';
+            $reason = 'Son 7 ve 30 gun ayni route kararini destekliyor.';
+        } elseif ($shortStable || $midStable || $longStable) {
+            $status = 'forming';
+            $reason = 'Route karari bazi pencerelerde destek aliyor ama henuz tam stabil degil.';
+        }
+
+        return [
+            'status' => $status,
+            'reason' => $reason,
+            'series' => $series->all(),
+        ];
     }
 
     /**
@@ -781,6 +1112,7 @@ class ApprovalRemediationAnalyticsService
         $alternativePublishSuccessRate = isset($alternativeRoute['publish_success_rate'])
             ? (float) $alternativeRoute['publish_success_rate']
             : null;
+        $trendContext = $this->primaryActionTrendContext($routeKey, $cluster, (bool) ($cluster['safe_bulk_retry'] ?? false));
 
         if (
             $routeKey === 'draft_detail'
@@ -804,6 +1136,9 @@ class ApprovalRemediationAnalyticsService
                 'preferred_flow' => $preferredFlow,
                 'confidence_status' => $confidenceStatus,
                 'confidence_label' => $confidenceLabel,
+                'trend_status' => $trendContext['status'],
+                'trend_reason' => $trendContext['reason'],
+                'route_series' => $trendContext['series'],
                 'alternative_route_key' => $alternativeRouteKey,
                 'alternative_route_label' => $alternativeRouteLabel,
                 'alternative_publish_success_rate' => $alternativePublishSuccessRate,
@@ -840,6 +1175,9 @@ class ApprovalRemediationAnalyticsService
             'preferred_flow' => $preferredFlow,
             'confidence_status' => $confidenceStatus,
             'confidence_label' => $confidenceLabel,
+            'trend_status' => $trendContext['status'],
+            'trend_reason' => $trendContext['reason'],
+            'route_series' => $trendContext['series'],
             'alternative_route_key' => $alternativeRouteKey,
             'alternative_route_label' => $alternativeRouteLabel,
             'alternative_publish_success_rate' => $alternativePublishSuccessRate,
@@ -875,28 +1213,89 @@ class ApprovalRemediationAnalyticsService
         $hasAlternativeRoute = is_array($alternativeRoute);
         $advantage = $this->routeAdvantage($topRoute, $alternativeRoute) ?? 0.0;
         $safeBulkRetry = (bool) ($cluster['safe_bulk_retry'] ?? false);
+        $routeWindowSeries = collect($cluster['route_window_series'] ?? []);
+        $matchingWindows = $routeWindowSeries
+            ->filter(fn (array $item): bool => ($item['top_route_key'] ?? null) === $routeKey)
+            ->values();
+        $provenWindowCount = $matchingWindows
+            ->filter(function (array $item) use ($routeKey, $safeBulkRetry): bool {
+                $windowPublishAttempts = (int) ($item['top_route_publish_attempts'] ?? 0);
+                $windowPublishSuccessRate = isset($item['top_route_publish_success_rate'])
+                    ? (float) $item['top_route_publish_success_rate']
+                    : null;
+                $windowAdvantage = isset($item['top_route_advantage']) ? (float) $item['top_route_advantage'] : 0.0;
+
+                if ($windowPublishAttempts < 2 || $windowPublishSuccessRate === null) {
+                    return false;
+                }
+
+                if ($routeKey === 'draft_detail') {
+                    return $windowPublishSuccessRate >= 70.0 || $windowAdvantage >= 10.0;
+                }
+
+                return $safeBulkRetry
+                    && $windowPublishSuccessRate >= 70.0
+                    && $windowAdvantage >= 5.0;
+            })
+            ->count();
+        $emergingWindowCount = $matchingWindows
+            ->filter(function (array $item) use ($routeKey, $safeBulkRetry): bool {
+                $windowPublishAttempts = (int) ($item['top_route_publish_attempts'] ?? 0);
+                $windowPublishSuccessRate = isset($item['top_route_publish_success_rate'])
+                    ? (float) $item['top_route_publish_success_rate']
+                    : null;
+                $windowAdvantage = isset($item['top_route_advantage']) ? (float) $item['top_route_advantage'] : 0.0;
+
+                if ($windowPublishAttempts < 1 || $windowPublishSuccessRate === null) {
+                    return false;
+                }
+
+                if ($routeKey === 'draft_detail') {
+                    return $windowPublishSuccessRate >= 50.0 || $windowAdvantage >= 5.0;
+                }
+
+                return $safeBulkRetry
+                    && ($windowPublishSuccessRate >= 60.0 || $windowAdvantage >= 3.0);
+            })
+            ->count();
+
+        $baseStatus = 'guarded';
 
         if ($routeKey === 'draft_detail') {
-            if ($publishAttempts >= 2 && $successfulPublishes >= 2 && (! $hasAlternativeRoute || $advantage >= 10.0)) {
-                return 'proven';
+            if (
+                ($publishAttempts >= 2 && $successfulPublishes >= 2 && (! $hasAlternativeRoute || $advantage >= 10.0))
+                || $provenWindowCount >= 2
+            ) {
+                $baseStatus = 'proven';
+            } elseif (
+                ($trackedInteractions >= 1 && $successfulPublishes >= 1 && (! $hasAlternativeRoute || $advantage >= 5.0))
+                || $emergingWindowCount >= 1
+            ) {
+                $baseStatus = 'emerging';
             }
+        } elseif (
+            $safeBulkRetry
+            && (($publishAttempts >= 2 && ($publishSuccessRate ?? 0.0) >= 70.0) || $provenWindowCount >= 2)
+        ) {
+            $baseStatus = 'proven';
+        } elseif (
+            $safeBulkRetry
+            && (($successfulPublishes >= 1 && $trackedInteractions >= 1) || $emergingWindowCount >= 1)
+        ) {
+            $baseStatus = 'emerging';
+        }
 
-            if ($trackedInteractions >= 1 && $successfulPublishes >= 1 && (! $hasAlternativeRoute || $advantage >= 5.0)) {
-                return 'emerging';
-            }
+        $trendContext = $this->primaryActionTrendContext($routeKey, $cluster, $safeBulkRetry);
 
+        if ($trendContext['status'] === 'sparse') {
             return 'guarded';
         }
 
-        if ($safeBulkRetry && $publishAttempts >= 2 && ($publishSuccessRate ?? 0.0) >= 70.0) {
-            return 'proven';
-        }
-
-        if ($safeBulkRetry && $successfulPublishes >= 1 && $trackedInteractions >= 1) {
+        if ($trendContext['status'] === 'softening' && $baseStatus === 'proven') {
             return 'emerging';
         }
 
-        return 'guarded';
+        return $baseStatus;
     }
 
     private function primaryActionConfidenceLabel(string $status): string

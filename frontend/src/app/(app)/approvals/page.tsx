@@ -98,6 +98,7 @@ type ApprovalRemediationAnalyticsResponse = {
     interaction_sources: Array<RemediationTelemetrySource>;
     route_trends: Array<RouteTrendMetric>;
     long_term_route_trends?: Array<RouteTrendMetric>;
+    route_window_series?: Array<RouteWindowSeriesMetric>;
     outcome_chain_summary: RemediationOutcomeChainSummary;
     approvals_native_outcome_summary: RemediationOutcomeChainSummary;
     draft_detail_outcome_summary: RemediationOutcomeChainSummary;
@@ -211,6 +212,27 @@ type RouteTrendMetric = {
   publish_success_rate: number | null;
   top_source_key: string | null;
   top_source_label: string | null;
+};
+
+type RouteWindowSeriesMetric = {
+  window_days: number;
+  label: string;
+  preferred_flow: "draft_detail" | "approvals_native" | "balanced";
+  confidence?: "high" | "medium" | "low" | null;
+  current_route_key?: string | null;
+  current_route_label?: string | null;
+  current_route_success_rate?: number | null;
+  current_route_attempts?: number | null;
+  current_route_advantage?: number | null;
+  top_route_key?: string | null;
+  top_route_label?: string | null;
+  top_route_success_rate?: number | null;
+  top_route_attempts?: number | null;
+  top_route_source_label?: string | null;
+  top_route_advantage?: number | null;
+  summary_label?: string | null;
+  reason?: string | null;
+  route_trends?: Array<RouteTrendMetric>;
 };
 
 type RemediationTelemetrySourceKey =
@@ -643,6 +665,7 @@ function ApprovalsPageContent({
       remediationAnalytics?.route_trends,
     ],
   );
+  const routeWindowSeries = remediationAnalytics?.route_window_series ?? [];
   const summary = useMemo(() => {
     return {
       filteredTotal: items.length,
@@ -1825,6 +1848,92 @@ function ApprovalsPageContent({
                 Sonraki adim: {routeTrendInsight.nextStepLabel}
               </p>
             ) : null}
+          </div>
+          <div className="rounded-lg border border-[var(--accent)]/25 bg-white p-4 md:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Badge label="Route Window Series" variant="neutral" />
+              <Badge label={`${routeWindowSeries.length} pencere`} variant="neutral" />
+            </div>
+            <p className="mt-3 text-sm font-semibold">Birden fazla zaman penceresinde route sinyali</p>
+            {routeWindowSeries.length > 0 ? (
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                {routeWindowSeries.map((windowSeries) => {
+                  const topRoute = windowSeries.route_trends?.[0] ?? null;
+                  const preferredFlowLabel =
+                    windowSeries.preferred_flow === "draft_detail"
+                      ? "Draft Detail"
+                      : windowSeries.preferred_flow === "approvals_native"
+                        ? "Approvals Native"
+                        : "Dengeli";
+
+                  return (
+                    <div key={`${windowSeries.window_days}-${windowSeries.label}`} className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge label={windowSeries.label} variant="neutral" />
+                        <Badge label={`${windowSeries.window_days} gun`} variant="neutral" />
+                        <Badge label={preferredFlowLabel} variant={routeTrendWindowVariant(windowSeries.preferred_flow)} />
+                        {windowSeries.confidence ? (
+                          <Badge
+                            label={routeTrendConfidenceLabel(windowSeries.confidence)}
+                            variant={routeTrendConfidenceVariant(windowSeries.confidence)}
+                          />
+                        ) : null}
+                      </div>
+                      <p className="mt-2 text-sm font-semibold">
+                        {windowSeries.summary_label ?? windowSeries.reason ?? "Route trend ozeti"}
+                      </p>
+                      <p className="mt-1 text-xs muted-text">
+                        {windowSeries.reason ?? "Bu pencere icin route trend verisi hazir."}
+                      </p>
+                      <div className="mt-2 grid gap-2 text-xs muted-text md:grid-cols-2">
+                        <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                          <p className="font-semibold">Secilen Rota</p>
+                          <p className="mt-1">{windowSeries.current_route_label ?? "Veri yok"}</p>
+                          {windowSeries.current_route_success_rate != null ? (
+                            <p className="mt-1">%{windowSeries.current_route_success_rate} basari</p>
+                          ) : null}
+                          {windowSeries.current_route_attempts != null ? (
+                            <p className="mt-1">{windowSeries.current_route_attempts} deneme</p>
+                          ) : null}
+                          {windowSeries.current_route_advantage != null ? (
+                            <p className="mt-1">
+                              {windowSeries.current_route_advantage >= 0 ? "+" : ""}
+                              {windowSeries.current_route_advantage} puan fark
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                          <p className="font-semibold">Kazanan Rota</p>
+                          <p className="mt-1">{topRoute?.label ?? windowSeries.top_route_label ?? "Veri yok"}</p>
+                          {windowSeries.top_route_success_rate != null ? (
+                            <p className="mt-1">%{windowSeries.top_route_success_rate} basari</p>
+                          ) : null}
+                          {windowSeries.top_route_attempts != null ? (
+                            <p className="mt-1">{windowSeries.top_route_attempts} deneme</p>
+                          ) : null}
+                          {windowSeries.top_route_source_label ? (
+                            <p className="mt-1">Top kaynak: {windowSeries.top_route_source_label}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                      {topRoute ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Badge label={routeTrendFlowLabel(topRoute.route_key)} variant="neutral" />
+                          {topRoute.publish_success_rate != null ? (
+                            <Badge label={`%${topRoute.publish_success_rate} basari`} variant="success" />
+                          ) : null}
+                          {topRoute.top_source_label ? (
+                            <Badge label={topRoute.top_source_label} variant="neutral" />
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm muted-text">Route window series henuz gelmedi.</p>
+            )}
           </div>
           <div className="rounded-lg border border-[var(--accent)]/25 bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -3194,6 +3303,60 @@ function routeTrendLine(
   }
 
   return parts.join(" / ");
+}
+
+function routeTrendFlowLabel(routeKey: string | null | undefined): string {
+  return (
+    {
+      approvals: "Approvals Rota",
+      draft_detail: "Draft Detail Rota",
+      other: "Diger Rota",
+    }[routeKey ?? ""] ?? routeKey ?? "Route"
+  );
+}
+
+function routeTrendWindowVariant(
+  flow: "draft_detail" | "approvals_native" | "balanced",
+): "success" | "warning" | "neutral" {
+  if (flow === "draft_detail") {
+    return "success";
+  }
+
+  if (flow === "approvals_native") {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function routeTrendConfidenceLabel(confidence: "high" | "medium" | "low" | null | undefined): string {
+  if (confidence === "high") {
+    return "Yuksek Guven";
+  }
+
+  if (confidence === "medium") {
+    return "Orta Guven";
+  }
+
+  if (confidence === "low") {
+    return "Dusuk Guven";
+  }
+
+  return "Guven Bilgisi Yok";
+}
+
+function routeTrendConfidenceVariant(
+  confidence: "high" | "medium" | "low" | null | undefined,
+): "success" | "warning" | "neutral" {
+  if (confidence === "high") {
+    return "success";
+  }
+
+  if (confidence === "medium") {
+    return "warning";
+  }
+
+  return "neutral";
 }
 
 function buildRouteTrendInsight(
