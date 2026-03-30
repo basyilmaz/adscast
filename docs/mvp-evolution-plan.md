@@ -395,3 +395,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 155. Approvals featured ve cluster kartlarinda `primary_action.trend_status` ile `trend_reason` sinyalini gorunur kilarak route seciminin neden temkinli veya hizli oldugunu CTA seviyesinde aciklamak
 156. Approvals -> draft detail odak query hattina `primary_action.route_series[]` baglamini tasiyip 7/30/90 pencere verisini detay ekraninda yeniden API cagrisi olmadan acilabilir hale getirmek
 157. Draft detail remediation bloguna ayri bir route zaman serisi operasyon karti ekleyip current route ile top route farkini pencere bazinda operatorun tek blokta okuyabilmesini saglamak
+158. Approvals remediation analytics kontratina additive `route_series_spotlight` blogu ve summary seviyesinde top route-series durum alanlari ekleyip featured kararinin pencere bazli support sinyalini backend seviyesinde acik hale getirmek
+159. Featured remediation `action_mode` seciminde route-series spotlight `softening` ve `sparse` sinyalini kullanip guvenli toplu retry kararini gerektiğinde otomatik olarak cluster focus moduna geri cekmek
+160. Approvals ekranindaki route spotlight kartini primary-action route series ozetiyle besleyip draft detail ile approvals-native karari icin operatora daha veri odakli bir aciklama yuzeyi sunmak

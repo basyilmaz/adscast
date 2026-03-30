@@ -1349,12 +1349,14 @@ function ApprovalsPageContent({
         featuredRecommendation,
         featuredDraftRoute,
         telemetrySources[0] ?? null,
+        featuredPrimaryActionRouteSeriesSummary,
         longTermDraftDetailOutcomeSummary,
         longTermApprovalsNativeOutcomeSummary,
       ),
     [
       featuredDraftRoute,
       featuredRecommendation,
+      featuredPrimaryActionRouteSeriesSummary,
       longTermApprovalsNativeOutcomeSummary,
       longTermDraftDetailOutcomeSummary,
       routeTrendInsight,
@@ -1988,18 +1990,23 @@ function ApprovalsPageContent({
           </div>
           <div className="rounded-lg border border-[var(--accent)]/25 bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <Badge label="Source Spotlight" variant="neutral" />
+              <Badge label="Route Series Spotlight" variant="neutral" />
               {sourceSpotlight ? (
                 <Badge label={sourceSpotlight.label} variant={sourceSpotlight.variant} />
               ) : null}
             </div>
-            <p className="mt-3 text-sm font-semibold">Hangi route daha guclu?</p>
+            <p className="mt-3 text-sm font-semibold">Hangi route serisi operatore en guclu yolu gosteriyor?</p>
             {sourceSpotlight ? (
               <>
                 <p className="mt-2 text-sm muted-text">{sourceSpotlight.reason}</p>
                 <p className="mt-2 text-xs muted-text">
                   Sonraki adim: {sourceSpotlight.nextStepLabel}
                 </p>
+                {featuredPrimaryActionRouteSeriesSummary ? (
+                  <p className="mt-2 text-xs muted-text">
+                    Primary action route serisi: {featuredPrimaryActionRouteSeriesSummary}
+                  </p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {sourceSpotlight.preferredFlow === "draft_detail" && featuredDraftRoute ? (
                     <Link href={featuredDraftRoute}>
@@ -2785,6 +2792,16 @@ function shouldPreferDraftDetailPrimaryAction(
     return false;
   }
 
+  const routeSeriesPreferredFlow = primaryActionRouteSeriesPreferredFlow(context?.primary_action);
+
+  if (routeSeriesPreferredFlow === "draft_detail") {
+    return true;
+  }
+
+  if (routeSeriesPreferredFlow === "approvals_native") {
+    return false;
+  }
+
   if (context?.decision_context_source === "draft_detail") {
     return true;
   }
@@ -2873,6 +2890,16 @@ function shouldPreferClusterDraftDetailAction(
   }
 
   if (analyticsItem?.primary_action?.confidence_status === "guarded") {
+    return false;
+  }
+
+  const routeSeriesPreferredFlow = primaryActionRouteSeriesPreferredFlow(analyticsItem?.primary_action);
+
+  if (routeSeriesPreferredFlow === "draft_detail") {
+    return true;
+  }
+
+  if (routeSeriesPreferredFlow === "approvals_native") {
     return false;
   }
 
@@ -3484,6 +3511,50 @@ function primaryActionRouteSeriesSupportLabel(
   );
 }
 
+function primaryActionRouteSeriesPreferredFlow(
+  primaryAction?: RetryGuidanceContext["primary_action"] | null,
+): "draft_detail" | "approvals_native" | "balanced" | null {
+  const routeSeries = primaryAction?.route_series ?? [];
+
+  if (routeSeries.length === 0) {
+    return null;
+  }
+
+  let draftDetailScore = 0;
+  let approvalsNativeScore = 0;
+
+  for (const point of routeSeries) {
+    const routeKey = (point.route_key ?? point.leader_route_key ?? "").trim();
+    const supportStatus = point.support_status ?? "missing";
+    const supportScore =
+      supportStatus === "proven" ? 2
+        : supportStatus === "emerging" ? 1
+          : 0;
+
+    if (routeKey === "draft_detail") {
+      draftDetailScore += supportScore + (point.is_window_leader ? 1 : 0);
+    }
+
+    if (routeKey === "approvals") {
+      approvalsNativeScore += supportScore + (point.is_window_leader ? 1 : 0);
+    }
+  }
+
+  if (draftDetailScore === 0 && approvalsNativeScore === 0) {
+    return null;
+  }
+
+  if (draftDetailScore > approvalsNativeScore) {
+    return "draft_detail";
+  }
+
+  if (approvalsNativeScore > draftDetailScore) {
+    return "approvals_native";
+  }
+
+  return "balanced";
+}
+
 function fallbackSupportStatus(confidence: RouteWindowSeriesMetric["confidence"]): PrimaryActionRouteSeriesMetric["support_status"] {
   if (confidence === "high") {
     return "proven";
@@ -3728,17 +3799,19 @@ function buildSourceSpotlight(
   featuredRecommendation: ApprovalRemediationAnalyticsResponse["data"]["featured_recommendation"] | null,
   featuredDraftRoute: string | null,
   topSource: RemediationTelemetrySource | null,
+  primaryActionRouteSeriesSummary: string | null,
   longTermDraftDetailOutcomeSummary: RemediationOutcomeChainSummary | null,
   longTermApprovalsNativeOutcomeSummary: RemediationOutcomeChainSummary | null,
 ): SourceSpotlightInsight | null {
   const longTermDraftRate = longTermDraftDetailOutcomeSummary?.publish_success_rate;
   const longTermNativeRate = longTermApprovalsNativeOutcomeSummary?.publish_success_rate;
+  const routeSeriesText = primaryActionRouteSeriesSummary ? ` Route serisi: ${primaryActionRouteSeriesSummary}.` : "";
 
   if (routeTrendInsight && routeTrendInsight.preferredFlow !== "balanced") {
     return {
-      label: routeTrendInsight.label,
+      label: "Route Series Spotlight",
       variant: routeTrendInsight.variant,
-      reason: routeTrendInsight.reason,
+      reason: `${routeTrendInsight.reason}${routeSeriesText}`,
       nextStepLabel: routeTrendInsight.nextStepLabel,
       preferredFlow: routeTrendInsight.preferredFlow,
     };
@@ -3746,13 +3819,14 @@ function buildSourceSpotlight(
 
   if (comparison?.preferredFlow === "draft_detail") {
     return {
-      label: "Draft detail source spotlight",
+      label: "Route Series Spotlight",
       variant: "success",
       reason:
         comparison.reason
         + (longTermDraftRate != null
           ? ` Uzun donem draft detail basarisi %${longTermDraftRate}.`
-          : ""),
+          : "")
+        + routeSeriesText,
       nextStepLabel: featuredDraftRoute ? "Draft Detail Akisina Git" : "Draft Detayini Ac",
       preferredFlow: "draft_detail",
     };
@@ -3760,13 +3834,14 @@ function buildSourceSpotlight(
 
   if (comparison?.preferredFlow === "approvals_native") {
     return {
-      label: "Approvals native source spotlight",
+      label: "Route Series Spotlight",
       variant: "warning",
       reason:
         comparison.reason
         + (longTermNativeRate != null
           ? ` Uzun donem approvals-native basarisi %${longTermNativeRate}.`
-          : ""),
+          : "")
+        + routeSeriesText,
       nextStepLabel: featuredRecommendation ? "Featured Kume Uzerinde Calis" : "Clusteri Incele",
       preferredFlow: "approvals_native",
     };
@@ -3780,13 +3855,14 @@ function buildSourceSpotlight(
         : "balanced";
 
     return {
-      label: `En aktif kaynak: ${sourceLabel(topSource.source_key, topSource.label)}`,
+      label: `Route serisi odagi: ${sourceLabel(topSource.source_key, topSource.label)}`,
       variant: preferredFlow === "draft_detail" ? "success" : preferredFlow === "approvals_native" ? "warning" : "neutral",
       reason:
         `Bu kaynak ${topSource.tracked_interactions} etkilesim uretmis ve %${topSource.publish_success_rate ?? 0} basari seviyesine sahip.`
         + (longTermDraftRate != null || longTermNativeRate != null
           ? ` Uzun donem draft detail / approvals-native: ${longTermDraftRate != null ? `%${longTermDraftRate}` : "veri yok"} / ${longTermNativeRate != null ? `%${longTermNativeRate}` : "veri yok"}.`
-          : ""),
+          : "")
+        + routeSeriesText,
       nextStepLabel: preferredFlow === "draft_detail"
         ? (featuredDraftRoute ? "Draft Detail Akisina Git" : "Draft Detayini Ac")
         : preferredFlow === "approvals_native"
