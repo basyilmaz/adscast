@@ -192,6 +192,7 @@ type ApprovalRemediationAnalyticsResponse = {
       primary_action?: RetryGuidanceContext["primary_action"];
       source_breakdown: Array<RemediationTelemetrySource>;
       long_term_source_breakdown?: Array<RemediationTelemetrySource>;
+      route_window_series?: Array<RouteWindowSeriesMetric>;
       outcome_chain_summary: RemediationOutcomeChainSummary;
       draft_detail_outcome_summary: RemediationOutcomeChainSummary;
       long_term_publish_attempts?: number | null;
@@ -233,6 +234,21 @@ type RouteWindowSeriesMetric = {
   summary_label?: string | null;
   reason?: string | null;
   route_trends?: Array<RouteTrendMetric>;
+};
+
+type PrimaryActionRouteSeriesMetric = {
+  window_days: number;
+  route_key?: string | null;
+  route_label?: string | null;
+  is_window_leader?: boolean | null;
+  tracked_interactions?: number | null;
+  publish_attempts?: number | null;
+  successful_publishes?: number | null;
+  failed_publishes?: number | null;
+  publish_success_rate?: number | null;
+  leader_route_key?: string | null;
+  leader_route_label?: string | null;
+  support_status?: "proven" | "emerging" | "guarded" | "missing" | string | null;
 };
 
 type RemediationTelemetrySourceKey =
@@ -367,6 +383,9 @@ type RetryGuidanceContext = {
     preferred_flow?: "draft_detail" | "approvals_native" | "balanced" | null;
     confidence_status?: "proven" | "emerging" | "guarded" | null;
     confidence_label?: string | null;
+    trend_status?: "stable" | "forming" | "softening" | "sparse" | "missing" | string | null;
+    trend_reason?: string | null;
+    route_series?: Array<PrimaryActionRouteSeriesMetric> | null;
     alternative_route_key?: string | null;
     alternative_route_label?: string | null;
     alternative_publish_success_rate?: number | null;
@@ -437,6 +456,9 @@ type DraftRouteFocusContext = {
   primaryActionTrackedInteractions?: number | null;
   primaryActionConfidenceStatus?: "proven" | "emerging" | "guarded" | null;
   primaryActionConfidenceLabel?: string | null;
+  primaryActionTrendStatus?: "stable" | "forming" | "softening" | "sparse" | "missing" | string | null;
+  primaryActionTrendReason?: string | null;
+  primaryActionRouteSeries?: Array<PrimaryActionRouteSeriesMetric> | null;
   primaryActionAdvantage?: number | null;
   primaryActionAlternativeRouteLabel?: string | null;
   primaryActionAlternativeSuccessRate?: number | null;
@@ -665,7 +687,10 @@ function ApprovalsPageContent({
       remediationAnalytics?.route_trends,
     ],
   );
-  const routeWindowSeries = remediationAnalytics?.route_window_series ?? [];
+  const routeWindowSeries = useMemo(
+    () => remediationAnalytics?.route_window_series ?? [],
+    [remediationAnalytics?.route_window_series],
+  );
   const summary = useMemo(() => {
     return {
       filteredTotal: items.length,
@@ -1293,6 +1318,12 @@ function ApprovalsPageContent({
             primaryActionTrackedInteractions: featuredRecommendation?.primary_action?.tracked_interactions ?? null,
             primaryActionConfidenceStatus: featuredRecommendation?.primary_action?.confidence_status ?? null,
             primaryActionConfidenceLabel: featuredRecommendation?.primary_action?.confidence_label ?? null,
+            primaryActionTrendStatus: featuredRecommendation?.primary_action?.trend_status ?? null,
+            primaryActionTrendReason: featuredRecommendation?.primary_action?.trend_reason ?? null,
+            primaryActionRouteSeries: resolvePrimaryActionRouteSeries(
+              featuredRecommendation?.primary_action,
+              routeWindowSeries,
+            ),
             primaryActionAdvantage: featuredRecommendation?.primary_action?.advantage_vs_alternative_route ?? null,
             primaryActionAlternativeRouteLabel: featuredRecommendation?.primary_action?.alternative_route_label ?? null,
             primaryActionAlternativeSuccessRate: featuredRecommendation?.primary_action?.alternative_publish_success_rate ?? null,
@@ -1300,11 +1331,15 @@ function ApprovalsPageContent({
             }
           )
         : null,
-    [analyticsWindowDays, featuredClusterMatches, featuredRecommendation, remediationAnalytics?.summary.long_term_window_days, routeTrendInsight, sourceComparisonWinner],
+    [analyticsWindowDays, featuredClusterMatches, featuredRecommendation, remediationAnalytics?.summary.long_term_window_days, routeTrendInsight, routeWindowSeries, sourceComparisonWinner],
   );
   const featuredPrimaryAction = useMemo(
     () => resolveFeaturedPrimaryAction(featuredRecommendation, sourceComparisonWinner, routeTrendInsight, featuredDraftRoute),
     [featuredDraftRoute, featuredRecommendation, routeTrendInsight, sourceComparisonWinner],
+  );
+  const featuredPrimaryActionRouteSeriesSummary = useMemo(
+    () => summarizePrimaryActionRouteSeries(featuredRecommendation?.primary_action, routeWindowSeries),
+    [featuredRecommendation?.primary_action, routeWindowSeries],
   );
   const sourceSpotlight = useMemo(
     () =>
@@ -1628,6 +1663,22 @@ function ApprovalsPageContent({
                 ) : null}
               {featuredRecommendation.retry_guidance_reason ? (
                 <p className="mt-2 text-xs muted-text">{featuredRecommendation.retry_guidance_reason}</p>
+              ) : null}
+              {featuredRecommendation.primary_action?.trend_status ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs muted-text">
+                  <Badge
+                    label={primaryActionTrendStatusLabel(featuredRecommendation.primary_action.trend_status)}
+                    variant={primaryActionTrendStatusVariant(featuredRecommendation.primary_action.trend_status)}
+                  />
+                  {featuredRecommendation.primary_action.trend_reason ? (
+                    <span>{featuredRecommendation.primary_action.trend_reason}</span>
+                  ) : null}
+                </div>
+              ) : null}
+              {featuredPrimaryActionRouteSeriesSummary ? (
+                <p className="mt-2 text-xs muted-text">
+                  Route serisi: {featuredPrimaryActionRouteSeriesSummary}
+                </p>
               ) : null}
               <div className="mt-3 rounded-md border border-[var(--border)] bg-white p-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -2041,6 +2092,12 @@ function ApprovalsPageContent({
                   primaryActionTrackedInteractions: analyticsItem?.primary_action?.tracked_interactions ?? null,
                   primaryActionConfidenceStatus: analyticsItem?.primary_action?.confidence_status ?? null,
                   primaryActionConfidenceLabel: analyticsItem?.primary_action?.confidence_label ?? null,
+                  primaryActionTrendStatus: analyticsItem?.primary_action?.trend_status ?? null,
+                  primaryActionTrendReason: analyticsItem?.primary_action?.trend_reason ?? null,
+                  primaryActionRouteSeries: resolvePrimaryActionRouteSeries(
+                    analyticsItem?.primary_action,
+                    analyticsItem?.route_window_series,
+                  ),
                   primaryActionAdvantage: analyticsItem?.primary_action?.advantage_vs_alternative_route ?? null,
                   primaryActionAlternativeRouteLabel: analyticsItem?.primary_action?.alternative_route_label ?? null,
                   primaryActionAlternativeSuccessRate: analyticsItem?.primary_action?.alternative_publish_success_rate ?? null,
@@ -2052,6 +2109,10 @@ function ApprovalsPageContent({
           const longTermTopSource = topSourceBreakdown(analyticsItem?.long_term_source_breakdown);
           const topSource = longTermTopSource ?? currentTopSource;
           const clusterOutcomeSummary = analyticsItem?.outcome_chain_summary ?? null;
+          const clusterPrimaryActionRouteSeriesSummary = summarizePrimaryActionRouteSeries(
+            analyticsItem?.primary_action,
+            analyticsItem?.route_window_series,
+          );
           const clusterPrimaryAction = resolveClusterPrimaryAction(
             cluster.key,
             analyticsItem,
@@ -2077,6 +2138,12 @@ function ApprovalsPageContent({
                 ) : null}
                 {analyticsItem?.publish_success_rate != null ? (
                   <Badge label={`%${analyticsItem.publish_success_rate} publish basarisi`} variant="success" />
+                ) : null}
+                {analyticsItem?.primary_action?.trend_status ? (
+                  <Badge
+                    label={primaryActionTrendStatusLabel(analyticsItem.primary_action.trend_status)}
+                    variant={primaryActionTrendStatusVariant(analyticsItem.primary_action.trend_status)}
+                  />
                 ) : null}
                 {analyticsItem ? (
                   <Badge
@@ -2152,6 +2219,12 @@ function ApprovalsPageContent({
                   ) : null}
                   {analyticsItem.long_term_retry_guidance_reason ? (
                     <p>{analyticsItem.long_term_retry_guidance_reason}</p>
+                  ) : null}
+                  {analyticsItem.primary_action?.trend_reason ? (
+                    <p>{analyticsItem.primary_action.trend_reason}</p>
+                  ) : null}
+                  {clusterPrimaryActionRouteSeriesSummary ? (
+                    <p>Route serisi: {clusterPrimaryActionRouteSeriesSummary}</p>
                   ) : null}
                 </div>
               ) : null}
@@ -2745,7 +2818,10 @@ function resolveFeaturedPrimaryAction(
     return {
       mode: "jump_to_draft_detail",
       label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
-      hint: context.primary_action.reason ?? routeTrendInsight?.reason ?? sourceComparison?.reason ?? "Bu remediation detay ekranda daha guclu sonuc veriyor.",
+      hint: withPrimaryActionTrendHint(
+        context.primary_action.reason ?? routeTrendInsight?.reason ?? sourceComparison?.reason ?? "Bu remediation detay ekranda daha guclu sonuc veriyor.",
+        context.primary_action,
+      ),
     };
   }
 
@@ -2753,7 +2829,10 @@ function resolveFeaturedPrimaryAction(
     return {
       mode: "jump_to_draft_detail",
       label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
-      hint: routeTrendInsight?.reason ?? sourceComparison?.reason ?? "Bu remediation detay ekranda daha guclu sonuc veriyor.",
+      hint: withPrimaryActionTrendHint(
+        routeTrendInsight?.reason ?? sourceComparison?.reason ?? "Bu remediation detay ekranda daha guclu sonuc veriyor.",
+        context?.primary_action,
+      ),
     };
   }
 
@@ -2846,9 +2925,12 @@ function resolveClusterPrimaryAction(
       mode: "jump_to_draft_detail",
       label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
       variant: analyticsItem.primary_action.confidence_status === "proven" ? "primary" : "secondary",
-      hint: analyticsItem.primary_action.reason
-        ?? routeTrendInsight?.reason
-        ?? "Bu cluster icin draft detail aksiyonu daha guclu sonuc veriyor.",
+      hint: withPrimaryActionTrendHint(
+        analyticsItem.primary_action.reason
+          ?? routeTrendInsight?.reason
+          ?? "Bu cluster icin draft detail aksiyonu daha guclu sonuc veriyor.",
+        analyticsItem.primary_action,
+      ),
     };
   }
 
@@ -3359,6 +3441,144 @@ function routeTrendConfidenceVariant(
   return "neutral";
 }
 
+function primaryActionTrendStatusLabel(status: string | null | undefined): string {
+  return (
+    {
+      stable: "Trend Stabil",
+      forming: "Trend Olusuyor",
+      softening: "Trend Zayifliyor",
+      sparse: "Trend Seyrek",
+      missing: "Trend Eksik",
+    }[status ?? ""] ?? "Trend"
+  );
+}
+
+function primaryActionTrendStatusVariant(
+  status: string | null | undefined,
+): "success" | "warning" | "danger" | "neutral" {
+  if (status === "stable") {
+    return "success";
+  }
+
+  if (status === "forming" || status === "softening") {
+    return "warning";
+  }
+
+  if (status === "sparse") {
+    return "danger";
+  }
+
+  return "neutral";
+}
+
+function primaryActionRouteSeriesSupportLabel(
+  status: PrimaryActionRouteSeriesMetric["support_status"],
+): string {
+  return (
+    {
+      proven: "Kanitli",
+      emerging: "Yukselen",
+      guarded: "Temkinli",
+      missing: "Eksik",
+    }[status ?? ""] ?? "Temkinli"
+  );
+}
+
+function fallbackSupportStatus(confidence: RouteWindowSeriesMetric["confidence"]): PrimaryActionRouteSeriesMetric["support_status"] {
+  if (confidence === "high") {
+    return "proven";
+  }
+
+  if (confidence === "medium") {
+    return "emerging";
+  }
+
+  if (confidence === "low") {
+    return "guarded";
+  }
+
+  return "missing";
+}
+
+function resolvePrimaryActionRouteSeries(
+  primaryAction?: RetryGuidanceContext["primary_action"] | null,
+  fallbackSeries?: ReadonlyArray<RouteWindowSeriesMetric> | null,
+): Array<PrimaryActionRouteSeriesMetric> {
+  if (primaryAction?.route_series && primaryAction.route_series.length > 0) {
+    return primaryAction.route_series;
+  }
+
+  return (fallbackSeries ?? [])
+    .map((windowSeries) => {
+      const routeKey = windowSeries.current_route_key ?? windowSeries.top_route_key ?? null;
+      const routeLabel = windowSeries.current_route_label ?? windowSeries.top_route_label ?? null;
+      const matchingRoute = windowSeries.route_trends?.find((route) => route.route_key === routeKey);
+
+      return {
+        window_days: windowSeries.window_days,
+        route_key: routeKey,
+        route_label: routeLabel,
+        is_window_leader: routeKey != null && routeKey === (windowSeries.top_route_key ?? null),
+        tracked_interactions: matchingRoute?.tracked_interactions ?? null,
+        publish_attempts: matchingRoute?.publish_attempts ?? windowSeries.current_route_attempts ?? windowSeries.top_route_attempts ?? null,
+        successful_publishes: matchingRoute?.successful_publishes ?? null,
+        failed_publishes: matchingRoute?.failed_publishes ?? null,
+        publish_success_rate: matchingRoute?.publish_success_rate
+          ?? windowSeries.current_route_success_rate
+          ?? windowSeries.top_route_success_rate
+          ?? null,
+        leader_route_key: windowSeries.top_route_key ?? null,
+        leader_route_label: windowSeries.top_route_label ?? null,
+        support_status: fallbackSupportStatus(windowSeries.confidence),
+      };
+    })
+    .filter((seriesPoint) => seriesPoint.route_key || seriesPoint.leader_route_key);
+}
+
+function summarizePrimaryActionRouteSeries(
+  primaryAction?: RetryGuidanceContext["primary_action"] | null,
+  fallbackSeries?: ReadonlyArray<RouteWindowSeriesMetric> | null,
+): string | null {
+  const routeSeries = resolvePrimaryActionRouteSeries(primaryAction, fallbackSeries);
+
+  if (routeSeries.length === 0) {
+    return null;
+  }
+
+  return routeSeries
+    .map((seriesPoint) => {
+      const routeLabel = seriesPoint.route_label ?? seriesPoint.leader_route_label ?? "Veri yok";
+      const supportLabel = seriesPoint.support_status
+        ? primaryActionRouteSeriesSupportLabel(seriesPoint.support_status)
+        : null;
+
+      return [
+        `${seriesPoint.window_days}g`,
+        routeLabel,
+        supportLabel,
+      ].filter(Boolean).join(" ");
+    })
+    .join(" / ");
+}
+
+function withPrimaryActionTrendHint(
+  baseHint: string,
+  primaryAction?: RetryGuidanceContext["primary_action"] | null,
+): string {
+  if (!primaryAction?.trend_status && !primaryAction?.trend_reason) {
+    return baseHint;
+  }
+
+  const suffix = [
+    primaryAction?.trend_status ? primaryActionTrendStatusLabel(primaryAction.trend_status) : null,
+    primaryAction?.trend_reason ?? null,
+  ]
+    .filter(Boolean)
+    .join(": ");
+
+  return suffix ? `${baseHint} ${suffix}.`.trim() : baseHint;
+}
+
 function buildRouteTrendInsight(
   currentRouteTrends: ReadonlyArray<RouteTrendMetric>,
   longTermRouteTrends: ReadonlyArray<RouteTrendMetric>,
@@ -3762,6 +3982,18 @@ function buildDraftRoute(
 
   if (focusContext?.primaryActionConfidenceLabel) {
     params.set("focus_primary_action_confidence_label", focusContext.primaryActionConfidenceLabel);
+  }
+
+  if (focusContext?.primaryActionTrendStatus) {
+    params.set("focus_primary_action_trend_status", focusContext.primaryActionTrendStatus);
+  }
+
+  if (focusContext?.primaryActionTrendReason) {
+    params.set("focus_primary_action_trend_reason", focusContext.primaryActionTrendReason);
+  }
+
+  if (focusContext?.primaryActionRouteSeries && focusContext.primaryActionRouteSeries.length > 0) {
+    params.set("focus_primary_action_route_series", JSON.stringify(focusContext.primaryActionRouteSeries));
   }
 
   if (focusContext?.primaryActionAdvantage != null) {

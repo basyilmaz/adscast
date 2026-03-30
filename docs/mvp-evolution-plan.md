@@ -392,3 +392,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 152. Approvals remediation analytics kontratina render-ready `route_window_series[]` ekleyip 7/30/90 gunluk route sinyallerini ek frontend turetimi gerektirmeden okunur hale getirmek
 153. `primary_action` confidence hesabina route pencerelerinden gelen `softening` ve `sparse` sinyallerini ekleyip route karari zayiflarken sadece asagi yonde frenleyen bir guard katmani kurmak
 154. `primary_action` altina additive `trend_status`, `trend_reason` ve `route_series[]` alanlari ekleyip approvals ile draft detail arasindaki route kararinin zaman penceresi bazli dayanaklarini acik hale getirmek
+155. Approvals featured ve cluster kartlarinda `primary_action.trend_status` ile `trend_reason` sinyalini gorunur kilarak route seciminin neden temkinli veya hizli oldugunu CTA seviyesinde aciklamak
+156. Approvals -> draft detail odak query hattina `primary_action.route_series[]` baglamini tasiyip 7/30/90 pencere verisini detay ekraninda yeniden API cagrisi olmadan acilabilir hale getirmek
+157. Draft detail remediation bloguna ayri bir route zaman serisi operasyon karti ekleyip current route ile top route farkini pencere bazinda operatorun tek blokta okuyabilmesini saglamak

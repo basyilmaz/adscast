@@ -53,6 +53,23 @@ type DraftDetailResponse = {
 };
 
 type DraftPublishState = NonNullable<DraftDetailResponse["data"]["approval"]>["publish_state"];
+type RouteWindowSeriesFocus = {
+  windowDays: 7 | 30 | 90;
+  label: string | null;
+  preferredFlow: string | null;
+  confidence: string | null;
+  currentRouteLabel: string | null;
+  currentRouteAttempts: number | null;
+  currentRouteSuccessRate: number | null;
+  currentRouteAdvantage: number | null;
+  topRouteLabel: string | null;
+  topRouteAttempts: number | null;
+  topRouteSuccessRate: number | null;
+  topRouteAdvantage: number | null;
+  summaryLabel: string | null;
+  reason: string | null;
+  routeTrends: string | null;
+};
 type SearchParamsLike = {
   get(name: string): string | null;
 };
@@ -111,6 +128,8 @@ export function DraftDetailClient() {
   );
   const focusPrimaryActionConfidenceStatus = readFirstSearchParam(searchParams, ["focus_primary_action_confidence_status"]);
   const focusPrimaryActionConfidenceLabel = readFirstSearchParam(searchParams, ["focus_primary_action_confidence_label"]);
+  const focusPrimaryActionTrendStatus = readFirstSearchParam(searchParams, ["focus_primary_action_trend_status"]);
+  const focusPrimaryActionTrendReason = readFirstSearchParam(searchParams, ["focus_primary_action_trend_reason"]);
   const focusPrimaryActionAdvantage = resolveOptionalNumber(
     readFirstSearchParam(searchParams, ["focus_primary_action_advantage"]),
   );
@@ -145,6 +164,7 @@ export function DraftDetailClient() {
   const focusRouteLongTermAdvantage = resolveOptionalNumber(
     readFirstSearchParam(searchParams, ["focus_route_long_term_advantage"]),
   );
+  const focusRouteWindowSeries = readRouteWindowSeriesFocus(searchParams);
   const analyticsWindowDays = resolveAnalyticsWindow(searchParams.get("window_days"));
   const hasDraftId = Boolean(draftId);
   const [submitting, setSubmitting] = useState(false);
@@ -362,6 +382,7 @@ export function DraftDetailClient() {
     || focusRouteCurrentLabel
     || focusRouteLongTermLabel,
   );
+  const hasRouteWindowSeriesFocus = focusRouteWindowSeries.length > 0;
 
   return (
     <div className="space-y-4">
@@ -666,10 +687,19 @@ export function DraftDetailClient() {
                           variant={focusPrimaryActionConfidenceVariant(focusPrimaryActionConfidenceStatus)}
                         />
                       ) : null}
+                      {focusPrimaryActionTrendStatus ? (
+                        <Badge
+                          label={focusPrimaryActionTrendStatusLabel(focusPrimaryActionTrendStatus)}
+                          variant={focusPrimaryActionTrendStatusVariant(focusPrimaryActionTrendStatus)}
+                        />
+                      ) : null}
                     </div>
                     <p className="mt-2 text-sm font-semibold">{remediationPrimaryAction?.label ?? "Publish durumunu dogrula"}</p>
                     {remediationPrimaryAction.hint ? (
                       <p className="mt-1 text-xs muted-text">{remediationPrimaryAction.hint}</p>
+                    ) : null}
+                    {focusPrimaryActionTrendReason ? (
+                      <p className="mt-2 text-xs muted-text">{focusPrimaryActionTrendReason}</p>
                     ) : null}
                     {hasPrimaryActionFocus ? (
                       <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
@@ -842,6 +872,78 @@ export function DraftDetailClient() {
                               </p>
                             ) : null}
                           </div>
+                        </div>
+                      </div>
+                    ) : null}
+                    {hasRouteWindowSeriesFocus ? (
+                      <div className="mt-2 rounded-md border border-[var(--accent)]/20 bg-white p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge label="Route Window Series" variant="success" />
+                          <Badge label="7 / 30 / 90 Gun" variant="neutral" />
+                          {focusRouteWindowSeries.some((item) => item.preferredFlow === "draft_detail") ? (
+                            <Badge label="Draft Detail Agirlikli" variant="success" />
+                          ) : null}
+                          {focusRouteWindowSeries.some((item) => item.preferredFlow === "approvals_native") ? (
+                            <Badge label="Approvals Agirlikli" variant="warning" />
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-xs muted-text">
+                          {buildRouteWindowSeriesOperatorHint(focusRouteWindowSeries)}
+                        </p>
+                        <div className="mt-3 grid gap-2 md:grid-cols-3">
+                          {focusRouteWindowSeries.map((item) => (
+                            <div key={item.windowDays} className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3 text-xs muted-text">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge label={`${item.windowDays} Gun`} variant="neutral" />
+                                {item.label ? <Badge label={item.label} variant="neutral" /> : null}
+                                {item.preferredFlow ? (
+                                  <Badge label={focusRoutePreferredFlowLabel(item.preferredFlow)} variant={focusRouteTrendVariant(item.preferredFlow)} />
+                                ) : null}
+                                {item.confidence ? (
+                                  <Badge
+                                    label={focusRouteTrendConfidenceLabel(item.confidence)}
+                                    variant={focusRouteTrendConfidenceVariant(item.confidence)}
+                                  />
+                                ) : null}
+                              </div>
+                              <p className="mt-2 text-sm font-semibold">
+                                {item.summaryLabel ?? item.label ?? `${item.windowDays} gunluk pencere`}
+                              </p>
+                              <p className="mt-1">
+                                {item.reason ?? item.routeTrends ?? "Current ve top route sinyalleri birlikte degerlendiriliyor."}
+                              </p>
+                              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                                <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                                  <p className="font-semibold">Current Route</p>
+                                  <p className="mt-1">{item.currentRouteLabel ?? "Veri yok"}</p>
+                                  {item.currentRouteAttempts != null ? <p className="mt-1">{item.currentRouteAttempts} deneme</p> : null}
+                                  {item.currentRouteSuccessRate != null ? (
+                                    <p className="mt-1">%{item.currentRouteSuccessRate} basari</p>
+                                  ) : null}
+                                  {item.currentRouteAdvantage != null ? (
+                                    <p className="mt-1">
+                                      {item.currentRouteAdvantage >= 0 ? "+" : ""}
+                                      {item.currentRouteAdvantage} puan fark
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                                  <p className="font-semibold">Top Route</p>
+                                  <p className="mt-1">{item.topRouteLabel ?? "Veri yok"}</p>
+                                  {item.topRouteAttempts != null ? <p className="mt-1">{item.topRouteAttempts} deneme</p> : null}
+                                  {item.topRouteSuccessRate != null ? (
+                                    <p className="mt-1">%{item.topRouteSuccessRate} basari</p>
+                                  ) : null}
+                                  {item.topRouteAdvantage != null ? (
+                                    <p className="mt-1">
+                                      {item.topRouteAdvantage >= 0 ? "+" : ""}
+                                      {item.topRouteAdvantage} puan fark
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ) : null}
@@ -1304,6 +1406,34 @@ function focusPrimaryActionConfidenceVariant(
   }
 }
 
+function focusPrimaryActionTrendStatusLabel(code: string | null): string {
+  return (
+    {
+      stable: "Trend Stabil",
+      forming: "Trend Olusuyor",
+      softening: "Trend Zayifliyor",
+      sparse: "Trend Seyrek",
+      missing: "Trend Eksik",
+    }[code ?? ""] ?? "Trend"
+  );
+}
+
+function focusPrimaryActionTrendStatusVariant(
+  code: string | null,
+): "success" | "warning" | "danger" | "neutral" {
+  switch (code) {
+    case "stable":
+      return "success";
+    case "forming":
+    case "softening":
+      return "warning";
+    case "sparse":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
 function buildPrimaryActionOperatorHint(
   mode: string | null,
   routeLabel: string | null,
@@ -1485,6 +1615,268 @@ function buildRouteTrendOperatorHint(
   }
 
   return parts.join(" ");
+}
+
+function buildRouteWindowSeriesOperatorHint(series: RouteWindowSeriesFocus[]): string {
+  if (series.length === 0) {
+    return "7 / 30 / 90 gunluk route pencereleri bu odakta birlikte izlenir.";
+  }
+
+  const orderedWindows = series.map((item) => `${item.windowDays} gun`).join(" / ");
+  const leadingSummary = series
+    .map((item) => item.summaryLabel ?? item.label ?? `${item.windowDays} gunluk pencere`)
+    .filter((value) => value.trim() !== "")
+    .slice(0, 2)
+    .join(" / ");
+  const preferredFlow = series.find((item) => item.preferredFlow === "draft_detail")
+    ? "Draft detail akisi"
+    : series.find((item) => item.preferredFlow === "approvals_native")
+      ? "Approvals akisi"
+      : series.some((item) => item.preferredFlow === "balanced")
+        ? "Dengeli akis"
+        : null;
+
+  const parts = [`${orderedWindows} window serisi birlikte inceleniyor.`];
+
+  if (leadingSummary) {
+    parts.push(`Ozet: ${leadingSummary}.`);
+  }
+
+  if (preferredFlow) {
+    parts.push(`One cikan akis: ${preferredFlow}.`);
+  }
+
+  parts.push("Current ve top route sinyallerini pencere bazinda karsilastirin.");
+
+  return parts.join(" ");
+}
+
+function readRouteWindowSeriesFocus(searchParams: SearchParamsLike): RouteWindowSeriesFocus[] {
+  const rawSeries = readFirstSearchParam(searchParams, [
+    "focus_primary_action_route_series",
+    "focus_route_window_series",
+    "focus_route_series",
+    "route_window_series",
+  ]);
+
+  if (rawSeries) {
+    const parsedSeries = parseRouteWindowSeriesFocus(rawSeries);
+    if (parsedSeries.length > 0) {
+      return parsedSeries;
+    }
+  }
+
+  return ([7, 30, 90] as const)
+    .map((windowDays) => {
+      const item: RouteWindowSeriesFocus = {
+        windowDays,
+        label: readFirstSearchParam(searchParams, [
+          `focus_route_window_series_${windowDays}_label`,
+          `focus_route_series_${windowDays}_label`,
+        ]),
+        preferredFlow: readFirstSearchParam(searchParams, [
+          `focus_route_window_series_${windowDays}_preferred_flow`,
+          `focus_route_series_${windowDays}_preferred_flow`,
+        ]),
+        confidence: readFirstSearchParam(searchParams, [
+          `focus_route_window_series_${windowDays}_confidence`,
+          `focus_route_series_${windowDays}_confidence`,
+        ]),
+        currentRouteLabel: readFirstSearchParam(searchParams, [
+          `focus_route_window_series_${windowDays}_current_route_label`,
+          `focus_route_series_${windowDays}_current_route_label`,
+        ]),
+        currentRouteAttempts: resolveOptionalNumber(
+          readFirstSearchParam(searchParams, [
+            `focus_route_window_series_${windowDays}_current_route_attempts`,
+            `focus_route_series_${windowDays}_current_route_attempts`,
+          ]),
+        ),
+        currentRouteSuccessRate: resolveOptionalNumber(
+          readFirstSearchParam(searchParams, [
+            `focus_route_window_series_${windowDays}_current_route_success_rate`,
+            `focus_route_series_${windowDays}_current_route_success_rate`,
+          ]),
+        ),
+        currentRouteAdvantage: resolveOptionalNumber(
+          readFirstSearchParam(searchParams, [
+            `focus_route_window_series_${windowDays}_current_route_advantage`,
+            `focus_route_series_${windowDays}_current_route_advantage`,
+          ]),
+        ),
+        topRouteLabel: readFirstSearchParam(searchParams, [
+          `focus_route_window_series_${windowDays}_top_route_label`,
+          `focus_route_series_${windowDays}_top_route_label`,
+        ]),
+        topRouteAttempts: resolveOptionalNumber(
+          readFirstSearchParam(searchParams, [
+            `focus_route_window_series_${windowDays}_top_route_attempts`,
+            `focus_route_series_${windowDays}_top_route_attempts`,
+          ]),
+        ),
+        topRouteSuccessRate: resolveOptionalNumber(
+          readFirstSearchParam(searchParams, [
+            `focus_route_window_series_${windowDays}_top_route_success_rate`,
+            `focus_route_series_${windowDays}_top_route_success_rate`,
+          ]),
+        ),
+        topRouteAdvantage: resolveOptionalNumber(
+          readFirstSearchParam(searchParams, [
+            `focus_route_window_series_${windowDays}_top_route_advantage`,
+            `focus_route_series_${windowDays}_top_route_advantage`,
+          ]),
+        ),
+        summaryLabel: readFirstSearchParam(searchParams, [
+          `focus_route_window_series_${windowDays}_summary_label`,
+          `focus_route_series_${windowDays}_summary_label`,
+        ]),
+        reason: readFirstSearchParam(searchParams, [
+          `focus_route_window_series_${windowDays}_reason`,
+          `focus_route_series_${windowDays}_reason`,
+        ]),
+        routeTrends: readFirstSearchParam(searchParams, [
+          `focus_route_window_series_${windowDays}_route_trends`,
+          `focus_route_series_${windowDays}_route_trends`,
+        ]),
+      };
+
+      return hasRouteWindowSeriesSignals(item) ? item : null;
+    })
+    .filter((item): item is RouteWindowSeriesFocus => item !== null)
+    .sort((left, right) => left.windowDays - right.windowDays);
+}
+
+function parseRouteWindowSeriesFocus(rawValue: string): RouteWindowSeriesFocus[] {
+  try {
+    const parsed = JSON.parse(rawValue) as unknown;
+    const candidates = extractRouteWindowSeriesCandidates(parsed);
+
+    return candidates
+      .map((candidate) => normalizeRouteWindowSeriesFocus(candidate))
+      .filter((item): item is RouteWindowSeriesFocus => item !== null)
+      .sort((left, right) => left.windowDays - right.windowDays);
+  } catch {
+    return [];
+  }
+}
+
+function extractRouteWindowSeriesCandidates(parsed: unknown): unknown[] {
+  if (Array.isArray(parsed)) {
+    return parsed;
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return [];
+  }
+
+  const candidate = parsed as Record<string, unknown>;
+
+  if (Array.isArray(candidate.route_window_series)) {
+    return candidate.route_window_series;
+  }
+
+  if (Array.isArray(candidate.routeSeries)) {
+    return candidate.routeSeries;
+  }
+
+  if (Array.isArray(candidate.series)) {
+    return candidate.series;
+  }
+
+  return [];
+}
+
+function normalizeRouteWindowSeriesFocus(candidate: unknown): RouteWindowSeriesFocus | null {
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+
+  const data = candidate as Record<string, unknown>;
+  const windowDays = resolveRouteWindowSeriesWindowDays(data.window_days ?? data.windowDays);
+
+  if (windowDays === null) {
+    return null;
+  }
+
+  return {
+    windowDays,
+    label: resolveRouteWindowSeriesText(data.label),
+    preferredFlow: resolveRouteWindowSeriesText(data.preferred_flow ?? data.preferredFlow),
+    confidence: resolveRouteWindowSeriesText(data.confidence),
+    currentRouteLabel: resolveRouteWindowSeriesText(data.current_route_label ?? data.currentRouteLabel),
+    currentRouteAttempts: resolveRouteWindowSeriesNumber(data.current_route_attempts ?? data.currentRouteAttempts),
+    currentRouteSuccessRate: resolveRouteWindowSeriesNumber(
+      data.current_route_success_rate ?? data.currentRouteSuccessRate,
+    ),
+    currentRouteAdvantage: resolveRouteWindowSeriesNumber(data.current_route_advantage ?? data.currentRouteAdvantage),
+    topRouteLabel: resolveRouteWindowSeriesText(data.top_route_label ?? data.topRouteLabel),
+    topRouteAttempts: resolveRouteWindowSeriesNumber(data.top_route_attempts ?? data.topRouteAttempts),
+    topRouteSuccessRate: resolveRouteWindowSeriesNumber(data.top_route_success_rate ?? data.topRouteSuccessRate),
+    topRouteAdvantage: resolveRouteWindowSeriesNumber(data.top_route_advantage ?? data.topRouteAdvantage),
+    summaryLabel: resolveRouteWindowSeriesText(data.summary_label ?? data.summaryLabel),
+    reason: resolveRouteWindowSeriesText(data.reason),
+    routeTrends: resolveRouteWindowSeriesText(data.route_trends ?? data.routeTrends),
+  };
+}
+
+function resolveRouteWindowSeriesWindowDays(rawValue: unknown): 7 | 30 | 90 | null {
+  if (typeof rawValue === "number") {
+    return resolveAnalyticsWindow(String(rawValue));
+  }
+
+  if (typeof rawValue === "string") {
+    return resolveAnalyticsWindow(rawValue);
+  }
+
+  return null;
+}
+
+function resolveRouteWindowSeriesText(rawValue: unknown): string | null {
+  if (typeof rawValue === "string") {
+    const trimmed = rawValue.trim();
+    return trimmed === "" ? null : trimmed;
+  }
+
+  if (Array.isArray(rawValue)) {
+    const parts = rawValue
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => item !== "");
+    return parts.length > 0 ? parts.join(" / ") : null;
+  }
+
+  return null;
+}
+
+function resolveRouteWindowSeriesNumber(rawValue: unknown): number | null {
+  if (typeof rawValue === "number") {
+    return Number.isFinite(rawValue) ? rawValue : null;
+  }
+
+  if (typeof rawValue === "string" && rawValue.trim() !== "") {
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function hasRouteWindowSeriesSignals(item: RouteWindowSeriesFocus): boolean {
+  return Boolean(
+    item.label
+    || item.preferredFlow
+    || item.confidence
+    || item.currentRouteLabel
+    || item.currentRouteAttempts != null
+    || item.currentRouteSuccessRate != null
+    || item.currentRouteAdvantage != null
+    || item.topRouteLabel
+    || item.topRouteAttempts != null
+    || item.topRouteSuccessRate != null
+    || item.topRouteAdvantage != null
+    || item.summaryLabel
+    || item.reason
+    || item.routeTrends,
+  );
 }
 
 function buildSourceComparisonOperatorHint(
@@ -1675,5 +2067,3 @@ function buildApprovalsReturnRoute(
 
   return query ? `/approvals?${query}` : "/approvals";
 }
-
-
