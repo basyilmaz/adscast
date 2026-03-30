@@ -151,6 +151,7 @@ Base path: `/api/v1`
   - `summary.long_term_window_days`, `summary.top_long_term_stable_cluster_label` ve `summary.top_long_term_stable_cluster_score` ile current-window veri sparse olsa bile uzun vade stabil remediation cluster gorulebilir
   - `featured_recommendation.decision_status=long_term_preferred` olursa current-window veri zayifken uzun vade 90 gunluk veri daha stabil oldugu icin featured karar long-term cluster'a kaydirilmis olur
   - `featured_recommendation.decision_context_window_days`, `decision_context_success_rate`, `decision_context_baseline_success_rate` ve `decision_context_advantage` ile long-term prefer kararinin current-window bazini aciklar
+  - `long_term_approvals_native_outcome_summary` ve `long_term_draft_detail_outcome_summary` ile 90 gunluk long-term outcome bazini current-window summary'lerden ayri olarak gorunur kilar
   - `interaction_sources[]` altinda telemetry kaynagi bazinda `tracked_interactions`, `followed_featured_interactions`, `override_interactions`, `manual_check_completions`, `publish_retry_actions`, `bulk_retry_actions`, `publish_attempts`, `successful_publishes`, `failed_publishes`, `publish_success_rate` alanlarini doner
   - `outcome_chain_summary` altinda tum telemetry akisinin `manual_check_completions`, `total_retry_actions`, `publish_attempts`, `successful_publishes`, `failed_publishes`, `publish_success_rate` ozetini doner
   - `approvals_native_outcome_summary` ile approvals ekranindan dogrudan gelen remediation akislarinin toplu outcome ozeti doner
