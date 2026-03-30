@@ -174,6 +174,7 @@ type ApprovalRemediationAnalyticsResponse = {
       top_interaction_source_key: string | null;
       top_interaction_source_label: string | null;
       source_breakdown: Array<RemediationTelemetrySource>;
+      long_term_source_breakdown?: Array<RemediationTelemetrySource>;
       outcome_chain_summary: RemediationOutcomeChainSummary;
       draft_detail_outcome_summary: RemediationOutcomeChainSummary;
       long_term_publish_attempts?: number | null;
@@ -312,6 +313,14 @@ type SourceComparisonInsight = {
   label: string;
   variant: "success" | "warning" | "neutral";
   reason: string;
+  preferredFlow: "draft_detail" | "approvals_native" | "balanced";
+};
+
+type SourceSpotlightInsight = {
+  label: string;
+  variant: "success" | "warning" | "neutral";
+  reason: string;
+  nextStepLabel: string;
   preferredFlow: "draft_detail" | "approvals_native" | "balanced";
 };
 
@@ -539,7 +548,6 @@ function ApprovalsPageContent({
       longTermDraftDetailOutcomeSummary,
     ],
   );
-
   const summary = useMemo(() => {
     return {
       filteredTotal: items.length,
@@ -1168,6 +1176,25 @@ function ApprovalsPageContent({
     () => resolveFeaturedPrimaryAction(featuredRecommendation, sourceComparisonWinner, featuredDraftRoute),
     [featuredDraftRoute, featuredRecommendation, sourceComparisonWinner],
   );
+  const sourceSpotlight = useMemo(
+    () =>
+      buildSourceSpotlight(
+        sourceComparisonWinner,
+        featuredRecommendation,
+        featuredDraftRoute,
+        telemetrySources[0] ?? null,
+        longTermDraftDetailOutcomeSummary,
+        longTermApprovalsNativeOutcomeSummary,
+      ),
+    [
+      featuredDraftRoute,
+      featuredRecommendation,
+      longTermApprovalsNativeOutcomeSummary,
+      longTermDraftDetailOutcomeSummary,
+      sourceComparisonWinner,
+      telemetrySources,
+    ],
+  );
 
   return (
     <Card>
@@ -1661,6 +1688,70 @@ function ApprovalsPageContent({
               {sourceComparisonWinner?.reason ?? "Kaynak karsilastirmasi icin yeterli veri bekleniyor."}
             </p>
           </div>
+          <div className="rounded-lg border border-[var(--accent)]/25 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Badge label="Source Spotlight" variant="neutral" />
+              {sourceSpotlight ? (
+                <Badge label={sourceSpotlight.label} variant={sourceSpotlight.variant} />
+              ) : null}
+            </div>
+            <p className="mt-3 text-sm font-semibold">Hangi route daha guclu?</p>
+            {sourceSpotlight ? (
+              <>
+                <p className="mt-2 text-sm muted-text">{sourceSpotlight.reason}</p>
+                <p className="mt-2 text-xs muted-text">
+                  Sonraki adim: {sourceSpotlight.nextStepLabel}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {sourceSpotlight.preferredFlow === "draft_detail" && featuredDraftRoute ? (
+                    <Link href={featuredDraftRoute}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (!featuredRecommendation) {
+                            return;
+                          }
+
+                          void trackFeaturedInteraction({
+                            actedClusterKey: featuredRecommendation.cluster_key,
+                            interactionSource: "approvals_featured",
+                            interactionType: "jump_to_item",
+                          });
+                        }}
+                      >
+                        {sourceSpotlight.nextStepLabel}
+                      </Button>
+                    </Link>
+                  ) : featuredRecommendation ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        void runClusterRecommendation(
+                          featuredRecommendation.cluster_key,
+                          featuredPrimaryAction.mode === "bulk_retry_publish"
+                            ? "bulk_retry_publish"
+                            : "focus_cluster",
+                          "approvals_featured",
+                        )
+                      }
+                      disabled={
+                        bulkPublishing
+                        && featuredPrimaryAction.mode === "bulk_retry_publish"
+                      }
+                    >
+                      {sourceSpotlight.nextStepLabel}
+                    </Button>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <p className="mt-3 text-sm muted-text">
+                Source spotlight icin yeterli telemetry henuz olusmadi.
+              </p>
+            )}
+          </div>
         </div>
         </>
       ) : null}
@@ -1698,7 +1789,9 @@ function ApprovalsPageContent({
                   }
                 )
               : null;
-          const topSource = topSourceBreakdown(analyticsItem?.source_breakdown);
+          const currentTopSource = topSourceBreakdown(analyticsItem?.source_breakdown);
+          const longTermTopSource = topSourceBreakdown(analyticsItem?.long_term_source_breakdown);
+          const topSource = longTermTopSource ?? currentTopSource;
           const clusterOutcomeSummary = analyticsItem?.outcome_chain_summary ?? null;
           const clusterPrimaryAction = resolveClusterPrimaryAction(
             cluster.key,
@@ -1768,8 +1861,16 @@ function ApprovalsPageContent({
                   ) : null}
                   {topSource ? (
                     <p>
-                      Top kaynak: {sourceLabel(topSource.source_key, topSource.label)}
+                      {longTermTopSource ? "Uzun donem top kaynak" : "Top kaynak"}:
+                      {" "}
+                      {sourceLabel(topSource.source_key, topSource.label)}
                       {` / ${topSource.tracked_interactions} etkilesim`}
+                    </p>
+                  ) : null}
+                  {currentTopSource && longTermTopSource && currentTopSource.source_key !== longTermTopSource.source_key ? (
+                    <p>
+                      Mevcut pencere top kaynagi: {sourceLabel(currentTopSource.source_key, currentTopSource.label)}
+                      {` / ${currentTopSource.tracked_interactions} etkilesim`}
                     </p>
                   ) : null}
                   {clusterOutcomeSummary ? (
@@ -2786,6 +2887,72 @@ function compareSourceAggressiveness(
     reason: "Draft detail ve approvals-native akislari birbirine yakin calisiyor.",
     preferredFlow: "balanced",
   };
+}
+
+function buildSourceSpotlight(
+  comparison: SourceComparisonInsight | null,
+  featuredRecommendation: ApprovalRemediationAnalyticsResponse["data"]["featured_recommendation"] | null,
+  featuredDraftRoute: string | null,
+  topSource: RemediationTelemetrySource | null,
+  longTermDraftDetailOutcomeSummary: RemediationOutcomeChainSummary | null,
+  longTermApprovalsNativeOutcomeSummary: RemediationOutcomeChainSummary | null,
+): SourceSpotlightInsight | null {
+  const longTermDraftRate = longTermDraftDetailOutcomeSummary?.publish_success_rate;
+  const longTermNativeRate = longTermApprovalsNativeOutcomeSummary?.publish_success_rate;
+
+  if (comparison?.preferredFlow === "draft_detail") {
+    return {
+      label: "Draft detail source spotlight",
+      variant: "success",
+      reason:
+        comparison.reason
+        + (longTermDraftRate != null
+          ? ` Uzun donem draft detail basarisi %${longTermDraftRate}.`
+          : ""),
+      nextStepLabel: featuredDraftRoute ? "Draft Detail Akisina Git" : "Draft Detayini Ac",
+      preferredFlow: "draft_detail",
+    };
+  }
+
+  if (comparison?.preferredFlow === "approvals_native") {
+    return {
+      label: "Approvals native source spotlight",
+      variant: "warning",
+      reason:
+        comparison.reason
+        + (longTermNativeRate != null
+          ? ` Uzun donem approvals-native basarisi %${longTermNativeRate}.`
+          : ""),
+      nextStepLabel: featuredRecommendation ? "Featured Kume Uzerinde Calis" : "Clusteri Incele",
+      preferredFlow: "approvals_native",
+    };
+  }
+
+  if (topSource) {
+    const preferredFlow = topSource.source_key.startsWith("draft_detail")
+      ? "draft_detail"
+      : topSource.source_key.startsWith("approvals")
+        ? "approvals_native"
+        : "balanced";
+
+    return {
+      label: `En aktif kaynak: ${sourceLabel(topSource.source_key, topSource.label)}`,
+      variant: preferredFlow === "draft_detail" ? "success" : preferredFlow === "approvals_native" ? "warning" : "neutral",
+      reason:
+        `Bu kaynak ${topSource.tracked_interactions} etkilesim uretmis ve %${topSource.publish_success_rate ?? 0} basari seviyesine sahip.`
+        + (longTermDraftRate != null || longTermNativeRate != null
+          ? ` Uzun donem draft detail / approvals-native: ${longTermDraftRate != null ? `%${longTermDraftRate}` : "veri yok"} / ${longTermNativeRate != null ? `%${longTermNativeRate}` : "veri yok"}.`
+          : ""),
+      nextStepLabel: preferredFlow === "draft_detail"
+        ? (featuredDraftRoute ? "Draft Detail Akisina Git" : "Draft Detayini Ac")
+        : preferredFlow === "approvals_native"
+          ? "Cluster Odaginda Kal"
+          : "Odagi Incele",
+      preferredFlow,
+    };
+  }
+
+  return null;
 }
 
 function roundToOneDecimal(value: number): number {

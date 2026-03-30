@@ -371,9 +371,12 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 131. Approvals remediation analytics'te 90 gunluk long-term cluster sinyallerini uretip sparse current-window durumlarinda featured karari uzun donem stabil cluster'a kaydirabilmek
 132. `long_term_approvals_native_outcome_summary` ve `long_term_draft_detail_outcome_summary` alanlariyla approvals-native ve draft detail remediation akislarini uzun donemde de karsilastirabilir hale getirmek
 133. Approvals featured ve cluster kartlarinda uzun donem stabilite, long-term success ve guidance baglamini gorunur kilarak operatorun neden o remediation'in one ciktigini daha hizli anlamasini saglamak
-134. Approvals featured ve cluster kartlarinin draft detail linklerine long-term retry guidance, source comparison ve uzun donem basari baglamini query focus olarak tasiyip remediation odagini detail ekraninda kaybetmemek
-135. Draft detail remediation blogunda long-term stabilite, kaynak karsilastirmasi ve pencere baz basari sinyallerini rozet ve aciklama katmani olarak gosterip approvals analytics baglamini detail yuzeyinde de okunur kilmak
-136. Approvals featured ve cluster CTA'larini long-term safe guidance ile daha agresif ama guvenli tek tik remediation akisina tasiyip proven cluster'larda bulk retry'yi one cikarmak
-137. Approvals featured remediation kartinda source comparison draft detail akisini one cikariyorsa birincil CTA'yi draft detail route'una kaydirip approvals analytics'ten dogrudan daha guclu remediation yuzeyine inmek
-138. Cluster kartlarinda top source ve long-term safety sinyalini birlikte kullanip bulk retry, detail route ve focus-cluster arasinda adaptif birincil aksiyon secmek
-139. Draft detail remediation odagina ayrik bir kaynak karsilastirmasi karti ekleyip long-term success, baseline ve operator next-step guidance sinyallerini ayni odakta gostermek
+134. Long-term ve source effectiveness sinyallerini draft detail remediation yuzeyine tasiyip approvals ekranindaki karar baglamini detail tarafinda da ayni aciklikla gostermek
+135. Bu long-term/source sinyalini approvals tarafinda daha agresif ama guvenli tek tik remediation onceliklendirmesine geri beslemek
+136. Approvals ve draft detail arasindaki shareable focus slice'larini long-term ve source comparison baglamiyla daha siki hizalamak
+137. Source-aware primary action kararini telemetry sonuclariyla daha adaptif hale getirip draft detail route ile bulk retry tercihini gercek outcome'a gore sikilastirmak
+138. Approvals analytics ekraninda source comparison winner icin ayri bir operasyon spotlight karti eklemek
+139. Draft detail'den tetiklenen remediation outcome'larini approvals tarafinda source ve route bazli success trend gorunumuyle izlenebilir hale getirmek
+140. Approvals analytics icinde source spotlight kartini current-window ve long-term source karsilastirmasini tek operasyon karari halinde sunacak sekilde gorunurlestirmek
+141. Cluster kartlarinda current source yerine long-term source breakdown'i da dikkate alip draft detail ile approvals-native route kararini daha gercek veriyle vermek
+142. Featured ve cluster remediation kartlarinda source spotlight ve long-term source sinyallerini ayni karar akisina baglayip operatorun hangi route'u neden sectigini tek yuzeyde aciklamak
