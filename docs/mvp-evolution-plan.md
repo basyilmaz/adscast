@@ -1,4 +1,4 @@
-# AdsCast - MVP Gelistirme Is Listesi
+﻿# AdsCast - MVP Gelistirme Is Listesi
 
 Bu plan, AdsCast'i teknik olarak calisan bir MVP'den kullanici tarafinda anlasilir, account bazli izole, operator ve musteri raporlamasina hazir bir urune tasimak icin hazirlandi.
 
@@ -296,7 +296,7 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 57. Focus ile acilan detail ekraninda hizli duzeltme kartinin aciklamasini hata nedeni ve aksiyon baglamina gore context-aware hale getirmek
 58. Detail ekraninda retry rehberi ve featured fix yuzeyini de ayni focus baglamina hizalayip tek bir operasyonel odak dili olusturmak
 59. Ayni focus baglamini delivery profile suggestion kartina da tasiyip detail ekranindaki uc karar yuzeyini tek bir aciklanabilir karar akisinda birlestirmek
-60. Detail ekraninin report sekmesinde uc karar yuzeyini tek bir "once ne yapmaliyim" cevap bloğunda birlestiren operasyon karari ozeti katmani eklemek
+60. Detail ekraninin report sekmesinde uc karar yuzeyini tek bir "once ne yapmaliyim" cevap blogunda birlestiren operasyon karari ozeti katmani eklemek
 61. Operasyon karari ozetinden ilgili alt karta sayfa ici derin odak verip operatoru summary'den dogrudan dogru karara indirmek
 62. Hash ile acilan veya summary'den inilen karar yuzeyini kisa sureli gorsel vurguya alip operatorun geldigi hedefi aninda fark etmesini saglamak
 63. Featured fix, retry rehberi ve profil onerisi yuzeylerine operator takip durumu ekleyip detail report sekmesini sadece onerilerden degil is takibinden de sorumlu hale getirmek
@@ -361,7 +361,7 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 121. Approvals remediation tracking endpoint'ine opsiyonel interaction_source metadata'si ekleyip telemetry kaynaginin featured, cluster veya draft detail oldugunu audit seviyesinde ayirt edilebilir hale getirmek
 122. Draft detail remediation blogundaki birincil CTA'yi ayri bir onerilen aksiyon yuzeyine tasiyip operatorun focus akisinda dogru karari daha hizli fark etmesini saglamak
 123. Approvals remediation analytics'i source bazli telemetry kirilimiyla genisletip featured, cluster, retry-ready, item ve draft detail kaynaklarinin takip ve publish sonucunu ayri izlenebilir hale getirmek
-124. Featured remediation telemetry'sinden tum akis icin outcome chain summary uretip manuel kontrol, retry aksiyonlari ve publish sonucunu approvals analytics ekraninda tek blokta görünür yapmak
+124. Featured remediation telemetry'sinden tum akis icin outcome chain summary uretip manuel kontrol, retry aksiyonlari ve publish sonucunu approvals analytics ekraninda tek blokta gorunur yapmak
 125. Approvals ekraninda source bazli telemetry kartlari ve cluster bazli top source / outcome ozetleri ekleyip operatorun hangi remediation kaynaginin gercekte sonuca gittigini ayni analytics yuzeyinde gorebilmesini saglamak
 126. Featured remediation kararini approvals-native ve draft-detail outcome ozetlerini karsilastirarak adaptif hale getirip draft detail uzerinde daha iyi sonuc veren remediation cluster'i one cikarmak
 127. Approvals ekraninda draft detail ve approvals-native remediation performansini karsilastirmali bir analytics yuzeyinde gostermek
@@ -396,7 +396,7 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 156. Approvals -> draft detail odak query hattina `primary_action.route_series[]` baglamini tasiyip 7/30/90 pencere verisini detay ekraninda yeniden API cagrisi olmadan acilabilir hale getirmek
 157. Draft detail remediation bloguna ayri bir route zaman serisi operasyon karti ekleyip current route ile top route farkini pencere bazinda operatorun tek blokta okuyabilmesini saglamak
 158. Approvals remediation analytics kontratina additive `route_series_spotlight` blogu ve summary seviyesinde top route-series durum alanlari ekleyip featured kararinin pencere bazli support sinyalini backend seviyesinde acik hale getirmek
-159. Featured remediation `action_mode` seciminde route-series spotlight `softening` ve `sparse` sinyalini kullanip guvenli toplu retry kararini gerektiğinde otomatik olarak cluster focus moduna geri cekmek
+159. Featured remediation `action_mode` seciminde route-series spotlight `softening` ve `sparse` sinyalini kullanip guvenli toplu retry kararini gerektiginde otomatik olarak cluster focus moduna geri cekmek
 160. Approvals ekranindaki route spotlight kartini primary-action route series ozetiyle besleyip draft detail ile approvals-native karari icin operatora daha veri odakli bir aciklama yuzeyi sunmak
 161. Approvals remediation analytics'e route outcome spotlight ve guidance katmani ekleyip current/long-term outcome sinyallerine gore featured CTA kararini daha adaptif ama guvenli hale getirmek
 162. Featured recommendation kararinda route outcome guidance status ve recommended action mode sinyalini summary seviyesine tasiyip operatorun safe/blocked/focus kararini tek blokta okuyabilmesini saglamak
@@ -407,3 +407,7 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 167. Approvals featured ve cluster CTA'larini route outcome spotlight'in onerilen action mode'u ile hizalayip featured ile cluster kararlarinda ayni safe/guarded kisayol mantigini kullanmak
 168. Approvals -> draft detail odak query hattina route outcome spotlight route, guidance ve decision-context alanlarini tasiyip operatorun detay ekraninda ayni karar baglamini kaybetmemesini saglamak
 169. Draft detail publish remediation bloguna route outcome spotlight karti ekleyip approvals'tan gelen safe/guarded kisayol nedenini ayri bir operasyon yuzeyinde gostermek
+170. Approvals route outcome spotlight altinda `route_outcome_window_series[]` verisini 7/30/90 guidance drift blogu olarak gorunur kilip featured kararinin hangi pencereye dayandigini tek kartta gostermek
+171. Approvals -> draft detail odak query hattina `route_outcome_window_series[]` baglamini tasiyip detail ekraninda route outcome spotlight altinda ayni pencere serisini yeniden API cagirmadan acmak
+172. Featured CTA secimini `route_outcome_window_series[]` guidance trendiyle sikilastirip `safe` durumda hizli aksiyonu korurken drift halinde otomatik olarak cluster focus'a geri cekmek
+

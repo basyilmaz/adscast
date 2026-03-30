@@ -96,6 +96,13 @@ type ApprovalRemediationAnalyticsResponse = {
       top_route_outcome_reason?: string | null;
       top_route_outcome_recommended_action_mode?: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | null;
       top_route_outcome_recommended_action_label?: string | null;
+      top_route_outcome_window_days?: number | null;
+      top_route_outcome_window_label?: string | null;
+      top_route_outcome_window_status?: string | null;
+      top_route_outcome_window_status_label?: string | null;
+      top_route_outcome_window_reason?: string | null;
+      top_route_outcome_window_recommended_action_mode?: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | null;
+      top_route_outcome_window_recommended_action_label?: string | null;
       tracked_featured_interactions: number;
       followed_featured_interactions: number;
       override_featured_interactions: number;
@@ -110,6 +117,7 @@ type ApprovalRemediationAnalyticsResponse = {
     route_trends: Array<RouteTrendMetric>;
     long_term_route_trends?: Array<RouteTrendMetric>;
     route_window_series?: Array<RouteWindowSeriesMetric>;
+    route_outcome_window_series?: Array<RouteOutcomeWindowSeriesMetric>;
     outcome_chain_summary: RemediationOutcomeChainSummary;
     approvals_native_outcome_summary: RemediationOutcomeChainSummary;
     draft_detail_outcome_summary: RemediationOutcomeChainSummary;
@@ -150,6 +158,7 @@ type ApprovalRemediationAnalyticsResponse = {
       action_mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_item";
       route_series_spotlight?: RouteSeriesSpotlight | null;
       route_outcome_spotlight?: RouteSeriesSpotlight | null;
+      route_outcome_window_series?: Array<RouteOutcomeWindowSeriesMetric>;
       decision_context_route_outcome_status?: string | null;
       decision_context_route_outcome_reason?: string | null;
       decision_context_route_outcome_recommended_action_mode?: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | null;
@@ -254,6 +263,24 @@ type RouteWindowSeriesMetric = {
   top_route_advantage?: number | null;
   summary_label?: string | null;
   reason?: string | null;
+  route_trends?: Array<RouteTrendMetric>;
+};
+
+type RouteOutcomeWindowSeriesMetric = {
+  window_days: number;
+  label?: string | null;
+  route_key?: string | null;
+  route_label?: string | null;
+  preferred_flow?: "draft_detail" | "approvals_native" | "balanced" | null;
+  guidance_status?: "safe" | "watching" | "guarded" | "blocked" | string | null;
+  guidance_label?: string | null;
+  guidance_reason?: string | null;
+  recommended_action_mode?: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | string | null;
+  recommended_action_label?: string | null;
+  success_rate?: number | null;
+  current_support_status?: "proven" | "emerging" | "guarded" | "missing" | string | null;
+  long_term_support_status?: "proven" | "emerging" | "guarded" | "missing" | string | null;
+  summary_label?: string | null;
   route_trends?: Array<RouteTrendMetric>;
 };
 
@@ -498,6 +525,7 @@ type DraftRouteFocusContext = {
   routeOutcomeDecisionContextSource?: string | null;
   routeOutcomeDecisionContextWindowDays?: number | null;
   routeOutcomeDecisionContextSuccessRate?: number | null;
+  routeOutcomeWindowSeries?: Array<RouteOutcomeWindowSeriesMetric> | null;
   effectivenessScore?: number | null;
   sourceComparisonLabel?: string | null;
   sourceComparisonReason?: string | null;
@@ -748,6 +776,16 @@ function ApprovalsPageContent({
   const routeWindowSeries = useMemo(
     () => remediationAnalytics?.route_window_series ?? [],
     [remediationAnalytics?.route_window_series],
+  );
+  const routeOutcomeWindowSeries = useMemo(
+    () =>
+      featuredRecommendation?.route_outcome_window_series
+      ?? remediationAnalytics?.route_outcome_window_series
+      ?? [],
+    [
+      featuredRecommendation?.route_outcome_window_series,
+      remediationAnalytics?.route_outcome_window_series,
+    ],
   );
   const summary = useMemo(() => {
     return {
@@ -1362,6 +1400,7 @@ function ApprovalsPageContent({
                 ? featuredRecommendation?.long_term_retry_guidance_reason ?? featuredRecommendation?.retry_guidance_reason ?? null
                 : featuredRecommendation?.retry_guidance_reason ?? null,
             ...buildRouteOutcomeFocusContext(routeSeriesSpotlight),
+            routeOutcomeWindowSeries,
             effectivenessScore:
               featuredRecommendation?.decision_context_source === "long_term"
                 ? featuredRecommendation?.long_term_effectiveness_score ?? featuredRecommendation?.effectiveness_score ?? null
@@ -1394,11 +1433,11 @@ function ApprovalsPageContent({
             }
           )
         : null,
-    [analyticsWindowDays, featuredClusterMatches, featuredRecommendation, remediationAnalytics?.summary.long_term_window_days, routeSeriesSpotlight, routeTrendInsight, routeWindowSeries, sourceComparisonWinner],
+    [analyticsWindowDays, featuredClusterMatches, featuredRecommendation, remediationAnalytics?.summary.long_term_window_days, routeOutcomeWindowSeries, routeSeriesSpotlight, routeTrendInsight, routeWindowSeries, sourceComparisonWinner],
   );
   const featuredPrimaryAction = useMemo(
-    () => resolveFeaturedPrimaryAction(featuredRecommendation, sourceComparisonWinner, routeTrendInsight, featuredDraftRoute, routeSeriesSpotlight),
-    [featuredDraftRoute, featuredRecommendation, routeSeriesSpotlight, routeTrendInsight, sourceComparisonWinner],
+    () => resolveFeaturedPrimaryAction(featuredRecommendation, sourceComparisonWinner, routeTrendInsight, featuredDraftRoute, routeSeriesSpotlight, routeOutcomeWindowSeries),
+    [featuredDraftRoute, featuredRecommendation, routeOutcomeWindowSeries, routeSeriesSpotlight, routeTrendInsight, sourceComparisonWinner],
   );
   const featuredPrimaryActionRouteSeriesSummary = useMemo(
     () => summarizePrimaryActionRouteSeries(featuredRecommendation?.primary_action, routeWindowSeries),
@@ -1908,6 +1947,43 @@ function ApprovalsPageContent({
                   ) : null}
                 </div>
               </div>
+              {routeOutcomeWindowSeries.length > 0 ? (
+                <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge label="Outcome Pencere Serisi" variant="neutral" />
+                    <Badge label={`${routeOutcomeWindowSeries.length} pencere`} variant="neutral" />
+                  </div>
+                  <div className="mt-3 grid gap-2 md:grid-cols-3">
+                    {routeOutcomeWindowSeries.map((item) => (
+                      <div key={`${item.window_days}-${item.route_key ?? item.route_label ?? "route"}`} className="rounded-md border border-[var(--border)] bg-white p-3 text-xs muted-text">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge label={item.label ?? `${item.window_days} gun`} variant="neutral" />
+                          <Badge
+                            label={item.guidance_label ?? routeOutcomeGuidanceLabel(item.guidance_status)}
+                            variant={routeOutcomeGuidanceVariant(item.guidance_status)}
+                          />
+                        </div>
+                        <p className="mt-2 text-sm font-semibold">
+                          {item.route_label ?? "Rota belirsiz"}
+                        </p>
+                        <p className="mt-1">
+                          {item.guidance_reason ?? "Bu pencere icin route outcome guidance henuz yeterli sinyal uretmedi."}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {item.recommended_action_label ? (
+                            <Badge label={item.recommended_action_label} variant="neutral" />
+                          ) : item.recommended_action_mode ? (
+                            <Badge label={routeOutcomeActionLabel(item.recommended_action_mode)} variant="neutral" />
+                          ) : null}
+                          {item.success_rate != null ? (
+                            <Badge label={`%${item.success_rate} basari`} variant="success" />
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 {routeSeriesSpotlightAction?.mode === "jump_to_draft_detail" && featuredDraftRoute ? (
                   <Link href={featuredDraftRoute}>
@@ -3089,6 +3165,113 @@ function resolveRouteSeriesSpotlightAction(
       .filter(Boolean)
       .join(" / "),
     mode,
+  };
+}
+
+function routeOutcomeGuidanceLabel(status: string | null | undefined): string {
+  switch ((status ?? "").toLowerCase()) {
+    case "safe":
+      return "Guvenli";
+    case "watching":
+      return "Izleniyor";
+    case "guarded":
+      return "Kontrollu";
+    case "blocked":
+      return "Bloklu";
+    default:
+      return "Belirsiz";
+  }
+}
+
+function routeOutcomeGuidanceVariant(
+  status: string | null | undefined,
+): "success" | "warning" | "danger" | "neutral" {
+  switch ((status ?? "").toLowerCase()) {
+    case "safe":
+      return "success";
+    case "watching":
+    case "guarded":
+      return "warning";
+    case "blocked":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+function routeOutcomeActionLabel(mode: string | null | undefined): string {
+  return (
+    {
+      jump_to_item: "Detaya Git",
+      bulk_retry_publish: "Toplu Publish Dene",
+      focus_cluster: "Kumeyi Incele",
+    }[mode ?? ""] ?? "Kumeyi Incele"
+  );
+}
+
+function routeOutcomeWindowSeriesRank(item: RouteOutcomeWindowSeriesMetric): number {
+  const guidanceWeight = {
+    safe: 4,
+    watching: 3,
+    guarded: 2,
+    blocked: 1,
+  }[(item.guidance_status ?? "").toLowerCase()] ?? 0;
+
+  return (guidanceWeight * 1000) + ((item.success_rate ?? 0) * 10) + (item.window_days ?? 0);
+}
+
+function resolveRouteOutcomeWindowSeriesAction(
+  series: Array<RouteOutcomeWindowSeriesMetric> | null | undefined,
+): {
+  mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_draft_detail";
+  label: string;
+  hint: string;
+  variant: "success" | "warning" | "neutral";
+} | null {
+  if (!series || series.length === 0) {
+    return null;
+  }
+
+  const topWindow = [...series]
+    .filter((item) => item && typeof item.window_days === "number")
+    .sort((left, right) => routeOutcomeWindowSeriesRank(right) - routeOutcomeWindowSeriesRank(left))[0];
+
+  if (!topWindow) {
+    return null;
+  }
+
+  const normalizedMode = topWindow.recommended_action_mode === "jump_to_item"
+    ? "jump_to_draft_detail"
+    : topWindow.recommended_action_mode === "bulk_retry_publish"
+      ? "bulk_retry_publish"
+      : "focus_cluster";
+  const normalizedStatus = (topWindow.guidance_status ?? "").toLowerCase();
+  const mode =
+    normalizedStatus === "safe"
+      ? normalizedMode
+      : "focus_cluster";
+
+  const label = topWindow.recommended_action_label
+    ?? routeOutcomeActionLabel(topWindow.recommended_action_mode)
+    ?? "Kumeyi Incele";
+  const hint = [
+    topWindow.guidance_label ?? routeOutcomeGuidanceLabel(topWindow.guidance_status),
+    topWindow.guidance_reason,
+    topWindow.summary_label,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+
+  return {
+    mode,
+    label,
+    hint: hint || "Outcome pencere serisi bu odak icin ek takip gerektiriyor.",
+    variant:
+      normalizedStatus === "safe"
+        ? "success"
+        : normalizedStatus === "watching"
+          ? "warning"
+          : "neutral",
   };
 }
 

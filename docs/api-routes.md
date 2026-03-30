@@ -1,4 +1,4 @@
-# AdsCast API Rotalari (MVP)
+﻿# AdsCast API Rotalari (MVP)
 
 Base path: `/api/v1`
 
@@ -158,18 +158,21 @@ Base path: `/api/v1`
   - `summary.top_route_*` ve `summary.top_long_term_route_*` alanlari ile current-window ve long-term tarafinda hangi route ailesinin one ciktigi ozet seviyede okunabilir
   - `route_trends[]` ve `long_term_route_trends[]` altinda `draft_detail`, `approvals` ve gerekiyorsa `other` route ailesi bazinda `tracked_interactions`, `publish_attempts`, `successful_publishes`, `failed_publishes`, `publish_success_rate`, `top_source_key`, `top_source_label` alanlarini doner
   - `route_window_series[]` altinda `7/30/90` gunluk render-ready route snapshot'lari doner: `label`, `preferred_flow`, `confidence`, `current_route_*`, `top_route_*`, `summary_label`, `reason`, `route_trends[]`
+  - `route_outcome_window_series[]` altinda ayni `7/30/90` pencereyi route outcome guidance ile render-ready verir: `label`, `preferred_flow`, `guidance_status`, `guidance_label`, `guidance_reason`, `recommended_action_mode`, `recommended_action_label`, `success_rate`, `current_support_status`, `long_term_support_status`
   - `outcome_chain_summary` altinda tum telemetry akisinin `manual_check_completions`, `total_retry_actions`, `publish_attempts`, `successful_publishes`, `failed_publishes`, `publish_success_rate` ozetini doner
   - `approvals_native_outcome_summary` ile approvals ekranindan dogrudan gelen remediation akislarinin toplu outcome ozeti doner
   - `draft_detail_outcome_summary` ile draft detail kaynakli remediation akislarinin toplu outcome ozeti ve top source bilgisi doner
   - `long_term_approvals_native_outcome_summary` ve `long_term_draft_detail_outcome_summary` ile ayni source/outcome karsilastirmasinin 90 gunluk uzun donem ozeti de okunabilir
   - `summary.top_route_series_*` alanlari current-window route karari ile route-series spotlight ozeti arasindaki baglantiyi one cikarir
-  - `featured_recommendation` altinda sistemin su an one cikardigi remediation cluster'ini, karar nedenini, onerilen aksiyon modunu, effectiveness bilgisini, `source_breakdown[]`, `route_trends[]`, `route_series_spotlight`, `route_outcome_spotlight`, `outcome_chain_summary`, `draft_detail_outcome_summary` ve gerekiyorsa `decision_context_*` alanlarini doner
+  - `featured_recommendation` altinda sistemin su an one cikardigi remediation cluster'ini, karar nedenini, onerilen aksiyon modunu, effectiveness bilgisini, `source_breakdown[]`, `route_trends[]`, `route_series_spotlight`, `route_outcome_spotlight`, `route_outcome_window_series[]`, `outcome_chain_summary`, `draft_detail_outcome_summary` ve gerekiyorsa `decision_context_*` alanlarini doner
   - `featured_recommendation.primary_action` altinda additive bir operasyon karari doner: `mode` (`bulk_retry_publish|focus_cluster|jump_to_item`), `route`, `route_key`, `route_label`, `source_key`, `source_label`, `publish_attempts`, `publish_success_rate`, `tracked_interactions`, `successful_publishes`, `failed_publishes`, `followed_featured_interactions`, `preferred_flow`, `confidence_status`, `confidence_label`, `trend_status`, `trend_reason`, `route_series[]`, `alternative_route_key`, `alternative_route_label`, `alternative_publish_success_rate`, `advantage_vs_alternative_route`, `reason`
   - `featured_recommendation.route_series_spotlight` ile route bazli 7/30/90 pencere ozeti, support status ve operator guidance tek blokta render-ready gelir
-  - `featured_recommendation.route_outcome_spotlight` ile aynı veri, guidance status, recommended action mode ve decision context ile birlikte render-ready gelir
+  - `featured_recommendation.route_outcome_spotlight` ile ayni veri, guidance status, recommended action mode ve decision context ile birlikte render-ready gelir
+  - `featured_recommendation.route_outcome_window_series[]` ile 7/30/90 guidance drift, window bazli support status ve recommended action tek bir zaman serisi halinde render-ready gelir
   - `featured_recommendation.decision_context_route_outcome_*` alanlari featured kararinin outcome-guidance dayanaklarini aciklar
   - `route_outcome_spotlight` ayni guidance katmanini top-level olarak da tekrarlar; `guidance_status`, `guidance_label`, `guidance_reason`, `recommended_action_mode` ve `recommended_action_label` alanlari ile CTA karari neden guvenli/temkinli oldugunu aciklar
-  - `featured_recommendation.action_mode` ve `items[].action_mode` route outcome guidance'a gore secilir; `safe` durumda route'un onerdiği `jump_to_item` veya `bulk_retry_publish` korunur, `watching|guarded|blocked` durumlarinda `focus_cluster`e geri cekilir
+  - `route_outcome_window_series[]` ve `summary.top_route_outcome_window_*` alanlari 7/30/90 guidance drift'i render-ready olarak verir ve featured kararin hangi pencerenin baskin oldugunu aciklar
+  - `featured_recommendation.action_mode` ve `items[].action_mode` route outcome guidance'a gore secilir; `safe` durumda route'un onerdigi `jump_to_item` veya `bulk_retry_publish` korunur, `watching|guarded|blocked` durumlarinda `focus_cluster`e geri cekilir
   - `featured_recommendation.decision_context_route_series_*` alanlari featured kararinin hangi pencere dayanaklariyla secildigini aciklar
   - featured remediation kararinda `decision_status=draft_detail_preferred` olursa draft detail uzerinden daha iyi sonuc veren remediation cluster analytics destekli olarak one cikarilmis olur
   - `featured_recommendation.retry_guidance_status`, `retry_guidance_label`, `retry_guidance_reason` ve `safe_bulk_retry` ile cluster bazli toplu retry guvenligini aciklar

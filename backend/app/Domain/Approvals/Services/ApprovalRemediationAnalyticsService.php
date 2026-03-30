@@ -19,6 +19,7 @@ class ApprovalRemediationAnalyticsService
      *     featured_recommendation: array<string, mixed>|null,
      *     route_series_spotlight: array<string, mixed>|null,
      *     route_outcome_spotlight: array<string, mixed>|null,
+     *     route_outcome_window_series: array<int, array<string, mixed>>,
      *     interaction_sources: array<int, array<string, mixed>>,
      *     route_trends: array<int, array<string, mixed>>,
      *     long_term_route_trends: array<int, array<string, mixed>>,
@@ -178,7 +179,18 @@ class ApprovalRemediationAnalyticsService
         );
         $routeSeriesSpotlight = $this->routeSeriesSpotlight($featuredRecommendation);
         $routeOutcomeSpotlight = $this->routeOutcomeSpotlight($featuredRecommendation, $routeSeriesSpotlight);
+        $routeOutcomeWindowSeries = $this->routeOutcomeWindowSeries(
+            $longTermFeaturedInteractionLogs,
+            $featuredRecommendation['primary_action'] ?? null,
+        );
+        $topRouteOutcomeWindow = $this->topRouteOutcomeWindow($routeOutcomeWindowSeries);
         $featuredSummary = $this->featuredSummary($currentFeaturedInteractionLogs);
+        $featuredRecommendation = is_array($featuredRecommendation)
+            ? [
+                ...$featuredRecommendation,
+                'route_outcome_window_series' => $routeOutcomeWindowSeries->all(),
+            ]
+            : null;
 
         return [
             'summary' => [
@@ -231,6 +243,13 @@ class ApprovalRemediationAnalyticsService
                 'top_route_outcome_reason' => $routeOutcomeSpotlight['guidance_reason'] ?? null,
                 'top_route_outcome_recommended_action_mode' => $routeOutcomeSpotlight['recommended_action_mode'] ?? null,
                 'top_route_outcome_recommended_action_label' => $routeOutcomeSpotlight['recommended_action_label'] ?? null,
+                'top_route_outcome_window_days' => $topRouteOutcomeWindow['window_days'] ?? null,
+                'top_route_outcome_window_label' => $topRouteOutcomeWindow['label'] ?? null,
+                'top_route_outcome_window_status' => $topRouteOutcomeWindow['guidance_status'] ?? null,
+                'top_route_outcome_window_status_label' => $topRouteOutcomeWindow['guidance_label'] ?? null,
+                'top_route_outcome_window_reason' => $topRouteOutcomeWindow['guidance_reason'] ?? null,
+                'top_route_outcome_window_recommended_action_mode' => $topRouteOutcomeWindow['recommended_action_mode'] ?? null,
+                'top_route_outcome_window_recommended_action_label' => $topRouteOutcomeWindow['recommended_action_label'] ?? null,
                 ...$featuredSummary,
                 'window_days' => $windowDays,
                 'long_term_window_days' => $longTermWindowDays,
@@ -238,6 +257,7 @@ class ApprovalRemediationAnalyticsService
             'featured_recommendation' => $featuredRecommendation,
             'route_series_spotlight' => $routeSeriesSpotlight,
             'route_outcome_spotlight' => $routeOutcomeSpotlight,
+            'route_outcome_window_series' => $routeOutcomeWindowSeries->all(),
             'interaction_sources' => $interactionSources->all(),
             'route_trends' => $routeTrends->all(),
             'long_term_route_trends' => $longTermRouteTrends->all(),
@@ -755,6 +775,117 @@ class ApprovalRemediationAnalyticsService
     }
 
     /**
+     * @param array<string, mixed> $routeWindow
+     */
+    private function routeOutcomeWindowSupportStatus(string $routeKey, ?float $successRate, ?float $advantage): string
+    {
+        if ($successRate === null) {
+            return 'missing';
+        }
+
+        if ($successRate >= 70.0) {
+            return 'proven';
+        }
+
+        if ($routeKey === 'draft_detail') {
+            if ($successRate >= 50.0 || ($advantage !== null && $advantage >= 3.0)) {
+                return 'emerging';
+            }
+
+            return 'guarded';
+        }
+
+        if ($successRate >= 55.0 || ($advantage !== null && $advantage >= 3.0)) {
+            return 'emerging';
+        }
+
+        return 'guarded';
+    }
+
+    private function routeOutcomeWindowGuidanceStatus(string $currentSupportStatus, string $topSupportStatus): string
+    {
+        if ($currentSupportStatus === 'missing' && $topSupportStatus === 'missing') {
+            return 'guarded';
+        }
+
+        if ($currentSupportStatus === 'proven' && $topSupportStatus === 'proven') {
+            return 'safe';
+        }
+
+        if (in_array($currentSupportStatus, ['proven', 'emerging'], true) || in_array($topSupportStatus, ['proven', 'emerging'], true)) {
+            return 'watching';
+        }
+
+        return 'guarded';
+    }
+
+    /**
+     * @param array<string, mixed> $routeWindow
+     */
+    private function routeOutcomeWindowActionMode(
+        array $routeWindow,
+        string $guidanceStatus,
+        string $currentSupportStatus,
+        string $topSupportStatus,
+    ): string {
+        $routeKey = (string) ($routeWindow['route_key'] ?? $routeWindow['current_route_key'] ?? $routeWindow['top_route_key'] ?? 'other');
+
+        if (in_array($guidanceStatus, ['guarded', 'blocked'], true)) {
+            return 'focus_cluster';
+        }
+
+        $supportsItem = in_array($currentSupportStatus, ['proven', 'emerging'], true) && in_array($topSupportStatus, ['proven', 'emerging'], true);
+
+        if ($routeKey === 'draft_detail') {
+            return $supportsItem ? 'jump_to_item' : 'focus_cluster';
+        }
+
+        if ($routeKey === 'approvals') {
+            return $supportsItem ? 'bulk_retry_publish' : 'focus_cluster';
+        }
+
+        return $supportsItem ? 'bulk_retry_publish' : 'focus_cluster';
+    }
+
+    /**
+     * @param array<string, mixed> $routeWindow
+     */
+    private function routeOutcomeWindowGuidanceReason(
+        array $routeWindow,
+        string $currentSupportStatus,
+        string $topSupportStatus,
+        string $guidanceStatus,
+        string $recommendedActionMode,
+    ): string {
+        $windowLabel = (string) ($routeWindow['label'] ?? $routeWindow['window_days'] ?? 'pencere');
+        $routeLabel = (string) ($routeWindow['route_label'] ?? $routeWindow['current_route_label'] ?? $routeWindow['top_route_label'] ?? 'route');
+
+        return match ($guidanceStatus) {
+            'safe' => sprintf('%s icin %s yolu hem kisa hem uzun vadede guvenli; onerilen aksiyon %s olarak korunabilir.', $windowLabel, $routeLabel, $this->routeOutcomeActionLabel($recommendedActionMode)),
+            'watching' => sprintf('%s icin %s yolu en az bir tarafta destekli; sistem bu pencereyi takip ediyor.', $windowLabel, $routeLabel),
+            default => sprintf('%s icin %s yolu yeterince stabil degil; odak guvenli cluster incelemesine donmeli.', $windowLabel, $routeLabel),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $routeWindow
+     */
+    private function routeOutcomeWindowScore(array $routeWindow): float
+    {
+        $statusWeight = match ((string) ($routeWindow['guidance_status'] ?? 'guarded')) {
+            'safe' => 4,
+            'watching' => 3,
+            'guarded' => 2,
+            'blocked' => 1,
+            default => 0,
+        };
+
+        return ((float) $statusWeight * 1000)
+            + ((float) ($routeWindow['success_rate'] ?? 0) * 10)
+            + ((float) ($routeWindow['window_days'] ?? 0));
+    }
+
+    /**
      * @param array<string, mixed> $cluster
      */
     private function routeOutcomeActionMode(array $cluster, ?array $routeSeriesSpotlight = null): string
@@ -1112,6 +1243,66 @@ class ApprovalRemediationAnalyticsService
         return collect([7, 30, 90])
             ->map(fn (int $windowDays): array => $this->routeWindowSnapshot($featuredInteractionLogs, $windowDays, $selectedRoute))
             ->values();
+    }
+
+    /**
+     * @param Collection<int, AuditLog> $featuredInteractionLogs
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function routeOutcomeWindowSeries(Collection $featuredInteractionLogs, ?array $selectedRoute = null): Collection
+    {
+        return $this->routeWindowSeries($featuredInteractionLogs, $selectedRoute)
+            ->map(fn (array $routeWindow): array => $this->routeOutcomeWindowSnapshot($routeWindow))
+            ->values();
+    }
+
+    /**
+     * @param array<string, mixed> $routeWindow
+     * @return array<string, mixed>
+     */
+    private function routeOutcomeWindowSnapshot(array $routeWindow): array
+    {
+        $currentSupportStatus = $this->routeOutcomeWindowSupportStatus(
+            (string) ($routeWindow['current_route_key'] ?? $routeWindow['top_route_key'] ?? 'other'),
+            isset($routeWindow['current_route_success_rate']) ? (float) $routeWindow['current_route_success_rate'] : null,
+            isset($routeWindow['current_route_advantage']) ? (float) $routeWindow['current_route_advantage'] : null,
+        );
+        $topSupportStatus = $this->routeOutcomeWindowSupportStatus(
+            (string) ($routeWindow['top_route_key'] ?? $routeWindow['current_route_key'] ?? 'other'),
+            isset($routeWindow['top_route_success_rate']) ? (float) $routeWindow['top_route_success_rate'] : null,
+            isset($routeWindow['top_route_advantage']) ? (float) $routeWindow['top_route_advantage'] : null,
+        );
+        $guidanceStatus = $this->routeOutcomeWindowGuidanceStatus($currentSupportStatus, $topSupportStatus);
+        $recommendedActionMode = $this->routeOutcomeWindowActionMode($routeWindow, $guidanceStatus, $currentSupportStatus, $topSupportStatus);
+
+        return [
+            'window_days' => $routeWindow['window_days'] ?? null,
+            'label' => $routeWindow['label'] ?? null,
+            'route_key' => $routeWindow['current_route_key'] ?? $routeWindow['top_route_key'] ?? null,
+            'route_label' => $routeWindow['current_route_label'] ?? $routeWindow['top_route_label'] ?? null,
+            'preferred_flow' => $routeWindow['preferred_flow'] ?? null,
+            'guidance_status' => $guidanceStatus,
+            'guidance_label' => $this->routeOutcomeGuidanceLabel($guidanceStatus),
+            'guidance_reason' => $this->routeOutcomeWindowGuidanceReason($routeWindow, $currentSupportStatus, $topSupportStatus, $guidanceStatus, $recommendedActionMode),
+            'recommended_action_mode' => $recommendedActionMode,
+            'recommended_action_label' => $this->routeOutcomeActionLabel($recommendedActionMode),
+            'success_rate' => $routeWindow['current_route_success_rate'] ?? $routeWindow['top_route_success_rate'] ?? null,
+            'current_support_status' => $currentSupportStatus,
+            'long_term_support_status' => $topSupportStatus,
+            'summary_label' => $routeWindow['summary_label'] ?? null,
+            'route_trends' => $routeWindow['route_trends'] ?? [],
+        ];
+    }
+
+    /**
+     * @param Collection<int, array<string, mixed>> $routeOutcomeWindowSeries
+     * @return array<string, mixed>|null
+     */
+    private function topRouteOutcomeWindow(Collection $routeOutcomeWindowSeries): ?array
+    {
+        return $routeOutcomeWindowSeries
+            ->sortByDesc(fn (array $item): float => $this->routeOutcomeWindowScore($item))
+            ->first();
     }
 
     /**
