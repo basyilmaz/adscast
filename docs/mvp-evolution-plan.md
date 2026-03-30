@@ -401,3 +401,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 161. Approvals remediation analytics'e route outcome spotlight ve guidance katmani ekleyip current/long-term outcome sinyallerine gore featured CTA kararini daha adaptif ama guvenli hale getirmek
 162. Featured recommendation kararinda route outcome guidance status ve recommended action mode sinyalini summary seviyesine tasiyip operatorun safe/blocked/focus kararini tek blokta okuyabilmesini saglamak
 163. Draft detail ve approvals-native outcome karsilastirmasini route outcome spotlight ile tek kontratta aciklayip jump_to_item ile focus_cluster arasindaki secimi daha veri odakli hale getirmek
+164. Route outcome guidance `watching` durumunda featured CTA'yi otomatik olarak cluster focus'a geri cekip sadece `safe` durumda jump_to_item veya bulk_retry_publish aksiyonunu acik tutmak
+165. Route outcome spotlight'in safe/watching/guarded ayrimini approvals remediation analytics regression'ina ekleyip featured action_mode kararini daha sert kontratla kilitlemek
+166. Route outcome guidance odagini approvals api dokumantasyonunda route outcome recommendation policy olarak netlestirip operator beklenen CTA davranisini tek satirda gorebilir hale getirmek

@@ -684,6 +684,26 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.items.0.safe_bulk_retry', true);
     }
 
+    public function test_featured_primary_action_focuses_cluster_when_route_outcome_is_only_watching(): void
+    {
+        $service = app(\App\Domain\Approvals\Services\ApprovalRemediationAnalyticsService::class);
+        $reflection = new \ReflectionClass($service);
+        $method = $reflection->getMethod('featuredRecommendationActionMode');
+        $method->setAccessible(true);
+
+        $actionMode = $method->invoke(
+            $service,
+            ['safe_bulk_retry' => true],
+            ['status' => 'stable'],
+            [
+                'guidance_status' => 'watching',
+                'recommended_action_mode' => 'bulk_retry_publish',
+            ],
+        );
+
+        $this->assertSame('focus_cluster', $actionMode);
+    }
+
     public function test_featured_primary_action_softens_when_recent_route_signal_weakens(): void
     {
         [$workspaceId, $token, $retryReadyDraft] = $this->seedFailedPublishFixture([

@@ -169,7 +169,7 @@ Base path: `/api/v1`
   - `featured_recommendation.route_outcome_spotlight` ile aynı veri, guidance status, recommended action mode ve decision context ile birlikte render-ready gelir
   - `featured_recommendation.decision_context_route_outcome_*` alanlari featured kararinin outcome-guidance dayanaklarini aciklar
   - `route_outcome_spotlight` ayni guidance katmanini top-level olarak da tekrarlar; `guidance_status`, `guidance_label`, `guidance_reason`, `recommended_action_mode` ve `recommended_action_label` alanlari ile CTA karari neden guvenli/temkinli oldugunu aciklar
-  - `featured_recommendation.action_mode` ve `items[].action_mode` route-series spotlight `softening|sparse` sinyali geldiginde guvenli tarafta kalip `focus_cluster` moduna geri cekilebilir
+  - `featured_recommendation.action_mode` ve `items[].action_mode` route outcome guidance'a gore secilir; `safe` durumda route'un onerdiği `jump_to_item` veya `bulk_retry_publish` korunur, `watching|guarded|blocked` durumlarinda `focus_cluster`e geri cekilir
   - `featured_recommendation.decision_context_route_series_*` alanlari featured kararinin hangi pencere dayanaklariyla secildigini aciklar
   - featured remediation kararinda `decision_status=draft_detail_preferred` olursa draft detail uzerinden daha iyi sonuc veren remediation cluster analytics destekli olarak one cikarilmis olur
   - `featured_recommendation.retry_guidance_status`, `retry_guidance_label`, `retry_guidance_reason` ve `safe_bulk_retry` ile cluster bazli toplu retry guvenligini aciklar
