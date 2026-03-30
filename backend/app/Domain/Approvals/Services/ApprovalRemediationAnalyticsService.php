@@ -19,6 +19,7 @@ class ApprovalRemediationAnalyticsService
      *     featured_recommendation: array<string, mixed>|null,
      *     interaction_sources: array<int, array<string, mixed>>,
      *     route_trends: array<int, array<string, mixed>>,
+     *     long_term_route_trends: array<int, array<string, mixed>>,
      *     outcome_chain_summary: array<string, mixed>,
      *     approvals_native_outcome_summary: array<string, mixed>,
      *     draft_detail_outcome_summary: array<string, mixed>,
@@ -66,7 +67,9 @@ class ApprovalRemediationAnalyticsService
 
         $clusterDefinitions = collect($this->clusterDefinitions());
         $interactionSources = $this->sourceBreakdown($currentFeaturedInteractionLogs);
+        $longTermInteractionSources = $this->sourceBreakdown($longTermFeaturedInteractionLogs);
         $routeTrends = $this->routeTrends($interactionSources);
+        $longTermRouteTrends = $this->routeTrends($longTermInteractionSources);
         $outcomeChainSummary = $this->outcomeChainSummary($currentFeaturedInteractionLogs);
         $approvalsNativeOutcomeSummary = $this->approvalsNativeOutcomeSummary($currentFeaturedInteractionLogs);
         $draftDetailOutcomeSummary = $this->draftDetailOutcomeSummary($currentFeaturedInteractionLogs);
@@ -79,6 +82,8 @@ class ApprovalRemediationAnalyticsService
             ->first();
         $topRouteTrend = $routeTrends->first();
         $secondaryRouteTrend = $routeTrends->slice(1)->first();
+        $topLongTermRouteTrend = $longTermRouteTrends->first();
+        $secondaryLongTermRouteTrend = $longTermRouteTrends->slice(1)->first();
 
         $currentRawItems = $this->buildClusterItems(
             $clusterDefinitions,
@@ -200,6 +205,12 @@ class ApprovalRemediationAnalyticsService
                 'top_route_source_label' => $topRouteTrend['top_source_label'] ?? null,
                 'top_route_publish_success_rate' => $topRouteTrend['publish_success_rate'] ?? null,
                 'top_route_advantage' => $this->routeAdvantage($topRouteTrend, $secondaryRouteTrend),
+                'top_long_term_route_key' => $topLongTermRouteTrend['route_key'] ?? null,
+                'top_long_term_route_label' => $topLongTermRouteTrend['label'] ?? null,
+                'top_long_term_route_source_key' => $topLongTermRouteTrend['top_source_key'] ?? null,
+                'top_long_term_route_source_label' => $topLongTermRouteTrend['top_source_label'] ?? null,
+                'top_long_term_route_publish_success_rate' => $topLongTermRouteTrend['publish_success_rate'] ?? null,
+                'top_long_term_route_advantage' => $this->routeAdvantage($topLongTermRouteTrend, $secondaryLongTermRouteTrend),
                 ...$featuredSummary,
                 'window_days' => $windowDays,
                 'long_term_window_days' => $longTermWindowDays,
@@ -207,6 +218,7 @@ class ApprovalRemediationAnalyticsService
             'featured_recommendation' => $featuredRecommendation,
             'interaction_sources' => $interactionSources->all(),
             'route_trends' => $routeTrends->all(),
+            'long_term_route_trends' => $longTermRouteTrends->all(),
             'outcome_chain_summary' => $outcomeChainSummary,
             'approvals_native_outcome_summary' => $approvalsNativeOutcomeSummary,
             'draft_detail_outcome_summary' => $draftDetailOutcomeSummary,
@@ -757,10 +769,23 @@ class ApprovalRemediationAnalyticsService
         $publishAttempts = (int) ($topRoute['publish_attempts'] ?? 0);
         $publishSuccessRate = isset($topRoute['publish_success_rate']) ? (float) $topRoute['publish_success_rate'] : null;
         $advantage = $this->routeAdvantage($topRoute, $alternativeRoute);
+        $confidenceStatus = $this->primaryActionConfidenceStatus($topRoute, $alternativeRoute, $cluster);
+        $confidenceLabel = $this->primaryActionConfidenceLabel($confidenceStatus);
+        $trackedInteractions = (int) ($topRoute['tracked_interactions'] ?? 0);
+        $successfulPublishes = (int) ($topRoute['successful_publishes'] ?? 0);
+        $failedPublishes = (int) ($topRoute['failed_publishes'] ?? 0);
+        $followedFeaturedInteractions = (int) ($topRoute['followed_featured_interactions'] ?? 0);
+        $preferredFlow = $routeKey === 'draft_detail' ? 'draft_detail' : ($routeKey === 'approvals' ? 'approvals_native' : 'balanced');
+        $alternativeRouteKey = $alternativeRoute['route_key'] ?? null;
+        $alternativeRouteLabel = $alternativeRoute['label'] ?? ($alternativeRouteKey !== null ? $this->routeLabel((string) $alternativeRouteKey) : null);
+        $alternativePublishSuccessRate = isset($alternativeRoute['publish_success_rate'])
+            ? (float) $alternativeRoute['publish_success_rate']
+            : null;
 
         if (
             $routeKey === 'draft_detail'
             && filled($cluster['sample_item_route'] ?? null)
+            && $confidenceStatus !== 'guarded'
             && ($publishSuccessRate !== null || (int) ($topRoute['successful_publishes'] ?? 0) > 0)
         ) {
             return [
@@ -772,14 +797,28 @@ class ApprovalRemediationAnalyticsService
                 'source_label' => $sourceLabel,
                 'publish_attempts' => $publishAttempts,
                 'publish_success_rate' => $publishSuccessRate,
+                'tracked_interactions' => $trackedInteractions,
+                'successful_publishes' => $successfulPublishes,
+                'failed_publishes' => $failedPublishes,
+                'followed_featured_interactions' => $followedFeaturedInteractions,
+                'preferred_flow' => $preferredFlow,
+                'confidence_status' => $confidenceStatus,
+                'confidence_label' => $confidenceLabel,
+                'alternative_route_key' => $alternativeRouteKey,
+                'alternative_route_label' => $alternativeRouteLabel,
+                'alternative_publish_success_rate' => $alternativePublishSuccessRate,
                 'advantage_vs_alternative_route' => $advantage,
                 'reason' => $publishSuccessRate !== null
                     ? sprintf(
-                        '%s kaynagi draft detail uzerinde %s publish basarisi urettigi icin operatoru dogrudan ilgili taslak detayina indir.',
+                        '%s kaynagi draft detail uzerinde %s publish basarisi urettigi ve rota guveni %s oldugu icin operatoru dogrudan ilgili taslak detayina indir.',
                         $sourceLabel ?? 'Bu route',
                         $this->formatPercentage($publishSuccessRate),
+                        mb_strtolower($confidenceLabel),
                     )
-                    : 'Draft detail kaynagi bu cluster icin daha guclu sonuc urettigi icin operatoru dogrudan ilgili taslak detayina indir.',
+                    : sprintf(
+                        'Draft detail kaynagi bu cluster icin daha guclu sonuc urettigi icin operatoru dogrudan ilgili taslak detayina indir. Rota guveni: %s.',
+                        mb_strtolower($confidenceLabel),
+                    ),
             ];
         }
 
@@ -794,11 +833,79 @@ class ApprovalRemediationAnalyticsService
             'source_label' => $sourceLabel,
             'publish_attempts' => $publishAttempts,
             'publish_success_rate' => $publishSuccessRate,
+            'tracked_interactions' => $trackedInteractions,
+            'successful_publishes' => $successfulPublishes,
+            'failed_publishes' => $failedPublishes,
+            'followed_featured_interactions' => $followedFeaturedInteractions,
+            'preferred_flow' => $preferredFlow,
+            'confidence_status' => $confidenceStatus,
+            'confidence_label' => $confidenceLabel,
+            'alternative_route_key' => $alternativeRouteKey,
+            'alternative_route_label' => $alternativeRouteLabel,
+            'alternative_publish_success_rate' => $alternativePublishSuccessRate,
             'advantage_vs_alternative_route' => $advantage,
             'reason' => $mode === 'bulk_retry_publish'
-                ? ($cluster['retry_guidance_reason'] ?? 'Bu cluster guvenli toplu retry sinyali verdigi icin approvals merkezi uzerinden bulk retry oneriliyor.')
-                : ($cluster['retry_guidance_reason'] ?? 'Bu cluster once approvals merkezinde odakli inceleme gerektiriyor.'),
+                ? ($cluster['retry_guidance_reason'] ?? sprintf(
+                    'Bu cluster approvals merkezi uzerinde guvenli toplu retry sinyali veriyor. Rota guveni: %s.',
+                    mb_strtolower($confidenceLabel),
+                ))
+                : ($cluster['retry_guidance_reason'] ?? sprintf(
+                    'Bu cluster once approvals merkezinde odakli inceleme gerektiriyor. Rota guveni: %s.',
+                    mb_strtolower($confidenceLabel),
+                )),
         ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $topRoute
+     * @param array<string, mixed>|null $alternativeRoute
+     * @param array<string, mixed> $cluster
+     */
+    private function primaryActionConfidenceStatus(?array $topRoute, ?array $alternativeRoute, array $cluster): string
+    {
+        if (! is_array($topRoute)) {
+            return 'guarded';
+        }
+
+        $routeKey = (string) ($topRoute['route_key'] ?? 'approvals');
+        $trackedInteractions = (int) ($topRoute['tracked_interactions'] ?? 0);
+        $publishAttempts = (int) ($topRoute['publish_attempts'] ?? 0);
+        $successfulPublishes = (int) ($topRoute['successful_publishes'] ?? 0);
+        $publishSuccessRate = isset($topRoute['publish_success_rate']) ? (float) $topRoute['publish_success_rate'] : null;
+        $hasAlternativeRoute = is_array($alternativeRoute);
+        $advantage = $this->routeAdvantage($topRoute, $alternativeRoute) ?? 0.0;
+        $safeBulkRetry = (bool) ($cluster['safe_bulk_retry'] ?? false);
+
+        if ($routeKey === 'draft_detail') {
+            if ($publishAttempts >= 2 && $successfulPublishes >= 2 && (! $hasAlternativeRoute || $advantage >= 10.0)) {
+                return 'proven';
+            }
+
+            if ($trackedInteractions >= 1 && $successfulPublishes >= 1 && (! $hasAlternativeRoute || $advantage >= 5.0)) {
+                return 'emerging';
+            }
+
+            return 'guarded';
+        }
+
+        if ($safeBulkRetry && $publishAttempts >= 2 && ($publishSuccessRate ?? 0.0) >= 70.0) {
+            return 'proven';
+        }
+
+        if ($safeBulkRetry && $successfulPublishes >= 1 && $trackedInteractions >= 1) {
+            return 'emerging';
+        }
+
+        return 'guarded';
+    }
+
+    private function primaryActionConfidenceLabel(string $status): string
+    {
+        return match ($status) {
+            'proven' => 'Kanitli',
+            'emerging' => 'Yukselen',
+            default => 'Temkinli',
+        };
     }
 
     /**

@@ -390,8 +390,12 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.summary.long_term_window_days', 90)
             ->assertJsonPath('data.summary.top_long_term_stable_cluster_label', 'Cleanup Ile Temizlenenler')
             ->assertJsonPath('data.summary.top_long_term_stable_cluster_score', 97)
+            ->assertJsonPath('data.summary.top_long_term_route_key', 'draft_detail')
+            ->assertJsonPath('data.summary.top_long_term_route_label', 'Draft Detail')
             ->assertJsonPath('data.long_term_draft_detail_outcome_summary.tracked_interactions', 1)
             ->assertJsonPath('data.long_term_draft_detail_outcome_summary.publish_success_rate', 100)
+            ->assertJsonPath('data.long_term_route_trends.0.route_key', 'draft_detail')
+            ->assertJsonPath('data.long_term_route_trends.0.top_source_label', 'Draft Detay / Featured Kart')
             ->assertJsonPath('data.featured_recommendation.cluster_key', 'cleanup-recovered')
             ->assertJsonPath('data.featured_recommendation.decision_status', 'long_term_preferred')
             ->assertJsonPath('data.featured_recommendation.decision_context_source', 'long_term')
@@ -642,6 +646,9 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.featured_recommendation.action_mode', 'bulk_retry_publish')
             ->assertJsonPath('data.featured_recommendation.primary_action.mode', 'jump_to_item')
             ->assertJsonPath('data.featured_recommendation.primary_action.route_key', 'draft_detail')
+            ->assertJsonPath('data.featured_recommendation.primary_action.confidence_status', 'proven')
+            ->assertJsonPath('data.featured_recommendation.primary_action.tracked_interactions', 1)
+            ->assertJsonPath('data.featured_recommendation.primary_action.alternative_route_label', null)
             ->assertJsonPath('data.featured_recommendation.primary_action.route', sprintf('/drafts/detail?id=%s', $retryReadyDraft->id))
             ->assertJsonPath('data.items.0.retry_guidance_status', 'safe')
             ->assertJsonPath('data.items.0.safe_bulk_retry', true);
@@ -727,6 +734,7 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.featured_recommendation.cluster_key', 'retry-ready')
             ->assertJsonPath('data.featured_recommendation.primary_action.mode', 'focus_cluster')
             ->assertJsonPath('data.featured_recommendation.primary_action.route_key', 'approvals')
+            ->assertJsonPath('data.featured_recommendation.primary_action.confidence_status', 'guarded')
             ->assertJsonPath(
                 'data.featured_recommendation.primary_action.route',
                 '/approvals?status=publish_failed&recommended_action_code=retry_publish_after_manual_check',

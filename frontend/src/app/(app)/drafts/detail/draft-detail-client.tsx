@@ -99,6 +99,52 @@ export function DraftDetailClient() {
   const focusSourceComparisonWinner = readFirstSearchParam(searchParams, [
     "focus_source_comparison_winner",
   ]);
+  const focusPrimaryActionMode = readFirstSearchParam(searchParams, ["focus_primary_action_mode"]);
+  const focusPrimaryActionRouteLabel = readFirstSearchParam(searchParams, ["focus_primary_action_route_label"]);
+  const focusPrimaryActionSourceLabel = readFirstSearchParam(searchParams, ["focus_primary_action_source_label"]);
+  const focusPrimaryActionReason = readFirstSearchParam(searchParams, ["focus_primary_action_reason"]);
+  const focusPrimaryActionSuccessRate = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_primary_action_success_rate"]),
+  );
+  const focusPrimaryActionTrackedInteractions = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_primary_action_tracked_interactions"]),
+  );
+  const focusPrimaryActionConfidenceStatus = readFirstSearchParam(searchParams, ["focus_primary_action_confidence_status"]);
+  const focusPrimaryActionConfidenceLabel = readFirstSearchParam(searchParams, ["focus_primary_action_confidence_label"]);
+  const focusPrimaryActionAdvantage = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_primary_action_advantage"]),
+  );
+  const focusPrimaryActionAlternativeRouteLabel = readFirstSearchParam(
+    searchParams,
+    ["focus_primary_action_alternative_route_label"],
+  );
+  const focusPrimaryActionAlternativeSuccessRate = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_primary_action_alternative_success_rate"]),
+  );
+  const focusRouteTrendLabel = readFirstSearchParam(searchParams, ["focus_route_trend_label"]);
+  const focusRouteTrendReason = readFirstSearchParam(searchParams, ["focus_route_trend_reason"]);
+  const focusRoutePreferredFlow = readFirstSearchParam(searchParams, ["focus_route_preferred_flow"]);
+  const focusRouteTrendConfidence = readFirstSearchParam(searchParams, ["focus_route_trend_confidence"]);
+  const focusRouteCurrentLabel = readFirstSearchParam(searchParams, ["focus_route_current_label"]);
+  const focusRouteCurrentAttempts = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_route_current_attempts"]),
+  );
+  const focusRouteCurrentSuccessRate = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_route_current_success_rate"]),
+  );
+  const focusRouteCurrentAdvantage = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_route_current_advantage"]),
+  );
+  const focusRouteLongTermLabel = readFirstSearchParam(searchParams, ["focus_route_long_term_label"]);
+  const focusRouteLongTermAttempts = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_route_long_term_attempts"]),
+  );
+  const focusRouteLongTermSuccessRate = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_route_long_term_success_rate"]),
+  );
+  const focusRouteLongTermAdvantage = resolveOptionalNumber(
+    readFirstSearchParam(searchParams, ["focus_route_long_term_advantage"]),
+  );
   const analyticsWindowDays = resolveAnalyticsWindow(searchParams.get("window_days"));
   const hasDraftId = Boolean(draftId);
   const [submitting, setSubmitting] = useState(false);
@@ -302,6 +348,20 @@ export function DraftDetailClient() {
     currentRecommendedAction,
     remediationPublishState,
   );
+  const hasPrimaryActionFocus = Boolean(
+    focusPrimaryActionMode
+    || focusPrimaryActionRouteLabel
+    || focusPrimaryActionReason
+    || focusPrimaryActionConfidenceStatus,
+  );
+  const hasRouteTrendFocus = Boolean(
+    focusRouteTrendLabel
+    || focusRouteTrendReason
+    || focusRoutePreferredFlow
+    || focusRouteTrendConfidence
+    || focusRouteCurrentLabel
+    || focusRouteLongTermLabel,
+  );
 
   return (
     <div className="space-y-4">
@@ -400,6 +460,10 @@ export function DraftDetailClient() {
                     focusSourceComparisonLabel,
                     focusSourceComparisonReason,
                     focusSourceComparisonWinner,
+                    focusRouteTrendLabel,
+                    focusRouteTrendReason,
+                    focusRoutePreferredFlow,
+                    focusRouteTrendConfidence,
                   )}
                 </p>
                 {focusSourceComparisonLabel || focusLongTermWindowDays != null ? (
@@ -577,72 +641,258 @@ export function DraftDetailClient() {
                 {remediationPrimaryAction ? (
                   <div className="mt-3 rounded-md border border-[var(--accent)]/30 bg-white p-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge label="Onerilen Aksiyon" variant="success" />
-                  {focusSource === "approvals_featured" || focusSource === "approvals_featured_long_term" ? (
-                    <Badge label="Featured Karardan Geldi" variant="neutral" />
-                  ) : null}
-                  {focusSource === "approvals_featured_long_term" ? (
-                    <Badge label="Uzun Donem Featured" variant="success" />
-                  ) : null}
-                  {focusSource === "approvals_cluster" || focusSource === "approvals_cluster_long_term" ? (
-                    <Badge label="Cluster Odagi" variant="neutral" />
-                  ) : null}
-                  {focusSource === "approvals_cluster_long_term" ? (
-                    <Badge label="Uzun Donem Cluster" variant="success" />
-                  ) : null}
-                </div>
-                <p className="mt-2 text-sm font-semibold">{remediationPrimaryAction?.label ?? "Publish durumunu dogrula"}</p>
-                {remediationPrimaryAction.hint ? (
-                  <p className="mt-1 text-xs muted-text">{remediationPrimaryAction.hint}</p>
-                ) : null}
-                {focusLongTermWindowDays != null || focusSourceComparisonLabel ? (
-                  <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide muted-text">Uzun Donem Baglami</p>
-                    {focusLongTermWindowDays != null ? (
-                      <p className="mt-1 text-xs muted-text">
-                        {focusLongTermWindowDays} gunluk uzun donem pencere, bu aksiyonun daha stabil calistigi akisi one cikarir.
-                      </p>
+                      <Badge label="Operasyon Karari" variant="success" />
+                      {focusSource === "approvals_featured" || focusSource === "approvals_featured_long_term" ? (
+                        <Badge label="Featured Karardan Geldi" variant="neutral" />
+                      ) : null}
+                      {focusSource === "approvals_featured_long_term" ? (
+                        <Badge label="Uzun Donem Featured" variant="success" />
+                      ) : null}
+                      {focusSource === "approvals_cluster" || focusSource === "approvals_cluster_long_term" ? (
+                        <Badge label="Cluster Odagi" variant="neutral" />
+                      ) : null}
+                      {focusSource === "approvals_cluster_long_term" ? (
+                        <Badge label="Uzun Donem Cluster" variant="success" />
+                      ) : null}
+                      {focusPrimaryActionRouteLabel ? (
+                        <Badge label={focusPrimaryActionRouteLabel} variant="neutral" />
+                      ) : null}
+                      {focusPrimaryActionMode ? (
+                        <Badge label={focusPrimaryActionModeLabel(focusPrimaryActionMode)} variant="neutral" />
+                      ) : null}
+                      {focusPrimaryActionConfidenceStatus ? (
+                        <Badge
+                          label={focusPrimaryActionConfidenceLabel ?? focusPrimaryActionConfidenceStatusLabel(focusPrimaryActionConfidenceStatus)}
+                          variant={focusPrimaryActionConfidenceVariant(focusPrimaryActionConfidenceStatus)}
+                        />
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-sm font-semibold">{remediationPrimaryAction?.label ?? "Publish durumunu dogrula"}</p>
+                    {remediationPrimaryAction.hint ? (
+                      <p className="mt-1 text-xs muted-text">{remediationPrimaryAction.hint}</p>
                     ) : null}
-                    {focusLongTermPublishSuccessRate != null ? (
-                      <p className="mt-1 text-xs muted-text">
-                        Uzun donem publish basarisi %{focusLongTermPublishSuccessRate}.
-                      </p>
+                    {hasPrimaryActionFocus ? (
+                      <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide muted-text">Birincil Aksiyon Rotasi</p>
+                        <p className="mt-1 text-xs muted-text">
+                          {buildPrimaryActionOperatorHint(
+                            focusPrimaryActionMode,
+                            focusPrimaryActionRouteLabel,
+                            focusPrimaryActionSourceLabel,
+                            focusPrimaryActionReason,
+                            focusPrimaryActionSuccessRate,
+                            focusPrimaryActionTrackedInteractions,
+                            focusPrimaryActionConfidenceLabel ?? focusPrimaryActionConfidenceStatusLabel(focusPrimaryActionConfidenceStatus),
+                            focusPrimaryActionAdvantage,
+                            focusPrimaryActionAlternativeRouteLabel,
+                            focusPrimaryActionAlternativeSuccessRate,
+                          )}
+                        </p>
+                        <div className="mt-2 grid gap-2 text-xs muted-text md:grid-cols-3">
+                          <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                            <p className="font-semibold">Secilen Rota</p>
+                            <p className="mt-1">{focusPrimaryActionRouteLabel ?? "Belirlenmedi"}</p>
+                            {focusPrimaryActionSourceLabel ? (
+                              <p className="mt-1">{focusPrimaryActionSourceLabel}</p>
+                            ) : null}
+                          </div>
+                          <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                            <p className="font-semibold">Telemetry</p>
+                            {focusPrimaryActionSuccessRate != null ? (
+                              <p className="mt-1">%{focusPrimaryActionSuccessRate} publish basarisi</p>
+                            ) : (
+                              <p className="mt-1">Publish sonucu birikiyor</p>
+                            )}
+                            {focusPrimaryActionTrackedInteractions != null ? (
+                              <p className="mt-1">{focusPrimaryActionTrackedInteractions} izlenen etkilesim</p>
+                            ) : null}
+                          </div>
+                          <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                            <p className="font-semibold">Alternatif</p>
+                            <p className="mt-1">{focusPrimaryActionAlternativeRouteLabel ?? "Alternatif rota yok"}</p>
+                            {focusPrimaryActionAlternativeSuccessRate != null ? (
+                              <p className="mt-1">%{focusPrimaryActionAlternativeSuccessRate} publish basarisi</p>
+                            ) : null}
+                            {focusPrimaryActionAdvantage != null ? (
+                              <p className="mt-1">
+                                {focusPrimaryActionAdvantage >= 0 ? "+" : ""}
+                                {focusPrimaryActionAdvantage} puan fark
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
                     ) : null}
-                    {focusLongTermBaselineSuccessRate != null ? (
-                      <p className="mt-1 text-xs muted-text">
-                        Mevcut pencere referansi %{focusLongTermBaselineSuccessRate}.
-                      </p>
+                    {hasRouteTrendFocus ? (
+                      <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge label="Route Karar Trendi" variant="neutral" />
+                          {focusRouteTrendLabel ? (
+                            <Badge label={focusRouteTrendLabel} variant={focusRouteTrendVariant(focusRoutePreferredFlow)} />
+                          ) : null}
+                          {focusRouteTrendConfidence ? (
+                            <Badge
+                              label={focusRouteTrendConfidenceLabel(focusRouteTrendConfidence)}
+                              variant={focusRouteTrendConfidenceVariant(focusRouteTrendConfidence)}
+                            />
+                          ) : null}
+                          {focusRoutePreferredFlow ? (
+                            <Badge label={focusRoutePreferredFlowLabel(focusRoutePreferredFlow)} variant="neutral" />
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-xs muted-text">
+                          {buildRouteTrendOperatorHint(
+                            focusRouteTrendLabel,
+                            focusRouteTrendReason,
+                            focusRoutePreferredFlow,
+                            focusRouteTrendConfidence,
+                            focusRouteCurrentLabel,
+                            focusRouteCurrentAttempts,
+                            focusRouteCurrentSuccessRate,
+                            focusRouteCurrentAdvantage,
+                            focusRouteLongTermLabel,
+                            focusRouteLongTermAttempts,
+                            focusRouteLongTermSuccessRate,
+                            focusRouteLongTermAdvantage,
+                          )}
+                        </p>
+                        <div className="mt-2 grid gap-2 text-xs muted-text md:grid-cols-2">
+                          <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                            <p className="font-semibold">Mevcut Pencere</p>
+                            <p className="mt-1">{focusRouteCurrentLabel ?? "Route trend verisi yok"}</p>
+                            {focusRouteCurrentAttempts != null ? (
+                              <p className="mt-1">{focusRouteCurrentAttempts} deneme</p>
+                            ) : null}
+                            {focusRouteCurrentSuccessRate != null ? (
+                              <p className="mt-1">%{focusRouteCurrentSuccessRate} publish basarisi</p>
+                            ) : null}
+                            {focusRouteCurrentAdvantage != null ? (
+                              <p className="mt-1">
+                                {focusRouteCurrentAdvantage >= 0 ? "+" : ""}
+                                {focusRouteCurrentAdvantage} puan fark
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                            <p className="font-semibold">Uzun Donem</p>
+                            <p className="mt-1">{focusRouteLongTermLabel ?? "Uzun donem route trend verisi yok"}</p>
+                            {focusRouteLongTermAttempts != null ? (
+                              <p className="mt-1">{focusRouteLongTermAttempts} deneme</p>
+                            ) : null}
+                            {focusRouteLongTermSuccessRate != null ? (
+                              <p className="mt-1">%{focusRouteLongTermSuccessRate} publish basarisi</p>
+                            ) : null}
+                            {focusRouteLongTermAdvantage != null ? (
+                              <p className="mt-1">
+                                {focusRouteLongTermAdvantage >= 0 ? "+" : ""}
+                                {focusRouteLongTermAdvantage} puan fark
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
                     ) : null}
-                    {focusLongTermEffectivenessScore != null ? (
-                      <p className="mt-1 text-xs muted-text">
-                        Uzun donem effectiveness {focusLongTermEffectivenessScore}
-                        {focusLongTermEffectivenessStatus
-                          ? ` (${focusLongTermEffectivenessStatusLabel(focusLongTermEffectivenessStatus)})`
-                          : ""}.
-                      </p>
+                    {hasRouteTrendFocus ? (
+                      <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge label={focusRouteTrendLabel ?? "Route Trend"} variant="neutral" />
+                          {focusRouteTrendConfidence ? (
+                            <Badge
+                              label={focusRouteTrendConfidenceLabel(focusRouteTrendConfidence)}
+                              variant={focusRouteTrendConfidenceVariant(focusRouteTrendConfidence)}
+                            />
+                          ) : null}
+                          {focusRoutePreferredFlow ? (
+                            <Badge label={focusRoutePreferredFlowLabel(focusRoutePreferredFlow)} variant="neutral" />
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-xs muted-text">
+                          {focusRouteTrendReason ?? "Current ve long-term route sinyalleri birlikte degerlendirildi."}
+                        </p>
+                        <div className="mt-2 grid gap-2 text-xs muted-text md:grid-cols-2">
+                          <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                            <p className="font-semibold">Mevcut Pencere</p>
+                            <p className="mt-1">{focusRouteCurrentLabel ?? "Veri yok"}</p>
+                            {focusRouteCurrentAttempts != null ? (
+                              <p className="mt-1">{focusRouteCurrentAttempts} deneme</p>
+                            ) : null}
+                            {focusRouteCurrentSuccessRate != null ? (
+                              <p className="mt-1">%{focusRouteCurrentSuccessRate} publish basarisi</p>
+                            ) : null}
+                            {focusRouteCurrentAdvantage != null ? (
+                              <p className="mt-1">
+                                {focusRouteCurrentAdvantage >= 0 ? "+" : ""}
+                                {focusRouteCurrentAdvantage} puan fark
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                            <p className="font-semibold">Uzun Donem</p>
+                            <p className="mt-1">{focusRouteLongTermLabel ?? "Veri yok"}</p>
+                            {focusRouteLongTermAttempts != null ? (
+                              <p className="mt-1">{focusRouteLongTermAttempts} deneme</p>
+                            ) : null}
+                            {focusRouteLongTermSuccessRate != null ? (
+                              <p className="mt-1">%{focusRouteLongTermSuccessRate} publish basarisi</p>
+                            ) : null}
+                            {focusRouteLongTermAdvantage != null ? (
+                              <p className="mt-1">
+                                {focusRouteLongTermAdvantage >= 0 ? "+" : ""}
+                                {focusRouteLongTermAdvantage} puan fark
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
                     ) : null}
-                    {focusSourceComparisonLabel ? (
-                      <p className="mt-1 text-xs muted-text">
-                        Kaynak karsilastirmasi: {focusSourceComparisonLabel}
-                        {focusSourceComparisonReason ? ` - ${focusSourceComparisonReason}` : ""}
-                        {focusSourceComparisonWinner ? ` [kazanan: ${focusSourceComparisonWinner}]` : ""}
-                      </p>
+                    {focusLongTermWindowDays != null || focusSourceComparisonLabel ? (
+                      <div className="mt-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide muted-text">Uzun Donem Baglami</p>
+                        {focusLongTermWindowDays != null ? (
+                          <p className="mt-1 text-xs muted-text">
+                            {focusLongTermWindowDays} gunluk uzun donem pencere, bu aksiyonun daha stabil calistigi akisi one cikarir.
+                          </p>
+                        ) : null}
+                        {focusLongTermPublishSuccessRate != null ? (
+                          <p className="mt-1 text-xs muted-text">
+                            Uzun donem publish basarisi %{focusLongTermPublishSuccessRate}.
+                          </p>
+                        ) : null}
+                        {focusLongTermBaselineSuccessRate != null ? (
+                          <p className="mt-1 text-xs muted-text">
+                            Mevcut pencere referansi %{focusLongTermBaselineSuccessRate}.
+                          </p>
+                        ) : null}
+                        {focusLongTermEffectivenessScore != null ? (
+                          <p className="mt-1 text-xs muted-text">
+                            Uzun donem effectiveness {focusLongTermEffectivenessScore}
+                            {focusLongTermEffectivenessStatus
+                              ? ` (${focusLongTermEffectivenessStatusLabel(focusLongTermEffectivenessStatus)})`
+                              : ""}.
+                          </p>
+                        ) : null}
+                        {focusSourceComparisonLabel ? (
+                          <p className="mt-1 text-xs muted-text">
+                            Kaynak karsilastirmasi: {focusSourceComparisonLabel}
+                            {focusSourceComparisonReason ? ` - ${focusSourceComparisonReason}` : ""}
+                            {focusSourceComparisonWinner ? ` [kazanan: ${focusSourceComparisonWinner}]` : ""}
+                          </p>
+                        ) : null}
+                      </div>
                     ) : null}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => void applyApprovalRemediation(remediationPrimaryAction.mode)}
+                        disabled={Boolean(remediationSubmitting)}
+                      >
+                        {remediationSubmitting && remediationMode === remediationPrimaryAction.mode
+                          ? "Isleniyor..."
+                          : remediationPrimaryAction.label}
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => void applyApprovalRemediation(remediationPrimaryAction.mode)}
-                    disabled={Boolean(remediationSubmitting)}
-                  >
-                    {remediationSubmitting && remediationMode === remediationPrimaryAction.mode
-                      ? "Isleniyor..."
-                      : remediationPrimaryAction.label}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
             {focusLongTermWindowDays != null || focusSourceComparisonLabel ? (
               <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -849,10 +1099,31 @@ function buildFocusGuidance(
   focusSourceComparisonLabel: string | null,
   focusSourceComparisonReason: string | null,
   focusSourceComparisonWinner: string | null,
+  focusRouteTrendLabel: string | null,
+  focusRouteTrendReason: string | null,
+  focusRoutePreferredFlow: string | null,
+  focusRouteTrendConfidence: string | null,
 ): string {
   const windowPrefix = analyticsWindowDays
     ? `Bu odak ${analyticsWindowDays} gunluk approvals analytics penceresinden geldi. `
     : "";
+
+  if (focusRouteTrendLabel || focusRouteTrendReason || focusRoutePreferredFlow) {
+    return `${windowPrefix}${buildRouteTrendOperatorHint(
+      focusRouteTrendLabel,
+      focusRouteTrendReason,
+      focusRoutePreferredFlow,
+      focusRouteTrendConfidence,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    )}`;
+  }
 
   if (focusDecisionStatus === "long_term_preferred" || focusSourceComparisonLabel || focusLongTermWindowDays != null) {
     const longTermPrefix = focusLongTermWindowDays != null
@@ -998,6 +1269,98 @@ function focusLongTermEffectivenessStatusVariant(
   return variants[code] ?? "neutral";
 }
 
+function focusPrimaryActionModeLabel(code: string): string {
+  return (
+    {
+      jump_to_item: "Detay Rotasi",
+      bulk_retry_publish: "Bulk Retry Rotasi",
+      focus_cluster: "Cluster Inceleme Rotasi",
+    }[code] ?? code
+  );
+}
+
+function focusPrimaryActionConfidenceStatusLabel(code: string | null): string {
+  return (
+    {
+      proven: "Kanitli",
+      emerging: "Yukselen",
+      guarded: "Temkinli",
+    }[code ?? ""] ?? "Temkinli"
+  );
+}
+
+function focusPrimaryActionConfidenceVariant(
+  code: string | null,
+): "success" | "warning" | "danger" | "neutral" {
+  switch (code) {
+    case "proven":
+      return "success";
+    case "emerging":
+      return "warning";
+    case "guarded":
+      return "neutral";
+    default:
+      return "neutral";
+  }
+}
+
+function buildPrimaryActionOperatorHint(
+  mode: string | null,
+  routeLabel: string | null,
+  sourceLabel: string | null,
+  reason: string | null,
+  successRate: number | null,
+  trackedInteractions: number | null,
+  confidenceLabel: string | null,
+  advantage: number | null,
+  alternativeRouteLabel: string | null,
+  alternativeSuccessRate: number | null,
+): string {
+  const parts: string[] = [];
+
+  if (routeLabel) {
+    parts.push(`Secilen rota: ${routeLabel}.`);
+  }
+
+  if (sourceLabel) {
+    parts.push(`Kazanan kaynak: ${sourceLabel}.`);
+  }
+
+  if (confidenceLabel) {
+    parts.push(`Rota guveni ${confidenceLabel.toLowerCase()}.`);
+  }
+
+  if (successRate != null) {
+    parts.push(`Bu rota %${successRate} publish basarisi uretmis.`);
+  }
+
+  if (trackedInteractions != null) {
+    parts.push(`${trackedInteractions} izlenen etkilesim bu karari destekliyor.`);
+  }
+
+  if (advantage != null && alternativeRouteLabel) {
+    parts.push(
+      `${alternativeRouteLabel} rotasina gore ${advantage >= 0 ? "+" : ""}${advantage} puan fark goruluyor.`,
+    );
+  }
+
+  if (alternativeSuccessRate != null && !alternativeRouteLabel) {
+    parts.push(`Alternatif rota basarisi %${alternativeSuccessRate}.`);
+  }
+
+  if (reason) {
+    parts.push(reason);
+  } else if (mode === "jump_to_item") {
+    parts.push("Bu nedenle operatoru dogrudan bu detay ekranina indiren rota secildi.");
+  } else if (mode === "bulk_retry_publish") {
+    parts.push("Bu nedenle approvals merkezindeki bulk retry akisi referans alinmali.");
+  } else {
+    parts.push("Bu nedenle once cluster inceleme odagi korunuyor.");
+  }
+
+  return parts.join(" ");
+}
+
 function focusSourceComparisonVariant(
   label: string | null,
   winner: string | null,
@@ -1013,6 +1376,115 @@ function focusSourceComparisonVariant(
   }
 
   return "neutral";
+}
+
+function focusRoutePreferredFlowLabel(flow: string | null): string {
+  return (
+    {
+      draft_detail: "Draft Detail Akisi",
+      approvals_native: "Approvals Akisi",
+      balanced: "Dengeli Akis",
+    }[flow ?? ""] ?? "Route Trendi"
+  );
+}
+
+function focusRouteTrendVariant(
+  flow: string | null,
+): "success" | "warning" | "danger" | "neutral" {
+  if (flow === "draft_detail") {
+    return "success";
+  }
+
+  if (flow === "approvals_native") {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function focusRouteTrendConfidenceLabel(confidence: string | null): string {
+  return (
+    {
+      high: "Yuksek Guven",
+      medium: "Orta Guven",
+      low: "Dusuk Guven",
+    }[confidence ?? ""] ?? "Guven Bilgisi Yok"
+  );
+}
+
+function focusRouteTrendConfidenceVariant(
+  confidence: string | null,
+): "success" | "warning" | "danger" | "neutral" {
+  if (confidence === "high") {
+    return "success";
+  }
+
+  if (confidence === "medium") {
+    return "warning";
+  }
+
+  if (confidence === "low") {
+    return "neutral";
+  }
+
+  return "neutral";
+}
+
+function buildRouteTrendOperatorHint(
+  label: string | null,
+  reason: string | null,
+  preferredFlow: string | null,
+  confidence: string | null,
+  currentLabel: string | null,
+  currentAttempts: number | null,
+  currentSuccessRate: number | null,
+  currentAdvantage: number | null,
+  longTermLabel: string | null,
+  longTermAttempts: number | null,
+  longTermSuccessRate: number | null,
+  longTermAdvantage: number | null,
+): string {
+  const parts: string[] = [];
+
+  if (label) {
+    parts.push(`Route ozeti: ${label}.`);
+  }
+
+  if (reason) {
+    parts.push(reason);
+  }
+
+  if (preferredFlow === "draft_detail") {
+    parts.push("Bu nedenle operatorun detay ekranda kalip remediation aksiyonunu burada tamamlamasi daha dogru.");
+  } else if (preferredFlow === "approvals_native") {
+    parts.push("Bu nedenle approvals merkezindeki cluster akisini referans alip toplu resmi oradan yonetmek daha guvenli.");
+  }
+
+  if (confidence === "high") {
+    parts.push("Route karari yuksek guven sinyali tasiyor.");
+  } else if (confidence === "medium") {
+    parts.push("Route karari orta guven sinyali tasiyor; publish guidance ile birlikte okunmali.");
+  }
+
+  if (currentLabel || currentAttempts != null || currentSuccessRate != null || currentAdvantage != null) {
+    parts.push(
+      `Mevcut pencere: ${currentLabel ?? "veri yok"}`
+      + `${currentAttempts != null ? `, ${currentAttempts} deneme` : ""}`
+      + `${currentSuccessRate != null ? `, %${currentSuccessRate} basari` : ""}`
+      + `${currentAdvantage != null ? `, ${currentAdvantage >= 0 ? "+" : ""}${currentAdvantage} puan fark` : ""}.`,
+    );
+  }
+
+  if (longTermLabel || longTermAttempts != null || longTermSuccessRate != null || longTermAdvantage != null) {
+    parts.push(
+      `Uzun donem: ${longTermLabel ?? "veri yok"}`
+      + `${longTermAttempts != null ? `, ${longTermAttempts} deneme` : ""}`
+      + `${longTermSuccessRate != null ? `, %${longTermSuccessRate} basari` : ""}`
+      + `${longTermAdvantage != null ? `, ${longTermAdvantage >= 0 ? "+" : ""}${longTermAdvantage} puan fark` : ""}.`,
+    );
+  }
+
+  return parts.join(" ");
 }
 
 function buildSourceComparisonOperatorHint(
@@ -1203,4 +1675,5 @@ function buildApprovalsReturnRoute(
 
   return query ? `/approvals?${query}` : "/approvals";
 }
+
 

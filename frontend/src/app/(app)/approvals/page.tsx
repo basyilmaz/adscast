@@ -73,6 +73,18 @@ type ApprovalRemediationAnalyticsResponse = {
       top_interaction_source_label: string | null;
       top_success_source_key: string | null;
       top_success_source_label: string | null;
+      top_route_key?: string | null;
+      top_route_label?: string | null;
+      top_route_source_key?: string | null;
+      top_route_source_label?: string | null;
+      top_route_publish_success_rate?: number | null;
+      top_route_advantage?: number | null;
+      top_long_term_route_key?: string | null;
+      top_long_term_route_label?: string | null;
+      top_long_term_route_source_key?: string | null;
+      top_long_term_route_source_label?: string | null;
+      top_long_term_route_publish_success_rate?: number | null;
+      top_long_term_route_advantage?: number | null;
       tracked_featured_interactions: number;
       followed_featured_interactions: number;
       override_featured_interactions: number;
@@ -84,6 +96,8 @@ type ApprovalRemediationAnalyticsResponse = {
       long_term_window_days?: number;
     };
     interaction_sources: Array<RemediationTelemetrySource>;
+    route_trends: Array<RouteTrendMetric>;
+    long_term_route_trends?: Array<RouteTrendMetric>;
     outcome_chain_summary: RemediationOutcomeChainSummary;
     approvals_native_outcome_summary: RemediationOutcomeChainSummary;
     draft_detail_outcome_summary: RemediationOutcomeChainSummary;
@@ -185,6 +199,18 @@ type ApprovalRemediationAnalyticsResponse = {
       long_term_effectiveness_status?: string | null;
     }>;
   };
+};
+
+type RouteTrendMetric = {
+  route_key: "approvals" | "draft_detail" | "other" | string;
+  label: string;
+  tracked_interactions: number;
+  publish_attempts: number;
+  successful_publishes: number;
+  failed_publishes: number;
+  publish_success_rate: number | null;
+  top_source_key: string | null;
+  top_source_label: string | null;
 };
 
 type RemediationTelemetrySourceKey =
@@ -312,6 +338,16 @@ type RetryGuidanceContext = {
     source_label?: string | null;
     publish_attempts?: number | null;
     publish_success_rate?: number | null;
+    tracked_interactions?: number | null;
+    successful_publishes?: number | null;
+    failed_publishes?: number | null;
+    followed_featured_interactions?: number | null;
+    preferred_flow?: "draft_detail" | "approvals_native" | "balanced" | null;
+    confidence_status?: "proven" | "emerging" | "guarded" | null;
+    confidence_label?: string | null;
+    alternative_route_key?: string | null;
+    alternative_route_label?: string | null;
+    alternative_publish_success_rate?: number | null;
     advantage_vs_alternative_route?: number | null;
     reason?: string | null;
   } | null;
@@ -344,8 +380,17 @@ type RouteTrendInsight = {
   reason: string;
   nextStepLabel: string;
   preferredFlow: "draft_detail" | "approvals_native" | "balanced";
+  confidence: "high" | "medium" | "low";
   currentLabel: string;
   longTermLabel: string;
+  currentRouteKey?: string | null;
+  currentRouteSuccessRate?: number | null;
+  currentRouteAttempts?: number | null;
+  currentRouteAdvantage?: number | null;
+  longTermRouteKey?: string | null;
+  longTermRouteSuccessRate?: number | null;
+  longTermRouteAttempts?: number | null;
+  longTermRouteAdvantage?: number | null;
 };
 
 type DraftRouteFocusContext = {
@@ -362,6 +407,29 @@ type DraftRouteFocusContext = {
   longTermSuccessRate?: number | null;
   longTermBaselineSuccessRate?: number | null;
   longTermEffectivenessStatus?: string | null;
+  primaryActionMode?: "focus_cluster" | "bulk_retry_publish" | "jump_to_item" | null;
+  primaryActionRouteLabel?: string | null;
+  primaryActionSourceLabel?: string | null;
+  primaryActionReason?: string | null;
+  primaryActionSuccessRate?: number | null;
+  primaryActionTrackedInteractions?: number | null;
+  primaryActionConfidenceStatus?: "proven" | "emerging" | "guarded" | null;
+  primaryActionConfidenceLabel?: string | null;
+  primaryActionAdvantage?: number | null;
+  primaryActionAlternativeRouteLabel?: string | null;
+  primaryActionAlternativeSuccessRate?: number | null;
+  routeTrendLabel?: string | null;
+  routeTrendReason?: string | null;
+  routePreferredFlow?: "draft_detail" | "approvals_native" | "balanced" | null;
+  routeTrendConfidence?: "high" | "medium" | "low" | null;
+  routeCurrentLabel?: string | null;
+  routeCurrentAttempts?: number | null;
+  routeCurrentSuccessRate?: number | null;
+  routeCurrentAdvantage?: number | null;
+  routeLongTermLabel?: string | null;
+  routeLongTermAttempts?: number | null;
+  routeLongTermSuccessRate?: number | null;
+  routeLongTermAdvantage?: number | null;
 };
 
 export default function ApprovalsPage() {
@@ -549,15 +617,21 @@ function ApprovalsPageContent({
     [currentSourceComparison, longTermSourceComparison],
   );
   const routeTrendInsight = useMemo(
-    () =>
-      buildRouteTrendInsight(
+    () => {
+      const currentRouteTrends = remediationAnalytics?.route_trends ?? [];
+      const longTermRouteTrends = remediationAnalytics?.long_term_route_trends ?? [];
+
+      return buildRouteTrendInsight(
+        currentRouteTrends,
+        longTermRouteTrends,
         currentSourceComparison,
         longTermSourceComparison,
         draftDetailSummary,
         approvalsNativeSummary,
         longTermDraftDetailSummary,
         longTermApprovalsNativeSummary,
-      ),
+      );
+    },
     [
       approvalsNativeSummary,
       currentSourceComparison,
@@ -565,6 +639,8 @@ function ApprovalsPageContent({
       longTermApprovalsNativeSummary,
       longTermDraftDetailSummary,
       longTermSourceComparison,
+      remediationAnalytics?.long_term_route_trends,
+      remediationAnalytics?.route_trends,
     ],
   );
   const summary = useMemo(() => {
@@ -1186,10 +1262,22 @@ function ApprovalsPageContent({
             longTermSuccessRate: featuredRecommendation?.long_term_publish_success_rate ?? null,
             longTermBaselineSuccessRate: featuredRecommendation?.decision_context_baseline_success_rate ?? null,
             longTermEffectivenessStatus: featuredRecommendation?.long_term_effectiveness_status ?? null,
+            primaryActionMode: featuredRecommendation?.primary_action?.mode ?? null,
+            primaryActionRouteLabel: featuredRecommendation?.primary_action?.route_label ?? null,
+            primaryActionSourceLabel: featuredRecommendation?.primary_action?.source_label ?? null,
+            primaryActionReason: featuredRecommendation?.primary_action?.reason ?? null,
+            primaryActionSuccessRate: featuredRecommendation?.primary_action?.publish_success_rate ?? null,
+            primaryActionTrackedInteractions: featuredRecommendation?.primary_action?.tracked_interactions ?? null,
+            primaryActionConfidenceStatus: featuredRecommendation?.primary_action?.confidence_status ?? null,
+            primaryActionConfidenceLabel: featuredRecommendation?.primary_action?.confidence_label ?? null,
+            primaryActionAdvantage: featuredRecommendation?.primary_action?.advantage_vs_alternative_route ?? null,
+            primaryActionAlternativeRouteLabel: featuredRecommendation?.primary_action?.alternative_route_label ?? null,
+            primaryActionAlternativeSuccessRate: featuredRecommendation?.primary_action?.alternative_publish_success_rate ?? null,
+            ...buildRouteTrendFocusContext(routeTrendInsight),
             }
           )
         : null,
-    [analyticsWindowDays, featuredClusterMatches, featuredRecommendation, remediationAnalytics?.summary.long_term_window_days, sourceComparisonWinner],
+    [analyticsWindowDays, featuredClusterMatches, featuredRecommendation, remediationAnalytics?.summary.long_term_window_days, routeTrendInsight, sourceComparisonWinner],
   );
   const featuredPrimaryAction = useMemo(
     () => resolveFeaturedPrimaryAction(featuredRecommendation, sourceComparisonWinner, routeTrendInsight, featuredDraftRoute),
@@ -1836,6 +1924,18 @@ function ApprovalsPageContent({
                   longTermWindowDays: remediationAnalytics?.summary.long_term_window_days ?? null,
                   longTermSuccessRate: analyticsItem?.long_term_publish_success_rate ?? null,
                   longTermEffectivenessStatus: analyticsItem?.long_term_effectiveness_status ?? null,
+                  primaryActionMode: analyticsItem?.primary_action?.mode ?? null,
+                  primaryActionRouteLabel: analyticsItem?.primary_action?.route_label ?? null,
+                  primaryActionSourceLabel: analyticsItem?.primary_action?.source_label ?? null,
+                  primaryActionReason: analyticsItem?.primary_action?.reason ?? null,
+                  primaryActionSuccessRate: analyticsItem?.primary_action?.publish_success_rate ?? null,
+                  primaryActionTrackedInteractions: analyticsItem?.primary_action?.tracked_interactions ?? null,
+                  primaryActionConfidenceStatus: analyticsItem?.primary_action?.confidence_status ?? null,
+                  primaryActionConfidenceLabel: analyticsItem?.primary_action?.confidence_label ?? null,
+                  primaryActionAdvantage: analyticsItem?.primary_action?.advantage_vs_alternative_route ?? null,
+                  primaryActionAlternativeRouteLabel: analyticsItem?.primary_action?.alternative_route_label ?? null,
+                  primaryActionAlternativeSuccessRate: analyticsItem?.primary_action?.alternative_publish_success_rate ?? null,
+                  ...buildRouteTrendFocusContext(routeTrendInsight),
                   }
                 )
               : null;
@@ -2093,6 +2193,7 @@ function ApprovalsPageContent({
                           : "guarded",
                       retryGuidanceLabel: item.publish_state?.recommended_action_label ?? null,
                       retryGuidanceReason: item.publish_state?.operator_guidance ?? null,
+                      ...buildRouteTrendFocusContext(routeTrendInsight),
                     }) ?? item.approvable_route
                   }
                 >
@@ -2224,6 +2325,7 @@ function ApprovalsPageContent({
                           : "guarded",
                       retryGuidanceLabel: item.publish_state?.recommended_action_label ?? null,
                       retryGuidanceReason: item.publish_state?.operator_guidance ?? null,
+                      ...buildRouteTrendFocusContext(routeTrendInsight),
                     }) ?? item.approvable_route
                   }
                 >
@@ -2497,6 +2599,10 @@ function shouldPreferDraftDetailPrimaryAction(
     return false;
   }
 
+  if (context?.primary_action?.confidence_status === "guarded") {
+    return false;
+  }
+
   if (context?.decision_context_source === "draft_detail") {
     return true;
   }
@@ -2505,7 +2611,7 @@ function shouldPreferDraftDetailPrimaryAction(
     return false;
   }
 
-  if (routeTrendInsight?.preferredFlow === "draft_detail") {
+  if (routeTrendInsight?.preferredFlow === "draft_detail" && routeTrendInsight.confidence !== "low") {
     return true;
   }
 
@@ -2522,7 +2628,11 @@ function resolveFeaturedPrimaryAction(
   label: string;
   hint: string;
 } {
-  if (context?.primary_action?.mode === "jump_to_item" && draftRoute) {
+  if (
+    context?.primary_action?.mode === "jump_to_item"
+    && draftRoute
+    && context.primary_action.confidence_status !== "guarded"
+  ) {
     return {
       mode: "jump_to_draft_detail",
       label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
@@ -2560,6 +2670,7 @@ function shouldPreferClusterDraftDetailAction(
     long_term_safe_bulk_retry?: boolean | null;
     long_term_effectiveness_status?: string | null;
     long_term_publish_success_rate?: number | null;
+    primary_action?: RetryGuidanceContext["primary_action"];
   } | undefined,
   topSource: RemediationTelemetrySource | null,
   routeTrendInsight: RouteTrendInsight | null,
@@ -2573,6 +2684,10 @@ function shouldPreferClusterDraftDetailAction(
     return false;
   }
 
+  if (analyticsItem?.primary_action?.confidence_status === "guarded") {
+    return false;
+  }
+
   if (routeTrendInsight?.preferredFlow === "approvals_native") {
     return false;
   }
@@ -2580,9 +2695,11 @@ function shouldPreferClusterDraftDetailAction(
   const normalizedSourceKey = topSource.source_key.trim().toLowerCase();
   const sourcePrefersDraftDetail = normalizedSourceKey.startsWith("draft_detail");
   const sourceSuccessRate = topSource.publish_success_rate ?? 0;
+  const routeTrendSupportsDraftDetail = routeTrendInsight?.preferredFlow === "draft_detail"
+    && routeTrendInsight.confidence !== "low";
 
   return sourcePrefersDraftDetail && (
-    routeTrendInsight?.preferredFlow === "draft_detail"
+    routeTrendSupportsDraftDetail
     || sourceSuccessRate >= 60
     || topSource.successful_publishes > 0
   );
@@ -2599,6 +2716,7 @@ function resolveClusterPrimaryAction(
     long_term_safe_bulk_retry?: boolean | null;
     long_term_effectiveness_status?: string | null;
     long_term_publish_success_rate?: number | null;
+    primary_action?: RetryGuidanceContext["primary_action"];
   } | undefined,
   topSource: RemediationTelemetrySource | null,
   routeTrendInsight: RouteTrendInsight | null,
@@ -2610,6 +2728,21 @@ function resolveClusterPrimaryAction(
   variant: "primary" | "secondary" | "outline";
   hint: string;
 } {
+  if (
+    analyticsItem?.primary_action?.mode === "jump_to_item"
+    && draftRoute
+    && analyticsItem.primary_action.confidence_status !== "guarded"
+  ) {
+    return {
+      mode: "jump_to_draft_detail",
+      label: routeTrendInsight?.nextStepLabel ?? "Draft Detail Akisina Git",
+      variant: analyticsItem.primary_action.confidence_status === "proven" ? "primary" : "secondary",
+      hint: analyticsItem.primary_action.reason
+        ?? routeTrendInsight?.reason
+        ?? "Bu cluster icin draft detail aksiyonu daha guclu sonuc veriyor.",
+    };
+  }
+
   if (shouldPreferClusterDraftDetailAction(analyticsItem, topSource, routeTrendInsight, draftRoute)) {
     return {
       mode: "jump_to_draft_detail",
@@ -2987,7 +3120,85 @@ function compareSourceAggressiveness(
   };
 }
 
+function preferredFlowFromRouteKey(
+  routeKey: string | null | undefined,
+): "draft_detail" | "approvals_native" | "balanced" {
+  if (routeKey === "draft_detail") {
+    return "draft_detail";
+  }
+
+  if (routeKey === "approvals") {
+    return "approvals_native";
+  }
+
+  return "balanced";
+}
+
+function routeTrendConfidenceFromMetrics(
+  preferredFlow: "draft_detail" | "approvals_native" | "balanced",
+  currentTopRoute: RouteTrendMetric | null,
+  longTermTopRoute: RouteTrendMetric | null,
+  currentAdvantage: number | null,
+  longTermAdvantage: number | null,
+): "high" | "medium" | "low" {
+  if (preferredFlow === "balanced") {
+    return "low";
+  }
+
+  const currentSupportsFlow = preferredFlowFromRouteKey(currentTopRoute?.route_key) === preferredFlow;
+  const longTermSupportsFlow = preferredFlowFromRouteKey(longTermTopRoute?.route_key) === preferredFlow;
+  const currentAttempts = currentSupportsFlow ? (currentTopRoute?.publish_attempts ?? 0) : 0;
+  const longTermAttempts = longTermSupportsFlow ? (longTermTopRoute?.publish_attempts ?? 0) : 0;
+
+  if (
+    currentSupportsFlow
+    && longTermSupportsFlow
+    && currentAttempts >= 2
+    && longTermAttempts >= 2
+    && ((currentAdvantage ?? 0) >= 12 || (longTermAdvantage ?? 0) >= 12)
+  ) {
+    return "high";
+  }
+
+  if (
+    (currentSupportsFlow && currentAttempts >= 2 && (currentAdvantage ?? 0) >= 10)
+    || (longTermSupportsFlow && longTermAttempts >= 2 && (longTermAdvantage ?? 0) >= 10)
+  ) {
+    return "medium";
+  }
+
+  return "low";
+}
+
+function routeTrendLine(
+  trend: RouteTrendMetric | null,
+  fallbackLabel: string,
+  advantage: number | null,
+): string {
+  if (!trend) {
+    return fallbackLabel;
+  }
+
+  const parts = [trend.label];
+
+  if (trend.publish_success_rate != null) {
+    parts.push(`%${trend.publish_success_rate}`);
+  }
+
+  if (trend.publish_attempts > 0) {
+    parts.push(`${trend.publish_attempts} deneme`);
+  }
+
+  if (advantage != null) {
+    parts.push(`${advantage >= 0 ? "+" : ""}${advantage} puan fark`);
+  }
+
+  return parts.join(" / ");
+}
+
 function buildRouteTrendInsight(
+  currentRouteTrends: ReadonlyArray<RouteTrendMetric>,
+  longTermRouteTrends: ReadonlyArray<RouteTrendMetric>,
   currentComparison: SourceComparisonInsight | null,
   longTermComparison: SourceComparisonInsight | null,
   draftDetailSummary: TelemetryAggregateSummary,
@@ -2995,69 +3206,133 @@ function buildRouteTrendInsight(
   longTermDraftDetailSummary: TelemetryAggregateSummary,
   longTermApprovalsNativeSummary: TelemetryAggregateSummary,
 ): RouteTrendInsight | null {
+  const currentTopRoute = currentRouteTrends[0] ?? null;
+  const longTermTopRoute = longTermRouteTrends[0] ?? null;
   const currentPreferredFlow = currentComparison?.preferredFlow ?? "balanced";
   const longTermPreferredFlow = longTermComparison?.preferredFlow ?? "balanced";
+  const currentRoutePreferredFlow = preferredFlowFromRouteKey(currentTopRoute?.route_key);
+  const longTermRoutePreferredFlow = preferredFlowFromRouteKey(longTermTopRoute?.route_key);
+  const effectiveCurrentPreferredFlow = currentRoutePreferredFlow !== "balanced"
+    ? currentRoutePreferredFlow
+    : currentPreferredFlow;
+  const effectiveLongTermPreferredFlow = longTermRoutePreferredFlow !== "balanced"
+    ? longTermRoutePreferredFlow
+    : longTermPreferredFlow;
   const currentDraftRate = draftDetailSummary.publish_success_rate;
   const currentNativeRate = approvalsNativeSummary.publish_success_rate;
   const longTermDraftRate = longTermDraftDetailSummary.publish_success_rate;
   const longTermNativeRate = longTermApprovalsNativeSummary.publish_success_rate;
+  const currentAdvantage = currentDraftRate != null && currentNativeRate != null
+    ? roundToOneDecimal(Math.abs(currentDraftRate - currentNativeRate))
+    : null;
+  const longTermAdvantage = longTermDraftRate != null && longTermNativeRate != null
+    ? roundToOneDecimal(Math.abs(longTermDraftRate - longTermNativeRate))
+    : null;
+  const preferredFlow = effectiveCurrentPreferredFlow !== "balanced"
+    ? effectiveCurrentPreferredFlow
+    : effectiveLongTermPreferredFlow;
+  const confidence = routeTrendConfidenceFromMetrics(
+    preferredFlow,
+    currentTopRoute,
+    longTermTopRoute,
+    currentAdvantage,
+    longTermAdvantage,
+  );
+  const currentLabel = routeTrendLine(currentTopRoute, currentComparison?.label ?? "Denge", currentAdvantage);
+  const longTermLabel = routeTrendLine(longTermTopRoute, longTermComparison?.label ?? "Denge", longTermAdvantage);
 
-  if (currentPreferredFlow === "balanced" && longTermPreferredFlow === "balanced") {
+  if (effectiveCurrentPreferredFlow === "balanced" && effectiveLongTermPreferredFlow === "balanced") {
     return {
       label: "Route dengede",
       variant: "neutral",
       reason: "Mevcut pencere ve uzun donem tarafinda draft detail ile approvals-native akislar birbirine yakin gorunuyor.",
       nextStepLabel: "Odagi Incele",
       preferredFlow: "balanced",
-      currentLabel: currentComparison?.label ?? "Denge",
-      longTermLabel: longTermComparison?.label ?? "Denge",
+      confidence: "low",
+      currentLabel,
+      longTermLabel,
+      currentRouteKey: currentTopRoute?.route_key ?? null,
+      currentRouteSuccessRate: currentTopRoute?.publish_success_rate ?? null,
+      currentRouteAttempts: currentTopRoute?.publish_attempts ?? null,
+      currentRouteAdvantage: currentAdvantage,
+      longTermRouteKey: longTermTopRoute?.route_key ?? null,
+      longTermRouteSuccessRate: longTermTopRoute?.publish_success_rate ?? null,
+      longTermRouteAttempts: longTermTopRoute?.publish_attempts ?? null,
+      longTermRouteAdvantage: longTermAdvantage,
     };
   }
 
   if (
-    currentPreferredFlow !== "balanced"
-    && currentPreferredFlow === longTermPreferredFlow
+    effectiveCurrentPreferredFlow !== "balanced"
+    && effectiveCurrentPreferredFlow === effectiveLongTermPreferredFlow
   ) {
-    const preferredDraftDetail = currentPreferredFlow === "draft_detail";
+    const preferredDraftDetail = effectiveCurrentPreferredFlow === "draft_detail";
 
     return {
       label: preferredDraftDetail ? "Draft detail kalici lider" : "Approvals-native kalici lider",
       variant: preferredDraftDetail ? "success" : "warning",
-      reason: `${currentComparison?.reason ?? "Mevcut pencere bu route'u onde gosteriyor."} ${longTermComparison?.reason ?? "Uzun donem de ayni route'u destekliyor."}`.trim(),
+      reason: `${currentComparison?.reason ?? "Mevcut pencere bu route'u onde gosteriyor."} ${longTermComparison?.reason ?? "Uzun donem de ayni route'u destekliyor."} Current: ${currentLabel}. Uzun donem: ${longTermLabel}.`.trim(),
       nextStepLabel: preferredDraftDetail ? "Draft Detail Akisina Git" : "Featured Kume Uzerinde Calis",
-      preferredFlow: currentPreferredFlow,
-      currentLabel: currentComparison?.label ?? "Denge",
-      longTermLabel: longTermComparison?.label ?? "Denge",
+      preferredFlow: effectiveCurrentPreferredFlow,
+      confidence,
+      currentLabel,
+      longTermLabel,
+      currentRouteKey: currentTopRoute?.route_key ?? null,
+      currentRouteSuccessRate: currentTopRoute?.publish_success_rate ?? null,
+      currentRouteAttempts: currentTopRoute?.publish_attempts ?? null,
+      currentRouteAdvantage: currentAdvantage,
+      longTermRouteKey: longTermTopRoute?.route_key ?? null,
+      longTermRouteSuccessRate: longTermTopRoute?.publish_success_rate ?? null,
+      longTermRouteAttempts: longTermTopRoute?.publish_attempts ?? null,
+      longTermRouteAdvantage: longTermAdvantage,
     };
   }
 
-  if (longTermPreferredFlow !== "balanced") {
-    const preferredDraftDetail = longTermPreferredFlow === "draft_detail";
+  if (effectiveLongTermPreferredFlow !== "balanced") {
+    const preferredDraftDetail = effectiveLongTermPreferredFlow === "draft_detail";
     const longTermRate = preferredDraftDetail ? longTermDraftRate : longTermNativeRate;
     const currentRate = preferredDraftDetail ? currentDraftRate : currentNativeRate;
 
     return {
       label: preferredDraftDetail ? "Draft detail uzun donemde onde" : "Approvals-native uzun donemde onde",
       variant: preferredDraftDetail ? "success" : "warning",
-      reason: `${longTermComparison?.reason ?? "Uzun donem verisi bu route'u onde gosteriyor."}${longTermRate != null ? ` Uzun donem basari %${longTermRate}.` : ""}${currentRate != null ? ` Mevcut pencere referansi %${currentRate}.` : ""}`,
+      reason: `${longTermComparison?.reason ?? "Uzun donem verisi bu route'u onde gosteriyor."}${longTermRate != null ? ` Uzun donem basari %${longTermRate}.` : ""}${currentRate != null ? ` Mevcut pencere referansi %${currentRate}.` : ""} Current: ${currentLabel}. Uzun donem: ${longTermLabel}.`,
       nextStepLabel: preferredDraftDetail ? "Draft Detail Akisina Git" : "Featured Kume Uzerinde Calis",
-      preferredFlow: longTermPreferredFlow,
-      currentLabel: currentComparison?.label ?? "Denge",
-      longTermLabel: longTermComparison?.label ?? "Denge",
+      preferredFlow: effectiveLongTermPreferredFlow,
+      confidence,
+      currentLabel,
+      longTermLabel,
+      currentRouteKey: currentTopRoute?.route_key ?? null,
+      currentRouteSuccessRate: currentTopRoute?.publish_success_rate ?? null,
+      currentRouteAttempts: currentTopRoute?.publish_attempts ?? null,
+      currentRouteAdvantage: currentAdvantage,
+      longTermRouteKey: longTermTopRoute?.route_key ?? null,
+      longTermRouteSuccessRate: longTermTopRoute?.publish_success_rate ?? null,
+      longTermRouteAttempts: longTermTopRoute?.publish_attempts ?? null,
+      longTermRouteAdvantage: longTermAdvantage,
     };
   }
 
-  if (currentPreferredFlow !== "balanced") {
-    const preferredDraftDetail = currentPreferredFlow === "draft_detail";
+  if (effectiveCurrentPreferredFlow !== "balanced") {
+    const preferredDraftDetail = effectiveCurrentPreferredFlow === "draft_detail";
 
     return {
       label: preferredDraftDetail ? "Draft detail bu pencerede onde" : "Approvals-native bu pencerede onde",
       variant: preferredDraftDetail ? "success" : "warning",
-      reason: currentComparison?.reason ?? "Mevcut pencere route karari icin daha guclu sinyal veriyor.",
+      reason: `${currentComparison?.reason ?? "Mevcut pencere route karari icin daha guclu sinyal veriyor."} Current: ${currentLabel}.`,
       nextStepLabel: preferredDraftDetail ? "Draft Detail Akisina Git" : "Featured Kume Uzerinde Calis",
-      preferredFlow: currentPreferredFlow,
-      currentLabel: currentComparison?.label ?? "Denge",
-      longTermLabel: longTermComparison?.label ?? "Denge",
+      preferredFlow: effectiveCurrentPreferredFlow,
+      confidence,
+      currentLabel,
+      longTermLabel,
+      currentRouteKey: currentTopRoute?.route_key ?? null,
+      currentRouteSuccessRate: currentTopRoute?.publish_success_rate ?? null,
+      currentRouteAttempts: currentTopRoute?.publish_attempts ?? null,
+      currentRouteAdvantage: currentAdvantage,
+      longTermRouteKey: longTermTopRoute?.route_key ?? null,
+      longTermRouteSuccessRate: longTermTopRoute?.publish_success_rate ?? null,
+      longTermRouteAttempts: longTermTopRoute?.publish_attempts ?? null,
+      longTermRouteAdvantage: longTermAdvantage,
     };
   }
 
@@ -3139,6 +3414,39 @@ function buildSourceSpotlight(
   }
 
   return null;
+}
+
+function buildRouteTrendFocusContext(
+  routeTrendInsight: RouteTrendInsight | null,
+): Pick<
+  DraftRouteFocusContext,
+  | "routeTrendLabel"
+  | "routeTrendReason"
+  | "routePreferredFlow"
+  | "routeTrendConfidence"
+  | "routeCurrentLabel"
+  | "routeCurrentAttempts"
+  | "routeCurrentSuccessRate"
+  | "routeCurrentAdvantage"
+  | "routeLongTermLabel"
+  | "routeLongTermAttempts"
+  | "routeLongTermSuccessRate"
+  | "routeLongTermAdvantage"
+> {
+  return {
+    routeTrendLabel: routeTrendInsight?.label ?? null,
+    routeTrendReason: routeTrendInsight?.reason ?? null,
+    routePreferredFlow: routeTrendInsight?.preferredFlow ?? null,
+    routeTrendConfidence: routeTrendInsight?.confidence ?? null,
+    routeCurrentLabel: routeTrendInsight?.currentLabel ?? null,
+    routeCurrentAttempts: routeTrendInsight?.currentRouteAttempts ?? null,
+    routeCurrentSuccessRate: routeTrendInsight?.currentRouteSuccessRate ?? null,
+    routeCurrentAdvantage: routeTrendInsight?.currentRouteAdvantage ?? null,
+    routeLongTermLabel: routeTrendInsight?.longTermLabel ?? null,
+    routeLongTermAttempts: routeTrendInsight?.longTermRouteAttempts ?? null,
+    routeLongTermSuccessRate: routeTrendInsight?.longTermRouteSuccessRate ?? null,
+    routeLongTermAdvantage: routeTrendInsight?.longTermRouteAdvantage ?? null,
+  };
 }
 
 function roundToOneDecimal(value: number): number {
@@ -3259,6 +3567,98 @@ function buildDraftRoute(
 
   if (focusContext?.longTermEffectivenessStatus) {
     params.set("focus_long_term_effectiveness_status", focusContext.longTermEffectivenessStatus);
+  }
+
+  if (focusContext?.primaryActionMode) {
+    params.set("focus_primary_action_mode", focusContext.primaryActionMode);
+  }
+
+  if (focusContext?.primaryActionRouteLabel) {
+    params.set("focus_primary_action_route_label", focusContext.primaryActionRouteLabel);
+  }
+
+  if (focusContext?.primaryActionSourceLabel) {
+    params.set("focus_primary_action_source_label", focusContext.primaryActionSourceLabel);
+  }
+
+  if (focusContext?.primaryActionReason) {
+    params.set("focus_primary_action_reason", focusContext.primaryActionReason);
+  }
+
+  if (focusContext?.primaryActionSuccessRate != null) {
+    params.set("focus_primary_action_success_rate", String(focusContext.primaryActionSuccessRate));
+  }
+
+  if (focusContext?.primaryActionTrackedInteractions != null) {
+    params.set("focus_primary_action_tracked_interactions", String(focusContext.primaryActionTrackedInteractions));
+  }
+
+  if (focusContext?.primaryActionConfidenceStatus) {
+    params.set("focus_primary_action_confidence_status", focusContext.primaryActionConfidenceStatus);
+  }
+
+  if (focusContext?.primaryActionConfidenceLabel) {
+    params.set("focus_primary_action_confidence_label", focusContext.primaryActionConfidenceLabel);
+  }
+
+  if (focusContext?.primaryActionAdvantage != null) {
+    params.set("focus_primary_action_advantage", String(focusContext.primaryActionAdvantage));
+  }
+
+  if (focusContext?.primaryActionAlternativeRouteLabel) {
+    params.set("focus_primary_action_alternative_route_label", focusContext.primaryActionAlternativeRouteLabel);
+  }
+
+  if (focusContext?.primaryActionAlternativeSuccessRate != null) {
+    params.set("focus_primary_action_alternative_success_rate", String(focusContext.primaryActionAlternativeSuccessRate));
+  }
+
+  if (focusContext?.routeTrendLabel) {
+    params.set("focus_route_trend_label", focusContext.routeTrendLabel);
+  }
+
+  if (focusContext?.routeTrendReason) {
+    params.set("focus_route_trend_reason", focusContext.routeTrendReason);
+  }
+
+  if (focusContext?.routePreferredFlow) {
+    params.set("focus_route_preferred_flow", focusContext.routePreferredFlow);
+  }
+
+  if (focusContext?.routeTrendConfidence) {
+    params.set("focus_route_trend_confidence", focusContext.routeTrendConfidence);
+  }
+
+  if (focusContext?.routeCurrentLabel) {
+    params.set("focus_route_current_label", focusContext.routeCurrentLabel);
+  }
+
+  if (focusContext?.routeCurrentAttempts != null) {
+    params.set("focus_route_current_attempts", String(focusContext.routeCurrentAttempts));
+  }
+
+  if (focusContext?.routeCurrentSuccessRate != null) {
+    params.set("focus_route_current_success_rate", String(focusContext.routeCurrentSuccessRate));
+  }
+
+  if (focusContext?.routeCurrentAdvantage != null) {
+    params.set("focus_route_current_advantage", String(focusContext.routeCurrentAdvantage));
+  }
+
+  if (focusContext?.routeLongTermLabel) {
+    params.set("focus_route_long_term_label", focusContext.routeLongTermLabel);
+  }
+
+  if (focusContext?.routeLongTermAttempts != null) {
+    params.set("focus_route_long_term_attempts", String(focusContext.routeLongTermAttempts));
+  }
+
+  if (focusContext?.routeLongTermSuccessRate != null) {
+    params.set("focus_route_long_term_success_rate", String(focusContext.routeLongTermSuccessRate));
+  }
+
+  if (focusContext?.routeLongTermAdvantage != null) {
+    params.set("focus_route_long_term_advantage", String(focusContext.routeLongTermAdvantage));
   }
 
   const nextQuery = params.toString();
