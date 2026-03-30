@@ -328,6 +328,7 @@ class ApprovalPublishVisibilityTest extends TestCase
                 'attempted_count' => 2,
                 'success_count' => 1,
                 'failure_count' => 1,
+                'interaction_source' => 'draft_detail',
             ]);
 
         $followedResponse->assertOk();
@@ -342,27 +343,71 @@ class ApprovalPublishVisibilityTest extends TestCase
                 'attempted_count' => 0,
                 'success_count' => 0,
                 'failure_count' => 0,
+                'interaction_source' => 'approvals_cluster',
             ]);
 
         $overrideResponse->assertOk();
+
+        $manualCheckResponse = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->postJson('/api/v1/approvals/remediation-analytics/track', [
+                'featured_cluster_key' => 'manual-check-required',
+                'acted_cluster_key' => 'manual-check-required',
+                'interaction_type' => 'manual_check_completed',
+                'followed_featured' => true,
+                'attempted_count' => 0,
+                'success_count' => 0,
+                'failure_count' => 0,
+                'interaction_source' => 'approvals_item',
+            ]);
+
+        $manualCheckResponse->assertOk();
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->withHeader('X-Workspace-Id', $workspaceId)
             ->getJson('/api/v1/approvals/remediation-analytics');
 
         $response->assertOk()
-            ->assertJsonPath('data.summary.tracked_featured_interactions', 2)
-            ->assertJsonPath('data.summary.followed_featured_interactions', 1)
+            ->assertJsonPath('data.summary.tracked_featured_interactions', 3)
+            ->assertJsonPath('data.summary.followed_featured_interactions', 2)
             ->assertJsonPath('data.summary.override_featured_interactions', 1)
             ->assertJsonPath('data.summary.featured_publish_attempts', 2)
             ->assertJsonPath('data.summary.successful_featured_publishes', 1)
-            ->assertJsonPath('data.summary.featured_follow_rate', 50)
+            ->assertJsonPath('data.summary.featured_follow_rate', 66.7)
             ->assertJsonPath('data.summary.featured_publish_success_rate', 50)
+            ->assertJsonPath('data.summary.tracked_sources_count', 3)
+            ->assertJsonPath('data.summary.top_interaction_source_key', 'draft_detail')
+            ->assertJsonPath('data.summary.top_interaction_source_label', 'Draft Detay')
             ->assertJsonPath('data.featured_recommendation.featured_interactions', 2)
             ->assertJsonPath('data.featured_recommendation.featured_followed_interactions', 1)
             ->assertJsonPath('data.featured_recommendation.featured_override_interactions', 1)
             ->assertJsonPath('data.featured_recommendation.featured_publish_attempts', 2)
-            ->assertJsonPath('data.featured_recommendation.featured_publish_success_rate', 50);
+            ->assertJsonPath('data.featured_recommendation.featured_publish_success_rate', 50)
+            ->assertJsonPath('data.outcome_chain_summary.manual_check_completions', 1)
+            ->assertJsonPath('data.outcome_chain_summary.bulk_retry_actions', 1)
+            ->assertJsonPath('data.outcome_chain_summary.total_retry_actions', 1)
+            ->assertJsonPath('data.outcome_chain_summary.focus_actions', 1)
+            ->assertJsonPath('data.outcome_chain_summary.publish_attempts', 2)
+            ->assertJsonPath('data.outcome_chain_summary.successful_publishes', 1)
+            ->assertJsonPath('data.outcome_chain_summary.failed_publishes', 1)
+            ->assertJsonFragment([
+                'source_key' => 'draft_detail',
+                'label' => 'Draft Detay',
+                'tracked_interactions' => 1,
+                'publish_attempts' => 2,
+                'successful_publishes' => 1,
+                'failed_publishes' => 1,
+            ])
+            ->assertJsonFragment([
+                'source_key' => 'approvals_item',
+                'label' => 'Approval Satiri',
+                'tracked_interactions' => 1,
+                'manual_check_completions' => 1,
+            ])
+            ->assertJsonPath('data.items.0.top_interaction_source_key', 'draft_detail')
+            ->assertJsonPath('data.items.0.top_interaction_source_label', 'Draft Detay')
+            ->assertJsonPath('data.items.0.outcome_chain_summary.bulk_retry_actions', 1)
+            ->assertJsonPath('data.items.0.outcome_chain_summary.publish_attempts', 2);
     }
 
     /**

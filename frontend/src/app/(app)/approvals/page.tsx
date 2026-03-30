@@ -65,6 +65,11 @@ type ApprovalRemediationAnalyticsResponse = {
       top_effective_cluster_label: string | null;
       top_effective_cluster_score: number | null;
       featured_cluster_label: string | null;
+      tracked_sources_count: number;
+      top_interaction_source_key: string | null;
+      top_interaction_source_label: string | null;
+      top_success_source_key: string | null;
+      top_success_source_label: string | null;
       tracked_featured_interactions: number;
       followed_featured_interactions: number;
       override_featured_interactions: number;
@@ -74,6 +79,9 @@ type ApprovalRemediationAnalyticsResponse = {
       featured_publish_success_rate: number | null;
       window_days: number;
     };
+    interaction_sources: Array<RemediationTelemetrySource>;
+    outcome_chain_summary: RemediationOutcomeChainSummary;
+    draft_detail_outcome_summary: RemediationOutcomeChainSummary;
     featured_recommendation: {
       cluster_key: string;
       label: string;
@@ -101,6 +109,11 @@ type ApprovalRemediationAnalyticsResponse = {
       featured_successful_publishes: number;
       featured_follow_rate: number | null;
       featured_publish_success_rate: number | null;
+      top_interaction_source_key: string | null;
+      top_interaction_source_label: string | null;
+      source_breakdown: Array<RemediationTelemetrySource>;
+      outcome_chain_summary: RemediationOutcomeChainSummary;
+      draft_detail_outcome_summary: RemediationOutcomeChainSummary;
     } | null;
     items: Array<{
       cluster_key: string;
@@ -126,8 +139,60 @@ type ApprovalRemediationAnalyticsResponse = {
       featured_successful_publishes: number;
       featured_follow_rate: number | null;
       featured_publish_success_rate: number | null;
+      top_interaction_source_key: string | null;
+      top_interaction_source_label: string | null;
+      source_breakdown: Array<RemediationTelemetrySource>;
+      outcome_chain_summary: RemediationOutcomeChainSummary;
+      draft_detail_outcome_summary: RemediationOutcomeChainSummary;
     }>;
   };
+};
+
+type RemediationTelemetrySourceKey =
+  | "approvals_featured"
+  | "approvals_cluster"
+  | "approvals_retry_ready"
+  | "approvals_item"
+  | "approvals_bulk"
+  | "approvals"
+  | "draft_detail"
+  | "draft_detail_from_approvals_featured"
+  | "draft_detail_from_approvals_cluster"
+  | "draft_detail_from_approvals_retry_ready"
+  | "draft_detail_from_approvals_item"
+  | "other";
+
+type RemediationTelemetrySource = {
+  source_key: RemediationTelemetrySourceKey | string;
+  label: string;
+  description: string;
+  tracked_interactions: number;
+  followed_featured_interactions: number;
+  override_interactions: number;
+  manual_check_completions: number;
+  publish_retry_actions: number;
+  bulk_retry_actions: number;
+  publish_attempts: number;
+  successful_publishes: number;
+  failed_publishes: number;
+  follow_rate: number | null;
+  publish_success_rate: number | null;
+};
+
+type RemediationOutcomeChainSummary = {
+  tracked_interactions: number;
+  manual_check_completions: number;
+  publish_retry_actions: number;
+  bulk_retry_actions: number;
+  focus_actions: number;
+  jump_actions: number;
+  total_retry_actions: number;
+  publish_attempts: number;
+  successful_publishes: number;
+  failed_publishes: number;
+  publish_success_rate: number | null;
+  top_source_key?: string | null;
+  top_source_label?: string | null;
 };
 
 const PUBLISH_FAILURES_PATH = "/approvals?status=publish_failed";
@@ -300,6 +365,15 @@ function ApprovalsPageContent({
     () => new Map((remediationAnalytics?.items ?? []).map((item) => [item.cluster_key, item])),
     [remediationAnalytics],
   );
+  const telemetrySources = useMemo(
+    () =>
+      [...(remediationAnalytics?.interaction_sources ?? [])].sort(
+        (left, right) => right.tracked_interactions - left.tracked_interactions,
+      ),
+    [remediationAnalytics],
+  );
+  const topTelemetrySources = useMemo(() => telemetrySources.slice(0, 3), [telemetrySources]);
+  const outcomeChainSummary = remediationAnalytics?.outcome_chain_summary ?? null;
 
   const summary = useMemo(() => {
     return {
@@ -518,6 +592,7 @@ function ApprovalsPageContent({
 
   const trackFeaturedInteraction = async (payload: {
     actedClusterKey: string;
+    interactionSource: RemediationTelemetrySourceKey | string;
     interactionType: "focus_cluster" | "jump_to_item" | "manual_check_completed" | "publish_retry" | "bulk_retry_publish";
     attemptedCount?: number;
     successCount?: number;
@@ -534,6 +609,7 @@ function ApprovalsPageContent({
         body: {
           featured_cluster_key: featuredRecommendation.cluster_key,
           acted_cluster_key: payload.actedClusterKey,
+          interaction_source: payload.interactionSource,
           interaction_type: payload.interactionType,
           followed_featured: payload.actedClusterKey === featuredRecommendation.cluster_key,
           attempted_count: payload.attemptedCount ?? 0,
@@ -555,7 +631,11 @@ function ApprovalsPageContent({
     setActionMessage(message);
   };
 
-  const runClusterRecommendation = async (clusterKey: string, actionMode: "focus_cluster" | "bulk_retry_publish") => {
+  const runClusterRecommendation = async (
+    clusterKey: string,
+    actionMode: "focus_cluster" | "bulk_retry_publish",
+    interactionSource: RemediationTelemetrySourceKey | string,
+  ) => {
     const cluster = clusterByKey.get(clusterKey);
 
     if (!cluster) {
@@ -566,18 +646,19 @@ function ApprovalsPageContent({
     focusQuickCluster(cluster, true);
 
     if (actionMode === "bulk_retry_publish" && retryableMatches.length > 0) {
-      await runBulkPublishRetry(retryableMatches, cluster.key);
+      await runBulkPublishRetry(retryableMatches, cluster.key, interactionSource);
       return;
     }
 
     setActionMessage(`${cluster.label} remediation kumesi odaga alindi.`);
     await trackFeaturedInteraction({
       actedClusterKey: cluster.key,
+      interactionSource,
       interactionType: "focus_cluster",
     });
   };
 
-  const jumpToClusterAction = async (clusterKey: string) => {
+  const jumpToClusterAction = async (clusterKey: string, interactionSource: RemediationTelemetrySourceKey | string) => {
     const cluster = clusterByKey.get(clusterKey);
 
     if (!cluster) {
@@ -595,6 +676,7 @@ function ApprovalsPageContent({
     focusApprovalItem(matches[0].id, `${cluster.label} icin ilk remediation kaydi odaga alindi.`);
     await trackFeaturedInteraction({
       actedClusterKey: cluster.key,
+      interactionSource,
       interactionType: "jump_to_item",
     });
   };
@@ -629,7 +711,11 @@ function ApprovalsPageContent({
     ]);
   };
 
-  const callAction = async (item: Approval, action: "approve" | "reject" | "publish") => {
+  const callAction = async (
+    item: Approval,
+    action: "approve" | "reject" | "publish",
+    interactionSource: RemediationTelemetrySourceKey | string = "approvals_item",
+  ) => {
     const clusterKey = approvalClusterKey(item);
 
     try {
@@ -652,9 +738,18 @@ function ApprovalsPageContent({
 
       await refreshApprovals(item);
 
+      if (action !== "publish" && clusterKey) {
+        await trackFeaturedInteraction({
+          actedClusterKey: clusterKey,
+          interactionSource,
+          interactionType: "jump_to_item",
+        });
+      }
+
       if (action === "publish" && clusterKey) {
         await trackFeaturedInteraction({
           actedClusterKey: clusterKey,
+          interactionSource,
           interactionType: "publish_retry",
           attemptedCount: 1,
           successCount: 1,
@@ -665,6 +760,7 @@ function ApprovalsPageContent({
       if (action === "publish" && clusterKey) {
         await trackFeaturedInteraction({
           actedClusterKey: clusterKey,
+          interactionSource,
           interactionType: "publish_retry",
           attemptedCount: 1,
           successCount: 0,
@@ -698,6 +794,7 @@ function ApprovalsPageContent({
       if (clusterKey) {
         await trackFeaturedInteraction({
           actedClusterKey: clusterKey,
+          interactionSource: "approvals_item",
           interactionType: "manual_check_completed",
         });
       }
@@ -753,7 +850,11 @@ function ApprovalsPageContent({
     setSelectedApprovalIds(Array.from(new Set(visibleRetryReadyItems.map((item) => item.id))));
   };
 
-  const runBulkPublishRetry = async (targetItems: Approval[], trackingClusterKey?: string) => {
+  const runBulkPublishRetry = async (
+    targetItems: Approval[],
+    trackingClusterKey?: string,
+    interactionSource: RemediationTelemetrySourceKey | string = "approvals_item",
+  ) => {
     if (targetItems.length === 0) {
       setActionError(null);
       setActionMessage("Toplu retry publish icin once retry-hazir kayit secin.");
@@ -795,6 +896,7 @@ function ApprovalsPageContent({
       if (trackingClusterKey) {
         await trackFeaturedInteraction({
           actedClusterKey: trackingClusterKey,
+          interactionSource,
           interactionType: "bulk_retry_publish",
           attemptedCount: targetItems.length,
           successCount,
@@ -809,6 +911,7 @@ function ApprovalsPageContent({
       if (trackingClusterKey) {
         await trackFeaturedInteraction({
           actedClusterKey: trackingClusterKey,
+          interactionSource,
           interactionType: "bulk_retry_publish",
           attemptedCount: targetItems.length,
           successCount,
@@ -823,6 +926,7 @@ function ApprovalsPageContent({
     if (trackingClusterKey) {
       await trackFeaturedInteraction({
         actedClusterKey: trackingClusterKey,
+        interactionSource,
         interactionType: "bulk_retry_publish",
         attemptedCount: targetItems.length,
         successCount: 0,
@@ -961,6 +1065,7 @@ function ApprovalsPageContent({
       </div>
 
       {remediationAnalytics ? (
+        <>
         <div className="mt-4 grid gap-3 xl:grid-cols-4">
           <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -988,6 +1093,7 @@ function ApprovalsPageContent({
             <p className="mt-3 text-sm font-semibold">Cluster performans ozeti</p>
             <div className="mt-3 space-y-1 text-sm muted-text">
               <p>Takip edilen cluster: {remediationAnalytics.summary.tracked_clusters}</p>
+              <p>Takip edilen kaynak: {remediationAnalytics.summary.tracked_sources_count}</p>
               <p>Manuel kontrol aksiyonu: {remediationAnalytics.summary.tracked_manual_checks}</p>
               <p>Retry publish denemesi: {remediationAnalytics.summary.tracked_publish_attempts}</p>
               <p>Basarili publish: {remediationAnalytics.summary.successful_publish_attempts}</p>
@@ -1012,6 +1118,16 @@ function ApprovalsPageContent({
                 {remediationAnalytics.summary.featured_publish_success_rate != null
                   ? ` / publish basarisi %${remediationAnalytics.summary.featured_publish_success_rate}`
                   : ""}
+              </p>
+            ) : null}
+            {remediationAnalytics.summary.top_interaction_source_label ? (
+              <p className="mt-2 text-xs muted-text">
+                En cok etkilesim ureten kaynak: {remediationAnalytics.summary.top_interaction_source_label}
+              </p>
+            ) : null}
+            {remediationAnalytics.summary.top_success_source_label ? (
+              <p className="mt-2 text-xs muted-text">
+                En iyi publish sonucu ureten kaynak: {remediationAnalytics.summary.top_success_source_label}
               </p>
             ) : null}
           </div>
@@ -1087,6 +1203,7 @@ function ApprovalsPageContent({
                     void runClusterRecommendation(
                       featuredRecommendation.cluster_key,
                       featuredRecommendation.action_mode,
+                      "approvals_featured",
                     )
                   }
                   disabled={
@@ -1101,7 +1218,7 @@ function ApprovalsPageContent({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => void jumpToClusterAction(featuredRecommendation.cluster_key)}
+                  onClick={() => void jumpToClusterAction(featuredRecommendation.cluster_key, "approvals_featured")}
                 >
                   Ilk Alt Aksiyona Git
                 </Button>
@@ -1116,6 +1233,59 @@ function ApprovalsPageContent({
             </div>
           ) : null}
         </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Badge label="Telemetry Kaynaklari" variant="neutral" />
+              <Badge label={`${telemetrySources.length} kaynak`} variant="neutral" />
+            </div>
+            <p className="mt-3 text-sm font-semibold">Etkilesim kaynak dagilimi</p>
+            {topTelemetrySources.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {topTelemetrySources.map((source) => (
+                  <div key={source.source_key} className="rounded-md border border-[var(--border)] bg-white p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge label={sourceLabel(source.source_key, source.label)} variant="neutral" />
+                      <Badge label={`${source.tracked_interactions} etkilesim`} variant="success" />
+                    </div>
+                    <p className="mt-2 text-xs muted-text">{source.description}</p>
+                    <p className="mt-2 text-xs muted-text">
+                      {source.followed_featured_interactions} takip / {source.override_interactions} override
+                    </p>
+                    <p className="mt-1 text-xs muted-text">
+                      {source.manual_check_completions} manuel kontrol / {source.publish_retry_actions + source.bulk_retry_actions} retry aksiyonu
+                    </p>
+                    <p className="mt-1 text-xs muted-text">
+                      {source.publish_attempts} publish denemesi / {source.successful_publishes} basarili / {source.failed_publishes} basarisiz
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm muted-text">Kaynak dagilimi henuz olusmadi.</p>
+            )}
+          </div>
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
+            <Badge label="Outcome Chain" variant="neutral" />
+            <p className="mt-3 text-sm font-semibold">Karar akisi ozeti</p>
+            {outcomeChainSummary ? (
+              <div className="mt-3 space-y-1 text-sm muted-text">
+                <p>Toplam etkilesim: {outcomeChainSummary.tracked_interactions}</p>
+                <p>Manuel kontrol: {outcomeChainSummary.manual_check_completions}</p>
+                <p>Retry aksiyonu: {outcomeChainSummary.total_retry_actions}</p>
+                <p>Publish denemesi: {outcomeChainSummary.publish_attempts}</p>
+                <p>Basarili publish: {outcomeChainSummary.successful_publishes}</p>
+                <p>Basarisiz publish: {outcomeChainSummary.failed_publishes}</p>
+                {outcomeChainSummary.publish_success_rate != null ? (
+                  <p>Publish basari orani: %{outcomeChainSummary.publish_success_rate}</p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm muted-text">Outcome chain verisi yok.</p>
+            )}
+          </div>
+        </div>
+        </>
       ) : null}
 
       <div className="mt-4 grid gap-3 xl:grid-cols-4">
@@ -1125,6 +1295,8 @@ function ApprovalsPageContent({
           const retryableMatches = matches.filter((item) => canRetryPublish(item));
           const clusterDraftRoute =
             matches.length > 0 ? buildDraftRoute(matches[0], analyticsWindowDays, "approvals_cluster") : null;
+          const topSource = topSourceBreakdown(analyticsItem?.source_breakdown);
+          const clusterOutcomeSummary = analyticsItem?.outcome_chain_summary ?? null;
 
           return (
             <div
@@ -1166,6 +1338,19 @@ function ApprovalsPageContent({
                       {` ${analyticsItem.featured_publish_attempts}`} featured publish denemesi
                     </p>
                   ) : null}
+                  {topSource ? (
+                    <p>
+                      Top kaynak: {sourceLabel(topSource.source_key, topSource.label)}
+                      {` / ${topSource.tracked_interactions} etkilesim`}
+                    </p>
+                  ) : null}
+                  {clusterOutcomeSummary ? (
+                    <p>
+                      Outcome: {clusterOutcomeSummary.manual_check_completions} manuel kontrol /
+                      {` ${clusterOutcomeSummary.total_retry_actions}`} retry /
+                      {` ${clusterOutcomeSummary.successful_publishes}`} basarili publish
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
@@ -1177,6 +1362,7 @@ function ApprovalsPageContent({
                     focusQuickCluster(cluster);
                     void trackFeaturedInteraction({
                       actedClusterKey: cluster.key,
+                      interactionSource: "approvals_cluster",
                       interactionType: "focus_cluster",
                     });
                   }}
@@ -1189,13 +1375,14 @@ function ApprovalsPageContent({
                   variant={cluster.key === "retry-ready" || cluster.key === "cleanup-recovered" ? "primary" : "secondary"}
                   onClick={() => {
                     if (cluster.key === "retry-ready" || cluster.key === "cleanup-recovered") {
-                      void runBulkPublishRetry(retryableMatches, cluster.key);
+                      void runBulkPublishRetry(retryableMatches, cluster.key, "approvals_cluster");
                       return;
                     }
 
                     focusQuickCluster(cluster);
                     void trackFeaturedInteraction({
                       actedClusterKey: cluster.key,
+                      interactionSource: "approvals_cluster",
                       interactionType: "focus_cluster",
                     });
                   }}
@@ -1237,6 +1424,7 @@ function ApprovalsPageContent({
               onClick={() =>
                 void jumpToClusterAction(
                   quickClusters.find((cluster) => cluster.key === "retry-ready")?.key ?? "retry-ready",
+                  "approvals_retry_ready",
                 )
               }
             >
@@ -1244,7 +1432,13 @@ function ApprovalsPageContent({
             </Button>
             <Button
               size="sm"
-              onClick={() => runBulkPublishRetry(publishFailureItems.filter((item) => canRetryPublish(item)), "retry-ready")}
+              onClick={() =>
+                runBulkPublishRetry(
+                  publishFailureItems.filter((item) => canRetryPublish(item)),
+                  "retry-ready",
+                  "approvals_retry_ready",
+                )
+              }
               disabled={bulkPublishing || summary.retryReady === 0}
             >
               Retry-Hazirlarda Toplu Publish
@@ -1280,7 +1474,7 @@ function ApprovalsPageContent({
                       </Button>
                     </Link>
                   ) : null}
-                  <Button size="sm" onClick={() => callAction(item, "publish")}>
+                  <Button size="sm" onClick={() => callAction(item, "publish", "approvals_retry_ready")}>
                     Tekrar Publish Dene
                   </Button>
                 </div>
@@ -1501,6 +1695,30 @@ function clusterActionLabel(clusterKey: string): string {
       "review-error": "Hatalari Filtrele",
     }[clusterKey] ?? "Kumeyi Filtrele"
   );
+}
+
+function sourceLabel(sourceKey: string, fallbackLabel: string): string {
+  return (
+    {
+      approvals_featured: "Featured Karar",
+      approvals_cluster: "Cluster Karari",
+      approvals_retry_ready: "Retry-Hazir Akisi",
+      approvals_item: "Item Aksiyonu",
+      approvals: "Approvals Merkezi",
+      draft_detail: "Draft Detayi",
+      other: "Diger",
+    }[sourceKey] ?? fallbackLabel
+  );
+}
+
+function topSourceBreakdown(
+  sourceBreakdown: ReadonlyArray<RemediationTelemetrySource> | undefined,
+): RemediationTelemetrySource | null {
+  if (!sourceBreakdown || sourceBreakdown.length === 0) {
+    return null;
+  }
+
+  return [...sourceBreakdown].sort((left, right) => right.tracked_interactions - left.tracked_interactions)[0] ?? null;
 }
 
 function effectivenessStatusLabel(status: string): string {

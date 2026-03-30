@@ -359,3 +359,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 120. Draft detail remediation CTA'larini approvals remediation analytics tracking hattina baglayip detail ekraninda tamamlanan ve retry edilen aksiyonlari featured/cluster telemetry'ye geri beslemek
 121. Approvals remediation tracking endpoint'ine opsiyonel interaction_source metadata'si ekleyip telemetry kaynaginin featured, cluster veya draft detail oldugunu audit seviyesinde ayirt edilebilir hale getirmek
 122. Draft detail remediation blogundaki birincil CTA'yi ayri bir onerilen aksiyon yuzeyine tasiyip operatorun focus akisinda dogru karari daha hizli fark etmesini saglamak
+123. Approvals remediation analytics'i source bazli telemetry kirilimiyla genisletip featured, cluster, retry-ready, item ve draft detail kaynaklarinin takip ve publish sonucunu ayri izlenebilir hale getirmek
+124. Featured remediation telemetry'sinden tum akis icin outcome chain summary uretip manuel kontrol, retry aksiyonlari ve publish sonucunu approvals analytics ekraninda tek blokta görünür yapmak
+125. Approvals ekraninda source bazli telemetry kartlari ve cluster bazli top source / outcome ozetleri ekleyip operatorun hangi remediation kaynaginin gercekte sonuca gittigini ayni analytics yuzeyinde gorebilmesini saglamak

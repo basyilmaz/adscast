@@ -110,6 +110,7 @@ export function DraftDetailClient() {
   const applyApprovalRemediation = async (mode: "manual_check_completed" | "retry_publish") => {
     const approvalId = draft?.approval?.id;
     const actedClusterKey = deriveApprovalClusterKey(currentRecommendedAction);
+    const interactionSource = resolveRemediationInteractionSource(focusSource);
     const shouldTrackRemediation =
       Boolean(focusSource?.startsWith("approvals"))
       && Boolean(focusClusterKey)
@@ -152,7 +153,7 @@ export function DraftDetailClient() {
               featured_cluster_key: focusClusterKey,
               acted_cluster_key: actedClusterKey,
               interaction_type: "manual_check_completed",
-              interaction_source: focusSource ?? "draft_detail",
+              interaction_source: interactionSource,
               followed_featured: focusClusterKey === actedClusterKey,
               attempted_count: 0,
               success_count: 0,
@@ -174,7 +175,7 @@ export function DraftDetailClient() {
               featured_cluster_key: focusClusterKey,
               acted_cluster_key: actedClusterKey,
               interaction_type: "publish_retry",
-              interaction_source: focusSource ?? "draft_detail",
+              interaction_source: interactionSource,
               followed_featured: focusClusterKey === actedClusterKey,
               attempted_count: 1,
               success_count: 1,
@@ -223,7 +224,7 @@ export function DraftDetailClient() {
               featured_cluster_key: focusClusterKey,
               acted_cluster_key: actedClusterKey,
               interaction_type: "publish_retry",
-              interaction_source: focusSource ?? "draft_detail",
+              interaction_source: interactionSource,
               followed_featured: focusClusterKey === actedClusterKey,
               attempted_count: 1,
               success_count: 0,
@@ -586,6 +587,17 @@ function deriveApprovalClusterKey(recommendedActionCode: string | null): string 
       fix_and_retry_publish: "cleanup-recovered",
       review_publish_error: "review-error",
     }[recommendedActionCode ?? ""] ?? null
+  );
+}
+
+function resolveRemediationInteractionSource(focusSource: string | null): string {
+  return (
+    {
+      approvals_featured: "draft_detail_from_approvals_featured",
+      approvals_cluster: "draft_detail_from_approvals_cluster",
+      approvals_retry_ready: "draft_detail_from_approvals_retry_ready",
+      approvals_item: "draft_detail_from_approvals_item",
+    }[focusSource ?? ""] ?? "draft_detail"
   );
 }
 

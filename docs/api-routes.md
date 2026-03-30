@@ -146,10 +146,12 @@ Base path: `/api/v1`
 - `GET /approvals/remediation-analytics`
   - opsiyonel `window_days=7|30|90`
   - publish failed remediation cluster'larini `manual-check-required`, `retry-ready`, `cleanup-recovered`, `review-error` ekseninde ozetler
-  - `summary` altinda takip edilen cluster, manuel kontrol, publish denemesi, secili analytics penceresi ve en etkili remediation cluster ozetini doner
-  - `featured_recommendation` altinda sistemin su an one cikardigi remediation cluster'ini, karar nedenini, onerilen aksiyon modunu ve effectiveness bilgisini doner
+  - `summary` altinda takip edilen cluster, takip edilen source, manuel kontrol, publish denemesi, secili analytics penceresi ve en etkili remediation cluster ozetini doner
+  - `interaction_sources[]` altinda telemetry kaynagi bazinda `tracked_interactions`, `followed_featured_interactions`, `override_interactions`, `manual_check_completions`, `publish_retry_actions`, `bulk_retry_actions`, `publish_attempts`, `successful_publishes`, `failed_publishes`, `publish_success_rate` alanlarini doner
+  - `outcome_chain_summary` altinda tum telemetry akisinin `manual_check_completions`, `total_retry_actions`, `publish_attempts`, `successful_publishes`, `failed_publishes`, `publish_success_rate` ozetini doner
+  - `featured_recommendation` altinda sistemin su an one cikardigi remediation cluster'ini, karar nedenini, onerilen aksiyon modunu, effectiveness bilgisini, `source_breakdown[]` ve `outcome_chain_summary` alanlarini doner
   - `summary` ve `featured_recommendation` featured takip / override / publish basarisi metriklerini de doner
-  - `items[]` altinda `current_items`, `manual_check_completions`, `publish_attempts`, `successful_publishes`, `publish_success_rate`, `effectiveness_score`, `effectiveness_status`, `health_status`, `route` alanlarini doner
+  - `items[]` altinda `current_items`, `manual_check_completions`, `publish_attempts`, `successful_publishes`, `publish_success_rate`, `effectiveness_score`, `effectiveness_status`, `health_status`, `route`, `top_interaction_source_label`, `source_breakdown[]`, `outcome_chain_summary` alanlarini doner
 - `POST /approvals/remediation-analytics/track`
   - featured remediation karti veya cluster aksiyonlari kullanildiginda takip / override ve publish sonucu telemetrisi kaydeder
   - `featured_cluster_key`, `acted_cluster_key`, `interaction_type`, `followed_featured`, `attempted_count`, `success_count`, `failure_count` alanlarini kabul eder
