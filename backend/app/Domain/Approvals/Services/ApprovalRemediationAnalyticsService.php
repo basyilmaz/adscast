@@ -21,11 +21,17 @@ class ApprovalRemediationAnalyticsService
      *     outcome_chain_summary: array<string, mixed>,
      *     approvals_native_outcome_summary: array<string, mixed>,
      *     draft_detail_outcome_summary: array<string, mixed>,
+     *     long_term_approvals_native_outcome_summary: array<string, mixed>,
+     *     long_term_draft_detail_outcome_summary: array<string, mixed>,
      *     items: array<int, array<string, mixed>>
      * }
      */
     public function build(string $workspaceId, int $windowDays = 30): array
     {
+        $longTermWindowDays = max($windowDays, 90);
+        $currentWindowStart = now()->subDays($windowDays);
+        $longTermWindowStart = now()->subDays($longTermWindowDays);
+
         $presentedApprovals = Approval::query()
             ->where('workspace_id', $workspaceId)
             ->with('approvable')
@@ -45,110 +51,67 @@ class ApprovalRemediationAnalyticsService
                             ->where('action', 'approval_featured_remediation_tracked');
                     });
             })
-            ->where('occurred_at', '>=', now()->subDays($windowDays))
+            ->where('occurred_at', '>=', $longTermWindowStart)
             ->latest('occurred_at')
             ->get();
 
-        $featuredInteractionLogs = $auditLogs->where('action', 'approval_featured_remediation_tracked');
+        $currentWindowAuditLogs = $auditLogs
+            ->filter(fn (AuditLog $log): bool => $log->occurred_at >= $currentWindowStart)
+            ->values();
+        $longTermWindowAuditLogs = $auditLogs->values();
+
+        $currentFeaturedInteractionLogs = $currentWindowAuditLogs->where('action', 'approval_featured_remediation_tracked');
+        $longTermFeaturedInteractionLogs = $longTermWindowAuditLogs->where('action', 'approval_featured_remediation_tracked');
 
         $clusterDefinitions = collect($this->clusterDefinitions());
-        $interactionSources = $this->sourceBreakdown($featuredInteractionLogs);
-        $outcomeChainSummary = $this->outcomeChainSummary($featuredInteractionLogs);
-        $approvalsNativeOutcomeSummary = $this->approvalsNativeOutcomeSummary($featuredInteractionLogs);
-        $draftDetailOutcomeSummary = $this->draftDetailOutcomeSummary($featuredInteractionLogs);
+        $interactionSources = $this->sourceBreakdown($currentFeaturedInteractionLogs);
+        $outcomeChainSummary = $this->outcomeChainSummary($currentFeaturedInteractionLogs);
+        $approvalsNativeOutcomeSummary = $this->approvalsNativeOutcomeSummary($currentFeaturedInteractionLogs);
+        $draftDetailOutcomeSummary = $this->draftDetailOutcomeSummary($currentFeaturedInteractionLogs);
+        $longTermApprovalsNativeOutcomeSummary = $this->approvalsNativeOutcomeSummary($longTermFeaturedInteractionLogs);
+        $longTermDraftDetailOutcomeSummary = $this->draftDetailOutcomeSummary($longTermFeaturedInteractionLogs);
         $topInteractionSource = $interactionSources->first();
         $topSuccessSource = $interactionSources
             ->filter(fn (array $item): bool => $item['publish_success_rate'] !== null)
             ->sortByDesc(fn (array $item): float => (float) ($item['publish_success_rate'] ?? 0))
             ->first();
 
-        $items = $clusterDefinitions
-            ->map(function (array $cluster) use ($presentedApprovals, $auditLogs, $featuredInteractionLogs): array {
-                $currentItems = $presentedApprovals
-                    ->filter(fn (array $approval): bool => $this->matchesCluster($approval, $cluster['recommended_action_code']));
+        $currentRawItems = $this->buildClusterItems(
+            $clusterDefinitions,
+            $presentedApprovals,
+            $currentWindowAuditLogs,
+            $currentFeaturedInteractionLogs,
+        );
+        $longTermRawItems = $this->buildClusterItems(
+            $clusterDefinitions,
+            $presentedApprovals,
+            $longTermWindowAuditLogs,
+            $longTermFeaturedInteractionLogs,
+        );
 
-                $clusterLogs = $auditLogs
-                    ->filter(fn (AuditLog $log): bool => data_get($log->metadata, 'remediation_context.cluster_key') === $cluster['key']);
-
-                $featuredMetrics = $this->featuredMetricsForCluster($featuredInteractionLogs, $cluster['key']);
-                $clusterOutcomeLogs = $featuredInteractionLogs
-                    ->filter(fn (AuditLog $log): bool => data_get($log->metadata, 'acted_cluster_key') === $cluster['key']);
-                $sourceBreakdown = $this->sourceBreakdown($clusterOutcomeLogs);
-                $topInteractionSource = $sourceBreakdown->first();
-                $outcomeChainSummary = $this->outcomeChainSummary($clusterOutcomeLogs);
-                $draftDetailOutcomeSummary = $this->draftDetailOutcomeSummary($clusterOutcomeLogs);
-
-                $manualChecks = $clusterLogs->where('action', 'approval_manual_check_completed');
-                $publishAttempts = $clusterLogs->where('action', 'publish_attempted');
-                $successfulPublishes = $publishAttempts->filter(
-                    fn (AuditLog $log): bool => (bool) data_get($log->metadata, 'success', false),
-                );
-                $failedPublishes = $publishAttempts->reject(
-                    fn (AuditLog $log): bool => (bool) data_get($log->metadata, 'success', false),
-                );
-
-                $route = sprintf(
-                    '/approvals?status=publish_failed&recommended_action_code=%s',
-                    $cluster['recommended_action_code'],
-                );
-
-                return [
-                    'cluster_key' => $cluster['key'],
-                    'label' => $cluster['label'],
-                    'description' => $cluster['description'],
-                    'recommended_action_code' => $cluster['recommended_action_code'],
-                    'current_items' => $currentItems->count(),
-                    'manual_check_completions' => $manualChecks->count(),
-                    'publish_attempts' => $publishAttempts->count(),
-                    'successful_publishes' => $successfulPublishes->count(),
-                    'failed_publishes' => $failedPublishes->count(),
-                    'publish_success_rate' => $publishAttempts->count() > 0
-                        ? round(($successfulPublishes->count() / $publishAttempts->count()) * 100, 1)
-                        : null,
-                    'last_activity_at' => optional($clusterLogs->first()?->occurred_at)?->toIso8601String(),
-                    'effectiveness_score' => $this->effectivenessScore(
-                        $publishAttempts->count(),
-                        $successfulPublishes->count(),
-                        $currentItems->count(),
-                        $featuredMetrics['featured_follow_rate'],
-                    ),
-                    'effectiveness_status' => $this->effectivenessStatus(
-                        $publishAttempts->count(),
-                        $successfulPublishes->count(),
-                        $currentItems->count(),
-                    ),
-                    'health_status' => $this->healthStatus($cluster['recommended_action_code'], $currentItems->count(), $publishAttempts->count(), $successfulPublishes->count()),
-                    'health_summary' => $this->healthSummary($cluster['recommended_action_code'], $currentItems->count(), $publishAttempts->count(), $successfulPublishes->count()),
-                    'route' => $route,
-                    'top_interaction_source_key' => $topInteractionSource['source_key'] ?? null,
-                    'top_interaction_source_label' => $topInteractionSource['label'] ?? null,
-                    'source_breakdown' => $sourceBreakdown->all(),
-                    'outcome_chain_summary' => $outcomeChainSummary,
-                    'draft_detail_outcome_summary' => $draftDetailOutcomeSummary,
-                    ...$featuredMetrics,
-                ];
-            })
-            ->sortByDesc(fn (array $item): int => $item['current_items'] * 1000 + $item['publish_attempts'] * 10 + $item['manual_check_completions'])
-            ->values();
-
-        $topWorkingCluster = $items
+        $currentTopWorkingCluster = $currentRawItems
             ->filter(fn (array $item): bool => $item['publish_success_rate'] !== null)
             ->sortByDesc(fn (array $item): float => (float) $item['publish_success_rate'])
             ->first();
 
-        $topEffectiveCluster = $items
+        $currentTopEffectiveCluster = $currentRawItems
             ->filter(fn (array $item): bool => ($item['effectiveness_score'] ?? 0) > 0)
             ->sortByDesc(fn (array $item): float => (float) ($item['effectiveness_score'] ?? 0))
             ->first();
 
-        $items = $items
+        $longTermTopWorkingCluster = $longTermRawItems
+            ->filter(fn (array $item): bool => $item['publish_success_rate'] !== null)
+            ->sortByDesc(fn (array $item): float => (float) $item['publish_success_rate'])
+            ->first();
+
+        $currentItems = $currentRawItems
             ->map(fn (array $item): array => $this->applyRetryGuidance(
                 $item,
-                $topWorkingCluster['publish_success_rate'] ?? null,
+                $currentTopWorkingCluster['publish_success_rate'] ?? null,
             ))
             ->values();
 
-        $topDraftDetailCluster = $items
+        $currentTopDraftDetailCluster = $currentItems
             ->filter(function (array $item): bool {
                 return ($item['current_items'] ?? 0) > 0
                     && ((int) data_get($item, 'draft_detail_outcome_summary.publish_attempts', 0) > 0);
@@ -161,16 +124,43 @@ class ApprovalRemediationAnalyticsService
             })
             ->first();
 
+        $longTermItems = $longTermRawItems
+            ->map(fn (array $item): array => $this->applyRetryGuidance(
+                $item,
+                $longTermTopWorkingCluster['publish_success_rate'] ?? null,
+            ))
+            ->values();
+
+        $topLongTermStableCluster = $this->topLongTermStableCluster($longTermItems);
+
+        $items = $currentItems
+            ->map(function (array $item) use ($longTermItems): array {
+                $longTermItem = $longTermItems
+                    ->first(fn (array $candidate): bool => $candidate['cluster_key'] === $item['cluster_key']);
+
+                return [
+                    ...$item,
+                    ...$this->longTermClusterSignals($longTermItem),
+                ];
+            })
+            ->values();
+
+        $currentWindowHasSafeCluster = $currentItems
+            ->contains(fn (array $item): bool => (bool) ($item['safe_bulk_retry'] ?? false));
+
         $featuredRecommendation = $this->buildFeaturedRecommendation(
             $items,
-            $topWorkingCluster,
-            $topEffectiveCluster,
-            $topDraftDetailCluster,
+            $currentTopWorkingCluster,
+            $currentTopEffectiveCluster,
+            $currentTopDraftDetailCluster,
+            $topLongTermStableCluster,
+            $currentWindowHasSafeCluster,
             $approvalsNativeOutcomeSummary,
             $draftDetailOutcomeSummary,
             $windowDays,
+            $longTermWindowDays,
         );
-        $featuredSummary = $this->featuredSummary($featuredInteractionLogs);
+        $featuredSummary = $this->featuredSummary($currentFeaturedInteractionLogs);
 
         return [
             'summary' => [
@@ -182,17 +172,19 @@ class ApprovalRemediationAnalyticsService
                 'manual_check_required_items' => $presentedApprovals
                     ->where('publish_state.recommended_action_code', 'manual_meta_check')
                     ->count(),
-                'tracked_manual_checks' => $auditLogs->where('action', 'approval_manual_check_completed')->count(),
-                'tracked_publish_attempts' => $auditLogs->where('action', 'publish_attempted')->count(),
-                'successful_publish_attempts' => $auditLogs
+                'tracked_manual_checks' => $currentWindowAuditLogs->where('action', 'approval_manual_check_completed')->count(),
+                'tracked_publish_attempts' => $currentWindowAuditLogs->where('action', 'publish_attempted')->count(),
+                'successful_publish_attempts' => $currentWindowAuditLogs
                     ->where('action', 'publish_attempted')
                     ->filter(fn (AuditLog $log): bool => (bool) data_get($log->metadata, 'success', false))
                     ->count(),
-                'top_working_cluster_label' => $topWorkingCluster['label'] ?? null,
-                'top_effective_cluster_label' => $topEffectiveCluster['label'] ?? null,
-                'top_effective_cluster_score' => $topEffectiveCluster['effectiveness_score'] ?? null,
+                'top_working_cluster_label' => $currentTopWorkingCluster['label'] ?? null,
+                'top_effective_cluster_label' => $currentTopEffectiveCluster['label'] ?? null,
+                'top_effective_cluster_score' => $currentTopEffectiveCluster['effectiveness_score'] ?? null,
                 'featured_cluster_label' => $featuredRecommendation['label'] ?? null,
-                'top_draft_detail_cluster_label' => $topDraftDetailCluster['label'] ?? null,
+                'top_draft_detail_cluster_label' => $currentTopDraftDetailCluster['label'] ?? null,
+                'top_long_term_stable_cluster_label' => $topLongTermStableCluster['label'] ?? null,
+                'top_long_term_stable_cluster_score' => $topLongTermStableCluster['effectiveness_score'] ?? null,
                 'tracked_sources_count' => $interactionSources->count(),
                 'top_interaction_source_key' => $topInteractionSource['source_key'] ?? null,
                 'top_interaction_source_label' => $topInteractionSource['label'] ?? null,
@@ -200,12 +192,15 @@ class ApprovalRemediationAnalyticsService
                 'top_success_source_label' => $topSuccessSource['label'] ?? null,
                 ...$featuredSummary,
                 'window_days' => $windowDays,
+                'long_term_window_days' => $longTermWindowDays,
             ],
             'featured_recommendation' => $featuredRecommendation,
             'interaction_sources' => $interactionSources->all(),
             'outcome_chain_summary' => $outcomeChainSummary,
             'approvals_native_outcome_summary' => $approvalsNativeOutcomeSummary,
             'draft_detail_outcome_summary' => $draftDetailOutcomeSummary,
+            'long_term_approvals_native_outcome_summary' => $longTermApprovalsNativeOutcomeSummary,
+            'long_term_draft_detail_outcome_summary' => $longTermDraftDetailOutcomeSummary,
             'items' => $items->all(),
         ];
     }
@@ -300,6 +295,8 @@ class ApprovalRemediationAnalyticsService
      * @param array<string, mixed>|null $topWorkingCluster
      * @param array<string, mixed>|null $topEffectiveCluster
      * @param array<string, mixed>|null $topDraftDetailCluster
+     * @param array<string, mixed>|null $topLongTermStableCluster
+     * @param bool $currentWindowHasSafeCluster
      * @param array<string, mixed> $approvalsNativeOutcomeSummary
      * @param array<string, mixed> $draftDetailOutcomeSummary
      * @return array<string, mixed>|null
@@ -309,9 +306,12 @@ class ApprovalRemediationAnalyticsService
         ?array $topWorkingCluster,
         ?array $topEffectiveCluster,
         ?array $topDraftDetailCluster,
+        ?array $topLongTermStableCluster,
+        bool $currentWindowHasSafeCluster,
         array $approvalsNativeOutcomeSummary,
         array $draftDetailOutcomeSummary,
         int $windowDays,
+        int $longTermWindowDays,
     ): ?array
     {
         $manualCheckRequired = $items->first(
@@ -329,6 +329,41 @@ class ApprovalRemediationAnalyticsService
                 'decision_status' => 'manual_attention',
                 'decision_reason' => 'Cleanup basarisiz kalan publish hatalari once manuel kontrol gerektiriyor.',
                 'action_mode' => 'focus_cluster',
+            ];
+        }
+
+        if (
+            ! $currentWindowHasSafeCluster
+            && is_array($topLongTermStableCluster)
+            && ($topLongTermStableCluster['current_items'] ?? 0) > 0
+            && (int) ($topLongTermStableCluster['publish_attempts'] ?? 0) >= 2
+            && (float) ($topLongTermStableCluster['publish_success_rate'] ?? 0) >= 70.0
+        ) {
+            $currentReferenceSuccessRate = $topWorkingCluster['publish_success_rate']
+                ?? $topEffectiveCluster['publish_success_rate']
+                ?? $topDraftDetailCluster['publish_success_rate']
+                ?? null;
+            $recommended = $this->applyRetryGuidance(
+                $topLongTermStableCluster,
+                $currentReferenceSuccessRate,
+            );
+            $longTermSuccessRate = (float) ($recommended['publish_success_rate'] ?? 0);
+
+            return [
+                ...$recommended,
+                'decision_status' => 'long_term_preferred',
+                'decision_reason' => sprintf(
+                    'Son %d gunde uzun vade verisi bu clusterin daha stabil calistigini gosteriyor. Kisa vade sinyali yeterince guclu olmadigi icin uzun vade odagi one cikarildi.',
+                    $longTermWindowDays,
+                ),
+                'decision_context_source' => 'long_term',
+                'decision_context_window_days' => $longTermWindowDays,
+                'decision_context_success_rate' => $longTermSuccessRate,
+                'decision_context_baseline_success_rate' => $currentReferenceSuccessRate,
+                'decision_context_advantage' => $currentReferenceSuccessRate !== null
+                    ? round($longTermSuccessRate - (float) $currentReferenceSuccessRate, 1)
+                    : null,
+                'action_mode' => $this->retryGuidedActionMode($recommended),
             ];
         }
 
@@ -526,6 +561,151 @@ class ApprovalRemediationAnalyticsService
     private function formatRate(float $value): string
     {
         return number_format($value, 1, '.', '');
+    }
+
+    /**
+     * @param Collection<int, array{key: string, label: string, description: string, recommended_action_code: string}> $clusterDefinitions
+     * @param Collection<int, array<string, mixed>> $presentedApprovals
+     * @param Collection<int, AuditLog> $auditLogs
+     * @param Collection<int, AuditLog> $featuredInteractionLogs
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function buildClusterItems(
+        Collection $clusterDefinitions,
+        Collection $presentedApprovals,
+        Collection $auditLogs,
+        Collection $featuredInteractionLogs,
+    ): Collection {
+        return $clusterDefinitions
+            ->map(function (array $cluster) use ($presentedApprovals, $auditLogs, $featuredInteractionLogs): array {
+                $currentItems = $presentedApprovals
+                    ->filter(fn (array $approval): bool => $this->matchesCluster($approval, $cluster['recommended_action_code']));
+
+                $clusterLogs = $auditLogs
+                    ->filter(fn (AuditLog $log): bool => data_get($log->metadata, 'remediation_context.cluster_key') === $cluster['key']);
+
+                $featuredMetrics = $this->featuredMetricsForCluster($featuredInteractionLogs, $cluster['key']);
+                $clusterOutcomeLogs = $featuredInteractionLogs
+                    ->filter(fn (AuditLog $log): bool => data_get($log->metadata, 'acted_cluster_key') === $cluster['key']);
+                $sourceBreakdown = $this->sourceBreakdown($clusterOutcomeLogs);
+                $topInteractionSource = $sourceBreakdown->first();
+                $outcomeChainSummary = $this->outcomeChainSummary($clusterOutcomeLogs);
+                $draftDetailOutcomeSummary = $this->draftDetailOutcomeSummary($clusterOutcomeLogs);
+
+                $manualChecks = $clusterLogs->where('action', 'approval_manual_check_completed');
+                $publishAttempts = $clusterLogs->where('action', 'publish_attempted');
+                $successfulPublishes = $publishAttempts->filter(
+                    fn (AuditLog $log): bool => (bool) data_get($log->metadata, 'success', false),
+                );
+                $failedPublishes = $publishAttempts->reject(
+                    fn (AuditLog $log): bool => (bool) data_get($log->metadata, 'success', false),
+                );
+
+                $route = sprintf(
+                    '/approvals?status=publish_failed&recommended_action_code=%s',
+                    $cluster['recommended_action_code'],
+                );
+
+                return [
+                    'cluster_key' => $cluster['key'],
+                    'label' => $cluster['label'],
+                    'description' => $cluster['description'],
+                    'recommended_action_code' => $cluster['recommended_action_code'],
+                    'current_items' => $currentItems->count(),
+                    'manual_check_completions' => $manualChecks->count(),
+                    'publish_attempts' => $publishAttempts->count(),
+                    'successful_publishes' => $successfulPublishes->count(),
+                    'failed_publishes' => $failedPublishes->count(),
+                    'publish_success_rate' => $publishAttempts->count() > 0
+                        ? round(($successfulPublishes->count() / $publishAttempts->count()) * 100, 1)
+                        : null,
+                    'last_activity_at' => optional($clusterLogs->first()?->occurred_at)?->toIso8601String(),
+                    'effectiveness_score' => $this->effectivenessScore(
+                        $publishAttempts->count(),
+                        $successfulPublishes->count(),
+                        $currentItems->count(),
+                        $featuredMetrics['featured_follow_rate'],
+                    ),
+                    'effectiveness_status' => $this->effectivenessStatus(
+                        $publishAttempts->count(),
+                        $successfulPublishes->count(),
+                        $currentItems->count(),
+                    ),
+                    'health_status' => $this->healthStatus($cluster['recommended_action_code'], $currentItems->count(), $publishAttempts->count(), $successfulPublishes->count()),
+                    'health_summary' => $this->healthSummary($cluster['recommended_action_code'], $currentItems->count(), $publishAttempts->count(), $successfulPublishes->count()),
+                    'route' => $route,
+                    'top_interaction_source_key' => $topInteractionSource['source_key'] ?? null,
+                    'top_interaction_source_label' => $topInteractionSource['label'] ?? null,
+                    'source_breakdown' => $sourceBreakdown->all(),
+                    'outcome_chain_summary' => $outcomeChainSummary,
+                    'draft_detail_outcome_summary' => $draftDetailOutcomeSummary,
+                    ...$featuredMetrics,
+                ];
+            })
+            ->sortByDesc(fn (array $item): int => $item['current_items'] * 1000 + $item['publish_attempts'] * 10 + $item['manual_check_completions'])
+            ->values();
+    }
+
+    /**
+     * @param Collection<int, array<string, mixed>> $items
+     * @return array<string, mixed>|null
+     */
+    private function topLongTermStableCluster(Collection $items): ?array
+    {
+        return $items
+            ->filter(function (array $item): bool {
+                return (bool) ($item['safe_bulk_retry'] ?? false)
+                    && (int) ($item['publish_attempts'] ?? 0) >= 2
+                    && (float) ($item['publish_success_rate'] ?? 0) >= 70.0;
+            })
+            ->sortByDesc(function (array $item): float {
+                return ((float) ($item['effectiveness_score'] ?? 0) * 1000)
+                    + ((float) ($item['publish_success_rate'] ?? 0) * 10)
+                    + ((float) ($item['featured_follow_rate'] ?? 0));
+            })
+            ->first();
+    }
+
+    /**
+     * @param array<string, mixed>|null $item
+     * @return array<string, mixed>
+     */
+    private function longTermClusterSignals(?array $item): array
+    {
+        if (! is_array($item)) {
+            return [];
+        }
+
+        return [
+            'long_term_current_items' => $item['current_items'] ?? null,
+            'long_term_manual_check_completions' => $item['manual_check_completions'] ?? null,
+            'long_term_publish_attempts' => $item['publish_attempts'] ?? null,
+            'long_term_successful_publishes' => $item['successful_publishes'] ?? null,
+            'long_term_failed_publishes' => $item['failed_publishes'] ?? null,
+            'long_term_publish_success_rate' => $item['publish_success_rate'] ?? null,
+            'long_term_last_activity_at' => $item['last_activity_at'] ?? null,
+            'long_term_effectiveness_score' => $item['effectiveness_score'] ?? null,
+            'long_term_effectiveness_status' => $item['effectiveness_status'] ?? null,
+            'long_term_health_status' => $item['health_status'] ?? null,
+            'long_term_health_summary' => $item['health_summary'] ?? null,
+            'long_term_route' => $item['route'] ?? null,
+            'long_term_top_interaction_source_key' => $item['top_interaction_source_key'] ?? null,
+            'long_term_top_interaction_source_label' => $item['top_interaction_source_label'] ?? null,
+            'long_term_source_breakdown' => $item['source_breakdown'] ?? [],
+            'long_term_outcome_chain_summary' => $item['outcome_chain_summary'] ?? [],
+            'long_term_draft_detail_outcome_summary' => $item['draft_detail_outcome_summary'] ?? [],
+            'long_term_retry_guidance_status' => $item['retry_guidance_status'] ?? null,
+            'long_term_retry_guidance_label' => $item['retry_guidance_label'] ?? null,
+            'long_term_retry_guidance_reason' => $item['retry_guidance_reason'] ?? null,
+            'long_term_safe_bulk_retry' => $item['safe_bulk_retry'] ?? null,
+            'long_term_featured_interactions' => $item['featured_interactions'] ?? null,
+            'long_term_featured_followed_interactions' => $item['featured_followed_interactions'] ?? null,
+            'long_term_featured_override_interactions' => $item['featured_override_interactions'] ?? null,
+            'long_term_featured_publish_attempts' => $item['featured_publish_attempts'] ?? null,
+            'long_term_featured_successful_publishes' => $item['featured_successful_publishes'] ?? null,
+            'long_term_featured_follow_rate' => $item['featured_follow_rate'] ?? null,
+            'long_term_featured_publish_success_rate' => $item['featured_publish_success_rate'] ?? null,
+        ];
     }
 
     private function effectivenessScore(

@@ -313,6 +313,97 @@ class ApprovalPublishVisibilityTest extends TestCase
             ->assertJsonPath('data.items.0.effectiveness_status', 'proven');
     }
 
+    public function test_featured_recommendation_prefers_long_term_stable_cluster_when_current_window_is_sparse(): void
+    {
+        [$workspaceId, $token, , $retryReadyApproval] = $this->seedFailedPublishFixture([
+            'product_service' => 'Sparse current retry-ready',
+            'meta_campaign_id' => 'meta_campaign_sparse_current',
+            'manual_check' => [
+                'completed' => true,
+                'completed_at' => now()->subMinutes(5)->toIso8601String(),
+                'completed_by' => 'analytics-user',
+                'note' => 'Kontrol tamam.',
+            ],
+        ]);
+
+        [, , , $cleanupRecoveredApproval] = $this->seedFailedPublishFixture([
+            'product_service' => 'Long term cleanup recovered leader',
+            'meta_campaign_id' => 'meta_campaign_long_term_leader',
+            'cleanup' => [
+                'attempted' => true,
+                'success' => true,
+                'deleted_campaign_id' => 'meta_campaign_long_term_leader',
+                'message' => 'Deleted.',
+            ],
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->postJson('/api/v1/approvals/remediation-analytics/track', [
+                'featured_cluster_key' => 'cleanup-recovered',
+                'acted_cluster_key' => 'cleanup-recovered',
+                'interaction_type' => 'bulk_retry_publish',
+                'followed_featured' => true,
+                'attempted_count' => 2,
+                'success_count' => 2,
+                'failure_count' => 0,
+                'interaction_source' => 'draft_detail_from_approvals_featured',
+            ])
+            ->assertOk();
+
+        AuditLog::query()->create([
+            'workspace_id' => $workspaceId,
+            'action' => 'publish_attempted',
+            'target_type' => 'approval',
+            'target_id' => $cleanupRecoveredApproval->id,
+            'metadata' => [
+                'success' => true,
+                'remediation_context' => [
+                    'cluster_key' => 'cleanup-recovered',
+                    'recommended_action_code' => 'fix_and_retry_publish',
+                ],
+            ],
+            'occurred_at' => now()->subDays(45),
+        ]);
+
+        AuditLog::query()->create([
+            'workspace_id' => $workspaceId,
+            'action' => 'publish_attempted',
+            'target_type' => 'approval',
+            'target_id' => $cleanupRecoveredApproval->id,
+            'metadata' => [
+                'success' => true,
+                'remediation_context' => [
+                    'cluster_key' => 'cleanup-recovered',
+                    'recommended_action_code' => 'fix_and_retry_publish',
+                ],
+            ],
+            'occurred_at' => now()->subDays(44),
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->withHeader('X-Workspace-Id', $workspaceId)
+            ->getJson('/api/v1/approvals/remediation-analytics?window_days=7');
+
+        $response->assertOk()
+            ->assertJsonPath('data.summary.window_days', 7)
+            ->assertJsonPath('data.summary.long_term_window_days', 90)
+            ->assertJsonPath('data.summary.top_long_term_stable_cluster_label', 'Cleanup Ile Temizlenenler')
+            ->assertJsonPath('data.summary.top_long_term_stable_cluster_score', 97)
+            ->assertJsonPath('data.long_term_draft_detail_outcome_summary.tracked_interactions', 1)
+            ->assertJsonPath('data.long_term_draft_detail_outcome_summary.publish_success_rate', 100)
+            ->assertJsonPath('data.featured_recommendation.cluster_key', 'cleanup-recovered')
+            ->assertJsonPath('data.featured_recommendation.decision_status', 'long_term_preferred')
+            ->assertJsonPath('data.featured_recommendation.decision_context_source', 'long_term')
+            ->assertJsonPath('data.featured_recommendation.decision_context_window_days', 90)
+            ->assertJsonPath('data.featured_recommendation.decision_context_success_rate', 100)
+            ->assertJsonPath('data.featured_recommendation.safe_bulk_retry', true)
+            ->assertJsonPath('data.featured_recommendation.action_mode', 'bulk_retry_publish')
+            ->assertJsonPath('data.items.1.long_term_publish_success_rate', 100)
+            ->assertJsonPath('data.items.1.long_term_retry_guidance_status', 'safe')
+            ->assertJsonPath('data.items.1.long_term_safe_bulk_retry', true);
+    }
+
     public function test_featured_remediation_tracking_updates_follow_and_success_metrics(): void
     {
         [$workspaceId, $token] = $this->seedFailedPublishFixture([

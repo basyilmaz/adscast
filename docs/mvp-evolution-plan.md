@@ -310,6 +310,7 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 71. Operasyon kuyrugunda onerilen bulk aksiyonlari guvenli statuler icin tek tikla uygulanabilir hale getirip secim ve uygulama adimini ayni yuzeyde birlestirmek
 72. Operasyon kuyrugundaki onerilen bulk aksiyonlarin secim ve uygulama sonucunu analytics olarak geri besleyip reports merkezinde hangi queue onerilerinin gercekten is kapattigini gostermek
 73. Queue onerilen bulk aksiyon siralamasini statik blok kuralindan analytics destekli adaptif secime tasiyip gecmiste daha iyi calisan onerileri one cikarmak
+74. Long-term 90 gunluk remediation stabilite sinyallerini featured recommendation kararina geri besleyip current-window veri sparse oldugunda uzun vade daha stabil cluster'i one cikarmak
 74. Queue recommendation analytics panelinden operasyon kuyruguna derin link ve odak query akisi ekleyip operatoru analytics'ten ilgili queue baglamina tasimak
 75. Operasyon kuyrugunda analytics odagini filtre, blok grubu ve queue item seviyesinde gorsel vurguya cevirip hangi onerinin incelendigi bilgisini kaybetmemek
 76. Queue analytics paneli ve operasyon kuyrugunun ayni recommendation engine'i kullanmasini saglayip queue'da su an one cikan oneriyi reports merkezinde acikca gostermek
@@ -367,3 +368,6 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 128. Featured remediation kartinda draft-detail avantajini acik badge ve karar baglami ile gorunur kilarak operatore neden o cluster'in one ciktigini daha net anlatmak
 129. Cluster bazli retry guidance alanlarini ekleyip featured recommendation ve cluster item'larinda toplu retry guvenligini window success, baseline success, follow rate ve acik kayit sayisina gore aciklamak
 130. Featured recommendation icin `bulk_retry_publish` aksiyonunu yalnizca retry guidance safe oldugunda acip, guarded durumlarda focus_cluster olarak kilitlemek
+131. Approvals remediation analytics'te 90 gunluk long-term cluster sinyallerini uretip sparse current-window durumlarinda featured karari uzun donem stabil cluster'a kaydirabilmek
+132. `long_term_approvals_native_outcome_summary` ve `long_term_draft_detail_outcome_summary` alanlariyla approvals-native ve draft detail remediation akislarini uzun donemde de karsilastirabilir hale getirmek
+133. Approvals featured ve cluster kartlarinda uzun donem stabilite, long-term success ve guidance baglamini gorunur kilarak operatorun neden o remediation'in one ciktigini daha hizli anlamasini saglamak
