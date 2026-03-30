@@ -3324,12 +3324,42 @@ function resolveFeaturedPrimaryAction(
   routeTrendInsight: RouteTrendInsight | null,
   draftRoute: string | null,
   routeSeriesSpotlight?: RouteSeriesSpotlight | null,
+  routeOutcomeWindowSeries?: Array<RouteOutcomeWindowSeriesMetric> | null,
 ): {
   mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_draft_detail";
   label: string;
   hint: string;
 } {
+  const routeOutcomeWindowAction = resolveRouteOutcomeWindowSeriesAction(routeOutcomeWindowSeries);
   const routeSpotlightAction = resolveRouteSeriesSpotlightAction(routeSeriesSpotlight, context?.primary_action);
+
+  if (
+    routeOutcomeWindowAction?.mode === "jump_to_draft_detail"
+    && draftRoute
+    && context?.primary_action?.confidence_status !== "guarded"
+  ) {
+    return {
+      mode: "jump_to_draft_detail",
+      label: routeOutcomeWindowAction.label,
+      hint: routeOutcomeWindowAction.hint,
+    };
+  }
+
+  if (routeOutcomeWindowAction?.mode === "bulk_retry_publish") {
+    return {
+      mode: "bulk_retry_publish",
+      label: routeOutcomeWindowAction.label,
+      hint: routeOutcomeWindowAction.hint,
+    };
+  }
+
+  if (routeOutcomeWindowAction?.mode === "focus_cluster") {
+    return {
+      mode: "focus_cluster",
+      label: routeOutcomeWindowAction.label,
+      hint: routeOutcomeWindowAction.hint,
+    };
+  }
 
   if (
     routeSpotlightAction?.mode === "jump_to_draft_detail"
@@ -4716,6 +4746,10 @@ function buildDraftRoute(
 
   if (Object.values(routeOutcomeSpotlight).some((value) => value !== null)) {
     params.set("focus_route_outcome_spotlight", JSON.stringify(routeOutcomeSpotlight));
+  }
+
+  if (focusContext?.routeOutcomeWindowSeries && focusContext.routeOutcomeWindowSeries.length > 0) {
+    params.set("focus_route_outcome_window_series", JSON.stringify(focusContext.routeOutcomeWindowSeries));
   }
 
   if (focusContext?.effectivenessScore != null) {

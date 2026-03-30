@@ -407,7 +407,7 @@ En dusuk riskli ve en yuksek etkili ilerleme sirasi:
 167. Approvals featured ve cluster CTA'larini route outcome spotlight'in onerilen action mode'u ile hizalayip featured ile cluster kararlarinda ayni safe/guarded kisayol mantigini kullanmak
 168. Approvals -> draft detail odak query hattina route outcome spotlight route, guidance ve decision-context alanlarini tasiyip operatorun detay ekraninda ayni karar baglamini kaybetmemesini saglamak
 169. Draft detail publish remediation bloguna route outcome spotlight karti ekleyip approvals'tan gelen safe/guarded kisayol nedenini ayri bir operasyon yuzeyinde gostermek
-170. Approvals route outcome spotlight altinda `route_outcome_window_series[]` verisini 7/30/90 guidance drift blogu olarak gorunur kilip featured kararinin hangi pencereye dayandigini tek kartta gostermek
-171. Approvals -> draft detail odak query hattina `route_outcome_window_series[]` baglamini tasiyip detail ekraninda route outcome spotlight altinda ayni pencere serisini yeniden API cagirmadan acmak
-172. Featured CTA secimini `route_outcome_window_series[]` guidance trendiyle sikilastirip `safe` durumda hizli aksiyonu korurken drift halinde otomatik olarak cluster focus'a geri cekmek
 
+170. Approvals remediation analytics kontratina `route_outcome_window_series[]` ve `summary.top_route_outcome_window_*` alanlarini ekleyip 7/30/90 pencere bazli outcome guidance drift'ini render-ready hale getirmek
+171. Featured remediation CTA seciminde route outcome window serisini kullanip sadece guvenli outcome pencerelerinde draft detail veya bulk retry kisayolunu acik tutmak, diger durumlarda cluster odagina geri cekmek
+172. Approvals ekranindaki route outcome spotlight kartina outcome pencere serisini ekleyip operatorun hangi pencerenin hangi aksiyonu destekledigini tek blokta gorebilmesini saglamak
