@@ -402,6 +402,38 @@ export function DraftDetailClient() {
                     focusSourceComparisonWinner,
                   )}
                 </p>
+                {focusSourceComparisonLabel || focusLongTermWindowDays != null ? (
+                  <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge label="Kaynak Karsilastirmasi" variant="neutral" />
+                      {focusSourceComparisonLabel ? (
+                        <Badge
+                          label={focusSourceComparisonLabel}
+                          variant={focusSourceComparisonVariant(focusSourceComparisonLabel, focusSourceComparisonWinner)}
+                        />
+                      ) : null}
+                      {focusLongTermWindowDays != null ? (
+                        <Badge label={`${focusLongTermWindowDays} gun stabilite`} variant="neutral" />
+                      ) : null}
+                      {focusLongTermEffectivenessStatus ? (
+                        <Badge
+                          label={focusLongTermEffectivenessStatusLabel(focusLongTermEffectivenessStatus)}
+                          variant={focusLongTermEffectivenessStatusVariant(focusLongTermEffectivenessStatus)}
+                        />
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-sm muted-text">
+                      {buildSourceComparisonOperatorHint(
+                        focusSourceComparisonLabel,
+                        focusSourceComparisonReason,
+                        focusSourceComparisonWinner,
+                        focusLongTermWindowDays,
+                        focusLongTermPublishSuccessRate,
+                        focusLongTermBaselineSuccessRate,
+                      )}
+                    </p>
+                  </div>
+                ) : null}
                 {approvalsReturnRoute ? (
                   <div className="mt-3">
                     <Link href={approvalsReturnRoute}>
@@ -473,7 +505,7 @@ export function DraftDetailClient() {
                     <Badge label="Uzun Donem Cluster" variant="success" />
                   ) : null}
                 </div>
-                <p className="mt-2 text-sm font-semibold">{remediationPrimaryAction.label}</p>
+                <p className="mt-2 text-sm font-semibold">{remediationPrimaryAction?.label ?? "Publish durumunu dogrula"}</p>
                 {remediationPrimaryAction.hint ? (
                   <p className="mt-1 text-xs muted-text">{remediationPrimaryAction.hint}</p>
                 ) : null}
@@ -522,6 +554,77 @@ export function DraftDetailClient() {
                       ? "Isleniyor..."
                       : remediationPrimaryAction.label}
                   </Button>
+                </div>
+              </div>
+            ) : null}
+            {focusLongTermWindowDays != null || focusSourceComparisonLabel ? (
+              <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge label="Kaynak Karar Ozeti" variant="neutral" />
+                  {focusSourceComparisonWinner ? (
+                    <Badge label={focusSourceComparisonWinner} variant="success" />
+                  ) : null}
+                  {focusLongTermWindowDays != null ? (
+                    <Badge label={`${focusLongTermWindowDays} gun`} variant="neutral" />
+                  ) : null}
+                  {focusLongTermEffectivenessStatus ? (
+                    <Badge
+                      label={focusLongTermEffectivenessStatusLabel(focusLongTermEffectivenessStatus)}
+                      variant={focusLongTermEffectivenessStatusVariant(focusLongTermEffectivenessStatus)}
+                    />
+                  ) : null}
+                </div>
+                <p className="mt-2 text-sm font-semibold">
+                  {focusSourceComparisonLabel
+                    ? focusSourceComparisonLabel
+                    : focusLongTermWindowDays != null
+                      ? `${focusLongTermWindowDays} gunluk uzun donem pencere`
+                      : "Kaynak karsilastirmasi"}
+                </p>
+                <p className="mt-1 text-xs muted-text">
+                  {focusSourceComparisonReason
+                    ? focusSourceComparisonReason
+                    : "Uzun donem stabilite ve approvals analytics baglami birlikte degerlendirildi."}
+                </p>
+                <div className="mt-2 grid gap-2 text-xs muted-text md:grid-cols-3">
+                  <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                    <p className="font-semibold">Uzun Donem</p>
+                    <p className="mt-1">
+                      {focusLongTermWindowDays != null ? `${focusLongTermWindowDays} gunluk pencere` : "Pencere yok"}
+                    </p>
+                    {focusLongTermPublishSuccessRate != null ? (
+                      <p className="mt-1">%{focusLongTermPublishSuccessRate} publish basarisi</p>
+                    ) : null}
+                    {focusLongTermBaselineSuccessRate != null ? (
+                      <p className="mt-1">Referans %{focusLongTermBaselineSuccessRate}</p>
+                    ) : null}
+                  </div>
+                  <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                    <p className="font-semibold">Kazanan Kaynak</p>
+                    <p className="mt-1">
+                      {focusSourceComparisonWinner ?? "Belirlenmedi"}
+                    </p>
+                    <p className="mt-1">
+                      {focusSource === "approvals_featured_long_term"
+                        ? "Long-term featured odagi"
+                        : focusSource === "approvals_cluster_long_term"
+                          ? "Long-term cluster odagi"
+                          : focusSource === "approvals_featured"
+                            ? "Featured odagi"
+                            : focusSource === "approvals_cluster"
+                              ? "Cluster odagi"
+                              : "Approvals focus"}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-[var(--border)] bg-white p-2">
+                    <p className="font-semibold">Sonraki Adim</p>
+                    <p className="mt-1">{remediationPrimaryAction?.label ?? "Publish durumunu dogrula"}</p>
+                    <p className="mt-1">
+                      {focusLongTermEffectivenessScore != null
+                        ? `LT effectiveness ${focusLongTermEffectivenessScore}`
+                        : "Remediation odagini bu blokta takip et."}
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -809,6 +912,64 @@ function focusLongTermEffectivenessStatusVariant(
   return variants[code] ?? "neutral";
 }
 
+function focusSourceComparisonVariant(
+  label: string | null,
+  winner: string | null,
+): "success" | "warning" | "danger" | "neutral" {
+  const normalized = `${label ?? ""} ${winner ?? ""}`.trim().toLowerCase();
+
+  if (normalized.includes("draft detail daha guclu") || normalized.includes("draft detail")) {
+    return "success";
+  }
+
+  if (normalized.includes("approvals-native daha guclu") || normalized.includes("approvals-native")) {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function buildSourceComparisonOperatorHint(
+  label: string | null,
+  reason: string | null,
+  winner: string | null,
+  longTermWindowDays: number | null,
+  longTermPublishSuccessRate: number | null,
+  longTermBaselineSuccessRate: number | null,
+): string {
+  const parts: string[] = [];
+
+  if (label) {
+    parts.push(`Bu remediation icin one cikan kaynak: ${label}.`);
+  }
+
+  if (reason) {
+    parts.push(reason);
+  }
+
+  if (longTermWindowDays != null) {
+    parts.push(`${longTermWindowDays} gunluk pencere bu karari destekliyor.`);
+  }
+
+  if (longTermPublishSuccessRate != null) {
+    parts.push(`Uzun donem publish basarisi %${longTermPublishSuccessRate}.`);
+  }
+
+  if (longTermBaselineSuccessRate != null) {
+    parts.push(`Mevcut pencere referansi %${longTermBaselineSuccessRate}.`);
+  }
+
+  if ((winner ?? label ?? "").toLowerCase().includes("draft detail")) {
+    parts.push("Bu nedenle bu detay ekraninda onerilen aksiyonu calistirmak daha dogru yol.");
+  } else if ((winner ?? label ?? "").toLowerCase().includes("approvals-native")) {
+    parts.push("Bu nedenle approvals merkezindeki cluster akisini da referans alip toplu resmi oradan yonetmek daha guvenli.");
+  } else {
+    parts.push("Kaynaklar birbirine yakin; remediation kararini publish durumu ve guidance ile birlikte okuyun.");
+  }
+
+  return parts.join(" ");
+}
+
 function normalizeRetryGuidanceStatus(rawValue: string | null | undefined): "safe" | "guarded" | "blocked" | "unknown" {
   const normalized = (rawValue ?? "").trim().toLowerCase();
 
@@ -956,3 +1117,4 @@ function buildApprovalsReturnRoute(
 
   return query ? `/approvals?${query}` : "/approvals";
 }
+

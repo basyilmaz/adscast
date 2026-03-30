@@ -308,6 +308,13 @@ type RetryGuidanceContext = {
   long_term_effectiveness_status?: string | null;
 };
 
+type SourceComparisonInsight = {
+  label: string;
+  variant: "success" | "warning" | "neutral";
+  reason: string;
+  preferredFlow: "draft_detail" | "approvals_native" | "balanced";
+};
+
 type DraftRouteFocusContext = {
   decisionStatus?: string | null;
   decisionReason?: string | null;
@@ -1157,6 +1164,10 @@ function ApprovalsPageContent({
         : null,
     [analyticsWindowDays, featuredClusterMatches, featuredRecommendation, remediationAnalytics?.summary.long_term_window_days, sourceComparisonWinner],
   );
+  const featuredPrimaryAction = useMemo(
+    () => resolveFeaturedPrimaryAction(featuredRecommendation, sourceComparisonWinner, featuredDraftRoute),
+    [featuredDraftRoute, featuredRecommendation, sourceComparisonWinner],
+  );
 
   return (
     <Card>
@@ -1483,24 +1494,61 @@ function ApprovalsPageContent({
                       publish basarisi goren akisla destekleniyor.
                     </p>
                   ) : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {featuredDraftRoute && sourceComparisonWinner?.preferredFlow === "draft_detail" ? (
+                    <Link href={featuredDraftRoute}>
+                      <Button variant="outline" size="sm">
+                        Draft Detail Akisina In
+                      </Button>
+                    </Link>
+                  ) : null}
+                  {featuredRecommendation && sourceComparisonWinner?.preferredFlow !== "draft_detail" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        void jumpToClusterAction(featuredRecommendation.cluster_key, "approvals_featured")
+                      }
+                    >
+                      Featured Kumeye Git
+                    </Button>
+                  ) : null}
+                </div>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    void runClusterRecommendation(
-                      featuredRecommendation.cluster_key,
-                      resolveGuidedActionMode(featuredRecommendation),
-                      "approvals_featured",
-                    )
-                  }
-                  disabled={
-                    bulkPublishing
-                    && resolveGuidedActionMode(featuredRecommendation) === "bulk_retry_publish"
-                  }
-                >
-                  {resolveGuidedActionLabel(featuredRecommendation, resolveGuidedActionMode(featuredRecommendation))}
-                </Button>
+                {featuredPrimaryAction.mode === "jump_to_draft_detail" && featuredDraftRoute ? (
+                  <Link href={featuredDraftRoute}>
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        void trackFeaturedInteraction({
+                          actedClusterKey: featuredRecommendation.cluster_key,
+                          interactionSource: "approvals_featured",
+                          interactionType: "jump_to_item",
+                        })
+                      }
+                    >
+                      {featuredPrimaryAction.label}
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      void runClusterRecommendation(
+                        featuredRecommendation.cluster_key,
+                        featuredPrimaryAction.mode === "bulk_retry_publish" ? "bulk_retry_publish" : "focus_cluster",
+                        "approvals_featured",
+                      )
+                    }
+                    disabled={
+                      bulkPublishing
+                      && featuredPrimaryAction.mode === "bulk_retry_publish"
+                    }
+                  >
+                    {featuredPrimaryAction.label}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1516,6 +1564,7 @@ function ApprovalsPageContent({
                   </Link>
                 ) : null}
               </div>
+              <p className="mt-2 text-xs muted-text">{featuredPrimaryAction.hint}</p>
             </div>
           ) : null}
         </div>
@@ -1651,6 +1700,13 @@ function ApprovalsPageContent({
               : null;
           const topSource = topSourceBreakdown(analyticsItem?.source_breakdown);
           const clusterOutcomeSummary = analyticsItem?.outcome_chain_summary ?? null;
+          const clusterPrimaryAction = resolveClusterPrimaryAction(
+            cluster.key,
+            analyticsItem,
+            topSource,
+            clusterDraftRoute,
+            retryableMatches.length,
+          );
 
           return (
             <div
@@ -1754,30 +1810,49 @@ function ApprovalsPageContent({
                 >
                   Kumeyi Filtrele
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={resolveClusterActionVariant(cluster.key, analyticsItem)}
-                  onClick={() => {
-                    if (shouldRunClusterBulkRetry(cluster.key, analyticsItem, retryableMatches.length)) {
-                      void runBulkPublishRetry(retryableMatches, cluster.key, "approvals_cluster");
-                      return;
-                    }
+                {clusterPrimaryAction.mode === "jump_to_draft_detail" && clusterDraftRoute ? (
+                  <Link href={clusterDraftRoute}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={clusterPrimaryAction.variant}
+                      onClick={() =>
+                        void trackFeaturedInteraction({
+                          actedClusterKey: cluster.key,
+                          interactionSource: "approvals_cluster",
+                          interactionType: "jump_to_item",
+                        })
+                      }
+                    >
+                      {clusterPrimaryAction.label}
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={clusterPrimaryAction.variant}
+                    onClick={() => {
+                      if (clusterPrimaryAction.mode === "bulk_retry_publish") {
+                        void runBulkPublishRetry(retryableMatches, cluster.key, "approvals_cluster");
+                        return;
+                      }
 
-                    focusQuickCluster(cluster);
-                    void trackFeaturedInteraction({
-                      actedClusterKey: cluster.key,
-                      interactionSource: "approvals_cluster",
-                      interactionType: "focus_cluster",
-                    });
-                  }}
-                  disabled={
-                    bulkPublishing
-                    || (shouldRunClusterBulkRetry(cluster.key, analyticsItem, retryableMatches.length) && retryableMatches.length === 0)
-                  }
-                >
-                  {clusterActionLabel(cluster.key, analyticsItem)}
-                </Button>
+                      focusQuickCluster(cluster);
+                      void trackFeaturedInteraction({
+                        actedClusterKey: cluster.key,
+                        interactionSource: "approvals_cluster",
+                        interactionType: "focus_cluster",
+                      });
+                    }}
+                    disabled={
+                      bulkPublishing
+                      || (clusterPrimaryAction.mode === "bulk_retry_publish" && retryableMatches.length === 0)
+                    }
+                  >
+                    {clusterPrimaryAction.label}
+                  </Button>
+                )}
                 {clusterDraftRoute ? (
                   <Link href={clusterDraftRoute}>
                     <Button type="button" variant="outline" size="sm">
@@ -1786,6 +1861,7 @@ function ApprovalsPageContent({
                   </Link>
                 ) : null}
               </div>
+              <p className="mt-2 text-xs muted-text">{clusterPrimaryAction.hint}</p>
             </div>
           );
         })}
@@ -2255,6 +2331,133 @@ function resolveGuidedActionLabel(
   return "Onerilen Kume Uzerinde Calis";
 }
 
+function shouldPreferDraftDetailPrimaryAction(
+  sourceComparison: SourceComparisonInsight | null,
+  draftRoute: string | null,
+  context?: RetryGuidanceContext | null,
+): boolean {
+  if (!draftRoute) {
+    return false;
+  }
+
+  if (resolveLongTermSafeBulkRetry(context)) {
+    return false;
+  }
+
+  if (context?.decision_context_source === "draft_detail") {
+    return true;
+  }
+
+  return sourceComparison?.preferredFlow === "draft_detail";
+}
+
+function resolveFeaturedPrimaryAction(
+  context: RetryGuidanceContext | undefined | null,
+  sourceComparison: SourceComparisonInsight | null,
+  draftRoute: string | null,
+): {
+  mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_draft_detail";
+  label: string;
+  hint: string;
+} {
+  if (shouldPreferDraftDetailPrimaryAction(sourceComparison, draftRoute, context)) {
+    return {
+      mode: "jump_to_draft_detail",
+      label: "Draft Detail Akisina Git",
+      hint: sourceComparison?.reason ?? "Bu remediation detay ekranda daha guclu sonuc veriyor.",
+    };
+  }
+
+  const actionMode = resolveGuidedActionMode(context);
+
+  return {
+    mode: actionMode,
+    label: resolveGuidedActionLabel(context, actionMode),
+    hint:
+      actionMode === "bulk_retry_publish"
+        ? (context?.retry_guidance_reason ?? "Bu cluster guvenli retry sinyali verdigi icin tek tik retry oneriliyor.")
+        : (context?.retry_guidance_reason ?? "Bu cluster toplu retry yerine once inceleme odagi gerektiriyor."),
+  };
+}
+
+function shouldPreferClusterDraftDetailAction(
+  analyticsItem: {
+    retry_guidance_status?: string | null;
+    retry_guidance_reason?: string | null;
+    safe_bulk_retry?: boolean | null;
+    long_term_retry_guidance_status?: string | null;
+    long_term_retry_guidance_reason?: string | null;
+    long_term_safe_bulk_retry?: boolean | null;
+    long_term_effectiveness_status?: string | null;
+    long_term_publish_success_rate?: number | null;
+  } | undefined,
+  topSource: RemediationTelemetrySource | null,
+  draftRoute: string | null,
+): boolean {
+  if (!analyticsItem || !topSource || !draftRoute) {
+    return false;
+  }
+
+  if (resolveLongTermSafeBulkRetry(analyticsItem) || resolveRetryGuidanceStatus(analyticsItem) === "safe") {
+    return false;
+  }
+
+  const normalizedSourceKey = topSource.source_key.trim().toLowerCase();
+  const sourcePrefersDraftDetail = normalizedSourceKey.startsWith("draft_detail");
+  const sourceSuccessRate = topSource.publish_success_rate ?? 0;
+
+  return sourcePrefersDraftDetail && (sourceSuccessRate >= 60 || topSource.successful_publishes > 0);
+}
+
+function resolveClusterPrimaryAction(
+  clusterKey: string,
+  analyticsItem: {
+    retry_guidance_status?: string | null;
+    retry_guidance_reason?: string | null;
+    safe_bulk_retry?: boolean | null;
+    long_term_retry_guidance_status?: string | null;
+    long_term_retry_guidance_reason?: string | null;
+    long_term_safe_bulk_retry?: boolean | null;
+    long_term_effectiveness_status?: string | null;
+    long_term_publish_success_rate?: number | null;
+  } | undefined,
+  topSource: RemediationTelemetrySource | null,
+  draftRoute: string | null,
+  retryableMatchesCount: number,
+): {
+  mode: "focus_cluster" | "bulk_retry_publish" | "jump_to_draft_detail";
+  label: string;
+  variant: "primary" | "secondary" | "outline";
+  hint: string;
+} {
+  if (shouldPreferClusterDraftDetailAction(analyticsItem, topSource, draftRoute)) {
+    return {
+      mode: "jump_to_draft_detail",
+      label: "Draft Detail Akisina Git",
+      variant: "secondary",
+      hint: topSource?.publish_success_rate != null
+        ? `Bu cluster icin ${sourceLabel(topSource.source_key, topSource.label)} kaynagi %${topSource.publish_success_rate} publish basarisi uretmis.`
+        : "Bu cluster detay ekranda daha guclu sinyal veriyor.",
+    };
+  }
+
+  if (shouldRunClusterBulkRetry(clusterKey, analyticsItem, retryableMatchesCount)) {
+    return {
+      mode: "bulk_retry_publish",
+      label: clusterActionLabel(clusterKey, analyticsItem),
+      variant: resolveClusterActionVariant(clusterKey, analyticsItem),
+      hint: analyticsItem?.retry_guidance_reason ?? "Bu cluster icin toplu retry uygulanabilir.",
+    };
+  }
+
+  return {
+    mode: "focus_cluster",
+    label: clusterActionLabel(clusterKey, analyticsItem),
+    variant: resolveClusterActionVariant(clusterKey, analyticsItem),
+    hint: analyticsItem?.retry_guidance_reason ?? "Bu cluster once odakli inceleme gerektiriyor.",
+  };
+}
+
 function resolveClusterActionVariant(
   clusterKey: string,
   analyticsItem?: {
@@ -2327,6 +2530,10 @@ function sourceLabel(sourceKey: string, fallbackLabel: string): string {
       approvals_cluster_long_term: "Cluster Uzun Donem",
       approvals: "Approvals Merkezi",
       draft_detail: "Draft Detayi",
+      draft_detail_from_approvals_featured: "Draft Detay - Featured",
+      draft_detail_from_approvals_cluster: "Draft Detay - Cluster",
+      draft_detail_from_approvals_retry_ready: "Draft Detay - Retry Hazir",
+      draft_detail_from_approvals_item: "Draft Detay - Item",
       other: "Diger",
     }[sourceKey] ?? fallbackLabel
   );
@@ -2510,11 +2717,7 @@ function summarizeTelemetrySources(
 function compareSourceAggressiveness(
   draftDetailSummary: TelemetryAggregateSummary,
   approvalsNativeSummary: TelemetryAggregateSummary,
-): {
-  label: string;
-  variant: "success" | "warning" | "neutral";
-  reason: string;
-} | null {
+): SourceComparisonInsight | null {
   if (
     draftDetailSummary.tracked_interactions === 0
     && approvalsNativeSummary.tracked_interactions === 0
@@ -2531,6 +2734,7 @@ function compareSourceAggressiveness(
         label: "Draft detail daha guclu",
         variant: "success",
         reason: `Draft detail publish basarisi %${draftRate} ile approvals-native %${nativeRate} seviyesinin uzerinde.`,
+        preferredFlow: "draft_detail",
       };
     }
 
@@ -2539,6 +2743,7 @@ function compareSourceAggressiveness(
         label: "Approvals-native daha guclu",
         variant: "warning",
         reason: `Approvals-native publish basarisi %${nativeRate} ile draft detail %${draftRate} seviyesinin uzerinde.`,
+        preferredFlow: "approvals_native",
       };
     }
   }
@@ -2549,11 +2754,13 @@ function compareSourceAggressiveness(
           label: "Draft detail daha guclu",
           variant: "success",
           reason: "Draft detail daha fazla basarili publish uretmis gorunuyor.",
+          preferredFlow: "draft_detail",
         }
       : {
           label: "Approvals-native daha guclu",
           variant: "warning",
           reason: "Approvals-native kaynaklar daha fazla basarili publish uretmis gorunuyor.",
+          preferredFlow: "approvals_native",
         };
   }
 
@@ -2563,11 +2770,13 @@ function compareSourceAggressiveness(
           label: "Draft detail daha aktif",
           variant: "neutral",
           reason: "Draft detail etkilesim hacmi approvals-native toplanmis akislerden daha yuksek.",
+          preferredFlow: "draft_detail",
         }
       : {
           label: "Approvals-native daha aktif",
           variant: "neutral",
           reason: "Approvals-native akisler draft detail'e gore daha yuksek etkilesim uretiyor.",
+          preferredFlow: "approvals_native",
         };
   }
 
@@ -2575,6 +2784,7 @@ function compareSourceAggressiveness(
     label: "Denge",
     variant: "neutral",
     reason: "Draft detail ve approvals-native akislari birbirine yakin calisiyor.",
+    preferredFlow: "balanced",
   };
 }
 
